@@ -273,14 +273,15 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base ? dy : 0;
       const cache = base ? (ITEM_CACHE["base:" + petId] || (ITEM_CACHE["base:" + petId] = {})) : (img._auto || (img._auto = {}));
       const px = cache[a.auto] || (cache[a.auto] = autoItemPixels(a.auto, grid, base ? petId + "-base:0" : img.key || ""));
-      const dup = INFO[petId].dup;                    // breathing moves only what lies below the row it adds or drops
-      for (const [x, y, c] of px) { g.fillStyle = c; g.fillRect(x, y + (y >= dup ? shift : 0), 1, 1); }
+      // breathing adds or drops a row low on her body: the pajama follows her pixel for pixel, while a solid thing (the bear
+      // in her arms) moves as one piece with the part of her that holds it, so it never comes apart
+      const dup = INFO[petId].dup, top = px.reduce((m, p) => Math.min(m, p[1]), 1e9), whole = top >= dup ? shift : 0;
+      const each = a.auto === "pajama";
+      for (const [x, y, c] of px) { g.fillStyle = c; g.fillRect(x, y + (each ? (y >= dup ? shift : 0) : whole), 1, 1); }
       continue;
     }
     if (pose && pose.img) continue;
-    const it = itemImg(petId, id), cut = Math.max(0, Math.min(it.img.height, INFO[petId].dup - it.y));
-    // the part above the breathing row rides with her head and face; the part below stays with her feet
-    if (cut > 0) g.drawImage(it.img, 0, 0, it.img.width, cut, it.x, it.y, it.img.width, cut);
-    if (cut < it.img.height) g.drawImage(it.img, 0, cut, it.img.width, it.img.height - cut, it.x, it.y + cut + dy, it.img.width, it.img.height - cut);
+    const it = itemImg(petId, id);
+    g.drawImage(it.img, it.x, it.y + (it.y >= INFO[petId].dup ? dy : 0));   // one piece, moving with where it is worn
   }
 }
