@@ -595,7 +595,10 @@ function fetchTeddy(now) {
 }
 function drawTeddy(front) {
   if (!teddyOn() || prop.state === "hug") return;
-  if ((prop.state === "ground") === front) return;                 // on the ground it is behind her, in the air in front
+  // on the ground it is behind her and in the air in front; but when she trips or tumbles, the bear she dropped stays in
+  // front of her
+  const tumble = ["dash", "fall", "land", "skyland"].includes(pet.act);
+  if ((prop.state === "ground" && !tumble) === front) return;
   const im = teddyImg(prop.rot), x = Math.round(prop.x - im.width / 2), y = Math.round(prop.y - im.height) - Math.round(prop.z);
   if (prop.state === "ground") groundShadow(ctx, prop.x, Math.round(prop.y) - Math.round(prop.z) - 1, im.width - 2, 1);
   ctx.drawImage(im, x, y);
