@@ -19,7 +19,8 @@ function load() {
   return freshState();
 }
 let S = load();
-function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+let wiping = false;                                       // set while resetting, so the page-hide save cannot write the old data back
+function save() { if (wiping) return; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 function charState(id) { return S.chars[id] || (S.chars[id] = { exp: 0, equip: {}, shownLv: 1 }); }
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
@@ -623,47 +624,61 @@ function renderStats() {
 }
 
 /* ---------- to-do list ---------- */
-let todoEdit = false, todoAdding = false;
 function todayTodos() { const k = todayKey(); return S.todos[k] || (S.todos[k] = []); }
+// the todo screen only checks things off; writing, fixing, deleting and reordering happen in the + window
 function renderTodo() {
   const list = todayTodos(), c = CHARS[S.pet], allDone = list.length && list.every(t => t.done);
   const line = allDone ? c.todoDone : c.todo;
   $("#todo-body").innerHTML = `
     <div class="card pxp todo-hero">
       <canvas></canvas>
-      <div><div class="card-t">오늘 할 일 <button class="ibtn pxb accent" id="todo-plus" aria-label="할 일 추가">${icon("plus")}</button></div><p class="${tClass(line, S.pet).replace("t-peak", "t-high")}">${esc(line)}</p></div>
+      <div><div class="card-t">오늘 할 일 <button class="ibtn pxb accent" id="todo-plus" aria-label="할 일 쓰고 고치기">${icon("plus")}</button></div><p class="${tClass(line, S.pet).replace("t-peak", "t-high")}">${esc(line)}</p></div>
     </div>
-    ${todoAdding ? `<div class="card pxp"><p class="lbl-mark">할 일</p><div class="row2"><input class="field" id="todo-in" maxlength="40" placeholder="예) 수학 문제집 3쪽"><button class="btn pxb accent" id="todo-add">추가</button></div></div>` : ""}
-    <div class="todo-tools f-sm"><span><span class="f-num s">${list.filter(t => t.done).length}/${list.length}</span> 완료</span>
-      ${list.length ? `<button class="btn pxb" id="todo-edit">${todoEdit ? "완료" : "수정"}</button>` : ""}</div>
+    ${list.length ? `<div class="todo-tools f-sm"><span><span class="f-num s">${list.filter(t => t.done).length}/${list.length}</span> 완료</span></div>` : ""}
     <ul class="todo-list" id="todo-list">${list.map(t => `
-      <li data-id="${t.id}" class="pxp ${t.done ? "done" : ""}">
-        ${todoEdit ? "" : `<button class="chk ${t.done ? "on" : ""}" aria-label="완료 표시"></button>`}
-        ${todoEdit ? `<input class="t" value="${esc(t.text)}" maxlength="40" aria-label="할 일 고치기">` : `<span class="t">${esc(t.text)}</span>`}
-        ${todoEdit ? `<button class="del" aria-label="지우기">${icon("x")}</button><button class="grip" aria-label="끌어서 순서 바꾸기">${icon("grip")}</button>` : ""}
-      </li>`).join("")}</ul>
+      <li data-id="${t.id}" class="pxp ${t.done ? "done" : ""}"><button class="chk ${t.done ? "on" : ""}" aria-label="완료 표시"></button><span class="t">${esc(t.text)}</span></li>`).join("")}</ul>
     ${list.length ? "" : '<p class="empty t-low">+ 를 눌러서 오늘 할 일을 적어 봐요…</p>'}`;
   paintIcons($("#todo-body"));
   portrait($("#todo-body .todo-hero canvas"), S.pet, true);
-  $("#todo-plus").onclick = () => { todoAdding = !todoAdding; renderTodo(); if (todoAdding) $("#todo-in").focus(); };
-  if (todoAdding) {
-    const add = () => { const v = $("#todo-in").value.trim(); if (!v) return; list.push({ id: uid(), text: v, done: false }); save(); renderTodo(); $("#todo-in").focus(); };
-    $("#todo-add").onclick = add; $("#todo-in").onkeydown = e => { if (e.key === "Enter" && !e.isComposing) add(); };
-  }
-  const editBtn = $("#todo-edit"); if (editBtn) editBtn.onclick = () => { todoEdit = !todoEdit; renderTodo(); };
+  $("#todo-plus").onclick = openTodoEditor;
   document.querySelectorAll("#todo-list li").forEach(li => {
     const t = list.find(x => x.id === li.dataset.id);
-    const chk = li.querySelector(".chk");
-    if (chk) chk.onclick = () => {
+    li.onclick = () => {
       t.done = !t.done; save(); renderTodo();
       if (t.done) { petHop(2); if (list.every(x => x.done)) say(c.todoDone, 3000); }
     };
-    const inp = li.querySelector("input.t"); if (inp) inp.onchange = () => { const v = inp.value.trim(); if (v) { t.text = v; save(); } };
-    const del = li.querySelector(".del"); if (del) del.onclick = () => { list.splice(list.indexOf(t), 1); save(); renderTodo(); };
-    const grip = li.querySelector(".grip"); if (grip) grip.onpointerdown = e => dragTodo(e, li, list);
   });
 }
-function dragTodo(e, li, list) {
+function openTodoEditor() {
+  const draft = todayTodos().map(t => ({ ...t }));
+  openModal("오늘 할 일", `
+    <div class="row2 todo-add"><input class="field" id="todo-in" maxlength="40" placeholder="예) 수학 문제집 3쪽"><button class="btn pxb accent" id="todo-add">추가</button></div>
+    <ul class="todo-list edit" id="todo-edit-list"></ul>
+    <div class="actions"><button class="btn big wide pxb accent" id="todo-done">완료</button></div>`);
+  const ul = $("#todo-edit-list"), input = $("#todo-in");
+  const draw = () => {
+    ul.innerHTML = draft.length ? draft.map(t => `
+      <li data-id="${t.id}" class="pxp ${t.done ? "done" : ""}"><input class="t" value="${esc(t.text)}" maxlength="40" aria-label="할 일 고치기">
+        <button class="del" aria-label="지우기">${icon("x")}</button><button class="grip" aria-label="끌어서 순서 바꾸기">${icon("grip")}</button></li>`).join("")
+      : '<li class="empty t-low">아직 할 일이 없어요…</li>';
+    paintIcons(ul);
+    ul.querySelectorAll("li[data-id]").forEach(li => {
+      const t = draft.find(x => x.id === li.dataset.id);
+      li.querySelector("input.t").oninput = e => { t.text = e.target.value; };
+      li.querySelector(".del").onclick = () => { draft.splice(draft.indexOf(t), 1); draw(); };
+      li.querySelector(".grip").onpointerdown = e => dragTodo(e, li, draft, draw);
+    });
+  };
+  const add = () => { const v = input.value.trim(); if (!v) return; draft.push({ id: uid(), text: v, done: false }); input.value = ""; draw(); input.focus(); };
+  $("#todo-add").onclick = add; input.onkeydown = e => { if (e.key === "Enter" && !e.isComposing) add(); };
+  $("#todo-done").onclick = () => {
+    if (input.value.trim()) add();                                     // a line typed but not added yet still counts
+    S.todos[todayKey()] = draft.map(t => ({ ...t, text: t.text.trim() })).filter(t => t.text);
+    save(); closeModal(false); renderTodo();
+  };
+  draw();
+}
+function dragTodo(e, li, list, redraw) {
   e.preventDefault();
   const ul = li.parentElement;
   li.classList.add("dragging");
@@ -677,7 +692,7 @@ function dragTodo(e, li, list) {
   const up = () => {
     removeEventListener("pointermove", move); removeEventListener("pointerup", up); removeEventListener("pointercancel", up);
     const order = [...ul.children].map(x => x.dataset.id);
-    list.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)); save(); renderTodo();
+    list.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)); redraw();
   };
   addEventListener("pointermove", move); addEventListener("pointerup", up); addEventListener("pointercancel", up);
 }
@@ -694,7 +709,8 @@ function renderSettings() {
       ${row("inventory", "#ffd96b", "인벤토리")}
       ${row("goal", "#b6ecae", "목표 순공 시간", `<span class="f-sm muted">${S.setup ? fmtDur(S.setup.goalMin * 60000) : ""}</span>`)}
       ${row("subjects", "#d9cdff", "과목 관리")}
-    </div>`;
+    </div>
+    <button class="row pxb reset-row" data-go="reset" style="--hl:#ff9a8a"><span class="mk"></span><span class="grow">처음부터 다시 시작</span>${icon("next")}</button>`;
   paintIcons($("#settings-body"));
   portrait($("#settings-body .set-pic canvas"), S.pet, true);
   document.querySelectorAll("#settings-body .row").forEach(r => r.onclick = () => {
@@ -704,6 +720,11 @@ function renderSettings() {
     if (g === "inventory") { renderInventory(); openScreen("scr-inventory"); }
     if (g === "goal") askSetup(false);
     if (g === "subjects") openSubjects();
+    if (g === "reset") confirmBox("세 친구의 레벨과 아이템, 공부 기록, 할 일, 과목이 전부 지워지고 처음 화면으로 돌아가요.<br>되돌릴 수 없어요.", "전부 지우기", () => {
+      wiping = true;
+      try { localStorage.removeItem(KEY); } catch (e) {}
+      location.reload();
+    });
   });
 }
 function openSubjects() {

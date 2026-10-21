@@ -237,6 +237,7 @@ textarea.field { height: 38px; resize: none; display: block; padding: 1px 3px; }
 .todo-hero > canvas { width: 44px; height: 44px; background: var(--accent-soft); border: 1px solid var(--ink); flex: none; }
 .todo-tools { display: flex; justify-content: space-between; align-items: center; margin: 0 1px 5px; color: var(--muted); }
 .todo-list { list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.todo-list li { cursor: pointer; } .todo-list.edit li { cursor: default; }
 .todo-list li { display: flex; align-items: center; gap: 4px; padding: 2px 3px 3px 4px; min-height: 19px; touch-action: pan-y; --face: #effae8; --sh: #d5eccb; }
 .todo-list li.done { --face: #f4f1ea; --sh: #e4ddcd; }
 .todo-list li.done .t { color: var(--muted); text-decoration: line-through; text-decoration-color: #7a87d6; }
@@ -346,3 +347,10 @@ textarea.field { height: 38px; resize: none; display: block; padding: 1px 3px; }
 #loader.done { opacity: 0; transition: opacity .25s steps(3); pointer-events: none; }
 @keyframes ld-hop { 50% { transform: translateY(-4px); } }
 @keyframes ld-shade { 50% { transform: scaleX(.8); } }
+
+/* the + window: write, fix, delete and reorder today's list */
+.todo-add { margin: 2px 0 6px; }
+.todo-list.edit { max-height: 196px; overflow-y: auto; scrollbar-width: none; }
+.todo-list.edit li { --face: var(--paper); --sh: var(--ivory-2); }
+.todo-list.edit li.empty { justify-content: center; color: var(--muted); --face: transparent; --sh: transparent; }
+.reset-row { margin-top: 10px; color: #b4473a; }
