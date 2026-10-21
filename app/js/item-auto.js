@@ -179,7 +179,7 @@ function autoPajama(grid, pet) {
   else face = findFace(grid);
   if (face) {                                              // the opening ends just under the mouth, so a low face (a bow) leaves the body to the suit
     const main = mainOutline(grid); let low = -1;
-    for (let y = Math.ceil(face.cy); y <= face.cy + 3; y++) for (let x = Math.floor(face.cx - 3); x <= face.cx + 3; x++)   // the mouth, not hands held under it
+    for (let y = Math.ceil(face.cy); y <= face.cy + face.ry; y++) for (let x = Math.floor(face.cx - 3); x <= face.cx + 3; x++)
       if (grid[y] && grid[y][x] === "K" && !main.has(x + "," + y)) low = Math.max(low, y);
     face.down = Math.min(face.down || face.ry, low < 0 ? face.ry : Math.max(2.5, low + 1.5 - face.cy));
   }
