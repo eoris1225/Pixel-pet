@@ -275,7 +275,7 @@ header { grid-area: head; display: flex; flex-wrap: wrap; align-items: center; g
   const cv = $("cv"), ctx = cv.getContext("2d"), scroller = $("scroller");
 
   /* ---------- items placed automatically (the same code the game runs: ../js/item-auto.js) ---------- */
-  const ITEMS_FOR = { mochi: [["tears", "치카 Lv2 눈물 방울"], ["teddy", "치카 Lv4 곰인형"]] };
+  const ITEMS_FOR = { mochi: [["tears", "치카 Lv2 눈물 방울"], ["teddy", "치카 Lv4 곰인형"], ["pajama", "치카 Lv6 파자마"]], sora: [["pajama", "하와 Lv6 파자마"]], nori: [["pajama", "욱 Lv6 파자마"]] };
   let itemOn = store.get("pps.itemOn") !== "0", itemName = "tears";
   let itemFix = {}; try { itemFix = JSON.parse(store.get("pps.itemfix") || "null") || JSON.parse(JSON.stringify(ITEM_FIX)); } catch (e) { itemFix = {}; }
   const itemKey = i => SET.key + ":" + i;
@@ -285,7 +285,7 @@ header { grid-area: head; display: flex; flex-wrap: wrap; align-items: center; g
     const fix = (itemFix[itemName] || {})[itemKey(i)];
     if (fix && fix.hide) return [];
     const grid = frames[i].map(r => r.join(""));
-    return ITEM_AUTO[itemName](grid).map(([x, y, c]) => [x + (fix && fix.dx || 0), y + (fix && fix.dy || 0), c]);
+    return ITEM_AUTO[itemName](grid, SET.pet).map(([x, y, c]) => [x + (fix && fix.dx || 0), y + (fix && fix.dy || 0), c]);
   }
   function saveFix() { store.set("pps.itemfix", JSON.stringify(itemFix)); }
   function setFix(f) {
@@ -299,7 +299,7 @@ header { grid-area: head; display: flex; flex-wrap: wrap; align-items: center; g
     const sel = $("itemSel");
     if (sel.options.length !== list.length) { sel.innerHTML = ""; list.forEach(([id, n]) => { const o = document.createElement("option"); o.value = id; o.textContent = n; sel.appendChild(o); }); }
     sel.value = itemName; $("itemOn").checked = itemOn;
-    const fix = (itemFix[itemName] || {})[itemKey(F)], auto = ITEM_AUTO[itemName](frames[F].map(r => r.join("")));
+    const fix = (itemFix[itemName] || {})[itemKey(F)], auto = ITEM_AUTO[itemName](frames[F].map(r => r.join("")), SET.pet);
     $("itemInfo").textContent = fix && fix.hide ? "이 프레임: 숨김" : !auto.length ? "이 프레임: 눈을 못 찾아서 안 보여요" :
       fix ? `이 프레임: 직접 옮김 (가로 ${fix.dx || 0}, 세로 ${fix.dy || 0})` : "이 프레임: 자동 위치";
     const n = Object.keys(itemFix[itemName] || {}).length;

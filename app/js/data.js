@@ -38,9 +38,9 @@ const CHEER_EVERY_MS = 10 * 60 * 1000, IDLE_CHEER_EVERY_MS = 4 * 60 * 1000;
 
 // level-up items per character: [level, id, name, where it is worn] (the pixel art is in items.js)
 const ITEM_LIST = {
-  mochi: [[2, "tears", "눈물 방울", "표정"], [4, "teddy", "곰인형", "품"], [6, "nightcap", "파자마 모자", "머리"], [8, "bag", "크로스백", "몸"], [10, "fork", "포크 창", "무기"]],
-  sora:  [[2, "beanie", "고양이 비니", "머리"], [4, "guitar", "통기타", "등"], [6, "nightcap", "파자마 모자", "머리"], [8, "camera", "목걸이 카메라", "목"], [10, "trident", "삼지창", "무기"]],
-  nori:  [[2, "shades", "선글라스 세트", "얼굴"], [4, "pass", "합격증", "이마"], [6, "nightcap", "파자마 모자", "머리"], [8, "pudding", "푸딩", "손"], [10, "pencil", "왕연필", "무기"]],
+  mochi: [[2, "tears", "눈물 방울", "표정"], [4, "teddy", "곰인형", "품"], [6, "pajama", "파자마", "전신"], [8, "bag", "크로스백", "몸"], [10, "fork", "포크 창", "무기"]],
+  sora:  [[2, "beanie", "고양이 비니", "머리"], [4, "guitar", "통기타", "등"], [6, "pajama", "파자마", "전신"], [8, "camera", "목걸이 카메라", "목"], [10, "trident", "삼지창", "무기"]],
+  nori:  [[2, "shades", "선글라스 세트", "얼굴"], [4, "pass", "합격증", "이마"], [6, "pajama", "파자마", "전신"], [8, "pudding", "푸딩", "손"], [10, "pencil", "왕연필", "무기"]],
 };
 
 const DEFAULT_SUBJECTS = [["국어", "#ffb3a7"], ["수학", "#a7c7ff"], ["영어", "#b5e6a3"]];

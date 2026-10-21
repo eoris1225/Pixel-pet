@@ -107,12 +107,44 @@ function autoTeddy(grid) {
   return out;
 }
 
-const ITEM_AUTO = { tears: autoTears, teddy: autoTeddy };
+// Lv6 pajamas: a hooded onesie in the character's colour. Everything but the face turns into the suit, so her own
+// ears become the hood's ears; a lighter rim marks the hood opening and two white buttons sit on the chest.
+// Facing away, the whole body is the suit (the back of the hood). Close-ups keep their own look.
+const PAJAMA = {
+  mochi: { main: "#ffbdd0", shade: "#f29ab5", rim: "#ffdbe6" },
+  sora:  { main: "#acdaf8", shade: "#84bfeb", rim: "#d6eefd" },
+  nori:  { main: "#ffd766", shade: "#efb53a", rim: "#ffeaa8" },
+};
+function autoPajama(grid, pet) {
+  const h = grid.length, w = grid[0].length, pal = PAJAMA[pet];
+  if (!pal || w > 60) return [];
+  const eyes = findEyes(grid);
+  let face = null;
+  if (eyes.length === 2) { const d = eyes[1].cx - eyes[0].cx; face = { cx: (eyes[0].cx + eyes[1].cx) / 2 + 0.5, cy: (eyes[0].cy + eyes[1].cy) / 2 + 2.5, rx: d / 2 + 5.2, ry: 6 }; }
+  else if (eyes.length === 1) face = { cx: eyes[0].cx + 0.5, cy: eyes[0].cy + 2.5, rx: 6.5, ry: 6 };
+  const ell = (x, y, grow) => face && ((x + 0.5 - face.cx) / (face.rx + grow)) ** 2 + ((y + 0.5 - face.cy) / (face.ry + grow)) ** 2 <= 1;
+  const out = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const c = grid[y][x];
+    if (c === "B" || c === "K" || ell(x, y, 0)) continue;
+    out.push([x, y, ell(x, y, 1.3) ? pal.rim : "LNQM".includes(c) ? pal.shade : pal.main]);
+  }
+  if (face) {                                              // two buttons down the front
+    const bx = Math.floor(face.cx), by = Math.ceil(face.cy + face.ry) + 2;
+    for (const y of [by, by + 3]) {
+      const c = grid[y] && grid[y][bx];
+      if (c && c !== "B" && c !== "K") { out.push([bx, y, "#ffffff"]); if (grid[y + 1] && grid[y + 1][bx] !== "K" && grid[y + 1][bx] !== "B") out.push([bx, y + 1, pal.shade]); }
+    }
+  }
+  return out;
+}
+
+const ITEM_AUTO = { tears: autoTears, teddy: autoTeddy, pajama: autoPajama };
 
 // the pixels of an auto item on one frame, with the studio's correction for that frame applied
 function autoItemPixels(item, grid, key) {
   const fix = (typeof ITEM_FIX !== "undefined" && ITEM_FIX[item] && ITEM_FIX[item][key]) || null;
   if (fix && fix.hide) return [];
-  const px = ITEM_AUTO[item](grid);
+  const px = ITEM_AUTO[item](grid, key.split("-")[0]);           // the key starts with the pet ("mochi-wave:3")
   return fix ? px.map(([x, y, c]) => [x + (fix.dx || 0), y + (fix.dy || 0), c]) : px;
 }

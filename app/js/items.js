@@ -36,22 +36,13 @@ function pixmap(build, outline = true) {
   return { img: c, x: x0, y: y0 };
 }
 
-// the sleeping cap leans over to one side, its tip and pompom hanging down
-function nightcap(p, main, light) {
-  const a = ANCHOR[p], top = a.top, x0 = 4;
-  return pixmap(d => {
-    const rows = [
-      ".......AAAAA........",
-      ".....AAAAAAAAA......",
-      "....AAAaAAAAAAAA....",
-      "...AAAAAaAAAAAAAAA..",
-      "..AAAAAAAAaAAAAAAAWW",
-      ".AAAAAAAAAAAAAAAAWWW",
-      "RRRRRRRRRRRRRRRR.WW.",
-      "RRRRRRRRRRRRRRRR....",
-    ];
-    d.grid(rows, { A: main, a: light, R: "#fffaf0", W: "#ffffff" }, x0, top - 6);
-  });
+// the inventory picture of the pajamas: the character in her onesie
+function onesieIcon(p) {
+  const g = SPRITES[p], px = autoPajama(g, p), over = new Map(px.map(([x, y, c]) => [x + "," + y, c]));
+  return pixmap(d => g.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (ch === "B") return;
+    d.put(x, y, over.get(x + "," + y) || PET[p].pal[ch]);
+  })), false);
 }
 // a beanie that takes the shape of the head (copied from the silhouette of the sprite, never drawn into it)
 function headHat(p, main, rib) {
@@ -88,7 +79,7 @@ const ITEM_ART = {
       for (const x of [10, 17]) { d.rect(x, e, 1, 3, "#8fd0f6"); d.put(x, e + 3, "#bfe5fb"); }
     }, false) },
     teddy: { layer: "front", auto: "teddy", build: () => pixmap(d => d.grid(TEDDY, TEDDY_PAL, 0, 0), false) },
-    nightcap: { layer: "front", build: () => nightcap("mochi", "#ffb3c7", "#ffe3ea") },
+    pajama: { layer: "front", auto: "pajama", under: true, build: () => onesieIcon("mochi") },
     bag: { layer: "front", build: () => pixmap(d => {
       d.line(6, 18, 18, 24, "#a8714a");
       d.rect(17, 23, 7, 5, "#ffc4a8"); d.rect(17, 23, 7, 2, "#f29b8a"); d.put(20, 25, "#fff4dc");
@@ -102,7 +93,7 @@ const ITEM_ART = {
       d.rect(28, -4, 3, 4, "#6e4528"); d.put(27, -3, "#e8d9c0"); d.put(31, -2, "#e8d9c0");
       d.disc(3, 25, 5.2, "#d29a62"); d.disc(6, 19, 4, "#d29a62"); d.disc(4.5, 22, 1.4, "#5a3a22");
     }) },
-    nightcap: { layer: "front", build: () => nightcap("sora", "#9fd3f5", "#e0f2fd") },
+    pajama: { layer: "front", auto: "pajama", under: true, build: () => onesieIcon("sora") },
     camera: { layer: "front", build: () => pixmap(d => {
       d.line(7, 17, 11, 21, "#6cb8e6"); d.line(21, 17, 17, 21, "#6cb8e6");
       d.rect(10, 21, 9, 6, "#f4f1ea"); d.rect(10, 21, 9, 1, "#4a4f6e"); d.rect(11, 20, 3, 1, "#4a4f6e");
@@ -127,7 +118,7 @@ const ITEM_ART = {
       d.rect(11, 12, 7, 1, "#9b8e7a"); d.rect(11, 14, 5, 1, "#c9bea8");
       d.rect(16, 14, 2, 2, "#e2504a"); d.put(13, 10, "#7cc46b"); d.put(14, 10, "#7cc46b"); d.put(15, 10, "#7cc46b");
     }) },
-    nightcap: { layer: "front", build: () => nightcap("nori", "#ffd96b", "#fff3c4") },
+    pajama: { layer: "front", auto: "pajama", under: true, build: () => onesieIcon("nori") },
     pudding: { layer: "front", build: () => pixmap(d => {          // in the other hand, so the pencil still fits
       const y = ANCHOR.nori.arm;
       d.rect(-2, y + 2, 9, 1, "#ffffff");
@@ -147,7 +138,8 @@ function itemImg(pet, id) {
 // Auto items are placed on this exact frame (cached on the frame); hand-placed ones only on base-sprite frames.
 function drawItems(g, petId, equip, layer, dy, pose, img) {
   const art = ITEM_ART[petId];
-  for (const [, id] of ITEM_LIST[petId]) {
+  const order = ITEM_LIST[petId].slice().sort((p, q) => !!(art[q[1]] || {}).under - !!(art[p[1]] || {}).under);   // the onesie goes on first
+  for (const [, id] of order) {
     const a = art[id];
     if (!equip[id] || !a || a.layer !== layer) continue;
     if (a.auto) {
