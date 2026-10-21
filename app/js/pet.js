@@ -228,7 +228,7 @@ function soraPeekImg(pk, t) {
   return SORA_PEEK_IMG[20];
 }
 function startPeek(now) {
-  const side = G.pet === "sora" ? 1 : pet.x < 90 ? -1 : 1;
+  const side = G.pet === "sora" || pet.z > SIGN_Z ? 1 : pet.x < 90 ? -1 : 1;   // from behind the sign she leaves to the right, away from it
   pet.act = "peek"; pet.peek = { phase: "out", t0: now, side, edge: side < 0 ? -24 : W + 24, kind: G.pet };
   pet.target = pet.peek.edge;
 }
@@ -590,6 +590,17 @@ function drawTeddy(front) {
   ctx.drawImage(im, x, y);
 }
 
+// the next point to head for on the way to (target, tz): she never steps from in front of the sign to behind it (or back)
+// while her body overlaps its post, so she goes round it, crossing that line beside the sign instead
+function aroundSign() {
+  const tx = pet.target, tz = pet.tz;
+  if ((pet.z - SIGN_Z) * (tz - SIGN_Z) >= 0) return [tx, tz];
+  const gap = (INFO[G.pet].w >> 1) + 3;
+  const xc = pet.x + (tx - pet.x) * (SIGN_Z - pet.z) / (tz - pet.z);
+  if (Math.abs(xc - SIGN_X) >= gap + 3) return [tx, tz];
+  if (Math.abs(pet.x - SIGN_X) < gap + 3) return [SIGN_X + gap + 4, pet.z];   // step out to the side first
+  return [pet.x, tz];                                                     // then cross the line clear of the post
+}
 // somewhere to stroll to: across the grass and up or down it; now and then over to the sign, in front of it or behind
 function pickWalk() {
   if (Math.random() < 0.3) { pet.target = SIGN_X + (Math.random() - 0.5) * 18; pet.tz = Math.random() < 0.55 ? Z_MAX - Math.random() * 3 : Math.random() * 2; return; }
@@ -685,7 +696,9 @@ function petUpdate(now, dt) {
         else { pet.act = "idle"; pet.nextThink = now + 1500; }
       } else {
         const step = Math.min(Math.abs(dx), 34 * dt / 1000); pet.dir = Math.sign(dx); pet.x += pet.dir * step; pet.walked += step;
-        pet.z = Math.max(0, pet.z - step * 0.5); pet.tz = 0;            // close-ups come up from the front edge
+        const clear = pet.z <= SIGN_Z || Math.abs(pet.x - SIGN_X) >= (INFO[G.pet].w >> 1) + 3;   // not through the sign's post
+        if (clear) pet.z = Math.max(0, pet.z - step * 0.5);
+        pet.tz = 0;                                                     // close-ups come up from the front edge
         const k = Math.floor(pet.walked / 3) % 4;
         if (k !== pet.lastStep && (k === 0 || k === 2) && pet.x > 0 && pet.x < W) dust(pet.x - pet.dir * 8, FEET - 1);
         pet.lastStep = k;
@@ -698,9 +711,10 @@ function petUpdate(now, dt) {
     else if (pk.phase === "down" && t >= PEEK_DOWN) { pk.phase = "in"; pk.t0 = now; pet.x = pk.edge; pet.target = 90; }
   }
   if (pet.act === "walk") {
-    const dx = pet.target - pet.x, dz = pet.tz - pet.z, dist = Math.hypot(dx, dz * 1.6);   // depth reads shorter on screen, so it is walked slower
-    if (dist < 1) pet.act = "idle";
+    if (Math.hypot(pet.target - pet.x, (pet.tz - pet.z) * 1.6) < 1) pet.act = "idle";
     else {
+      const [gx, gz] = aroundSign();
+      const dx = gx - pet.x, dz = gz - pet.z, dist = Math.max(0.001, Math.hypot(dx, dz * 1.6));   // depth reads shorter on screen, so it is walked slower
       const step = Math.min(dist, 16 * dt / 1000);
       if (Math.abs(dx) > 0.5) pet.dir = Math.sign(dx);
       pet.x += dx / dist * step; pet.z += dz / dist * step; pet.walked += step;
