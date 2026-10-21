@@ -275,10 +275,12 @@ function drawMoon(h, g) {
 const BIRD = [["X...X", ".X.X.", "..X.."], ["..X..", ".X.X.", "X...X"]];
 function drawGlyph(g, rows, x, y, col) { g.fillStyle = col; rows.forEach((r, j) => { for (let i = 0; i < r.length; i++) if (r[i] === "X") g.fillRect(Math.round(x) + i, Math.round(y) + j, 1, 1); }); }
 
-function drawSign(g, now, h, info) {
+let lastSign = null;                                    // what the sign showed this frame, to draw it again over a pet behind it
+function drawSign(g, now, h, info, over = false) {
   const bx = SIGN_X - 14, base = FEET - 4, by = base - 27, bw = 29, bh = 15;
   const glow = darkAt(h);
-  if (glow > 0.3) { for (let r = 26, a = 0.035 * glow; r >= 12; r -= 5) { g.fillStyle = `rgba(255,214,140,${a})`; disc(g, SIGN_X, by + 7, r); } }
+  if (!over) groundShadow(g, SIGN_X + 1, base + 1, 14, 0.8);
+  if (glow > 0.3 && !over) { for (let r = 26, a = 0.035 * glow; r >= 12; r -= 5) { g.fillStyle = `rgba(255,214,140,${a})`; disc(g, SIGN_X, by + 7, r); } }
   const shade = c => css(mixc(hex(c), hex("#1b2648"), glow * 0.35));
   g.fillStyle = OUT; g.fillRect(SIGN_X - 2, by + bh, 4, base - by - bh + 1);
   g.fillStyle = shade("#a8714a"); g.fillRect(SIGN_X - 1, by + bh, 2, base - by - bh);
@@ -293,6 +295,24 @@ function drawSign(g, now, h, info) {
   // a few blades of grass around the post
   g.fillStyle = css(lit("#5fae6b", h));
   [[-4, 3], [-3, 2], [3, 2], [4, 3]].forEach(([dx, hh]) => g.fillRect(SIGN_X + dx, base - hh + 1, 1, hh));
+}
+
+function drawSparrow(g, now) {
+  if (!sparrow) return;
+  const b = sparrow, flying = b.st !== "sit";
+  const hop = !flying && Math.floor(b.t / 700) % 4 === 1 ? -1 : 0, peck = !flying && Math.floor(b.t / 400) % 5 === 2;
+  const im = SPARROW_IMG[peck ? 1 : 0];
+  g.save();                                           // drawn facing right; flipped while she flies leftwards
+  if (flying) { g.translate(Math.round(b.x) + im.width, 0); g.scale(-1, 1); g.drawImage(im, 0, Math.round(b.y)); }
+  else g.drawImage(im, Math.round(b.x), Math.round(b.y) + hop + (peck ? 1 : 0));
+  g.restore();
+  if (flying) { g.fillStyle = "#b88a64"; const up = Math.floor(now / 90) % 2; g.fillRect(Math.round(b.x) + 2, Math.round(b.y) + (up ? -1 : 2), 3, 1); }
+}
+// the sign (and a sparrow on it) once more, over a pet who has walked behind it
+function drawSignOver(g, now) {
+  if (!lastSign) return;
+  drawSign(g, now, lastSign.h, lastSign.info, true);
+  drawSparrow(g, now);
 }
 
 function sceneRender(now, signInfo) {
@@ -352,16 +372,8 @@ function sceneRender(now, signInfo) {
     g.fillStyle = css(lit("#ffcf5a", h)); g.fillRect(cx, cy, 1, 1);
   }
   drawSign(g, now, h, signInfo);
-  if (sparrow) {
-    const b = sparrow, flying = b.st !== "sit";
-    const hop = !flying && Math.floor(b.t / 700) % 4 === 1 ? -1 : 0, peck = !flying && Math.floor(b.t / 400) % 5 === 2;
-    const im = SPARROW_IMG[peck ? 1 : 0];
-    g.save();                                           // drawn facing right; flipped while she flies leftwards
-    if (flying) { g.translate(Math.round(b.x) + im.width, 0); g.scale(-1, 1); g.drawImage(im, 0, Math.round(b.y)); }
-    else g.drawImage(im, Math.round(b.x), Math.round(b.y) + hop + (peck ? 1 : 0));
-    g.restore();
-    if (flying) { g.fillStyle = "#b88a64"; const up = Math.floor(now / 90) % 2; g.fillRect(Math.round(b.x) + 2, Math.round(b.y) + (up ? -1 : 2), 3, 1); }
-  }
+  lastSign = { h, info: signInfo };
+  drawSparrow(g, now);
   if (fly) {
     const open = Math.floor(now / 140) % 2, x = Math.round(fly.x), y = Math.round(fly.y);
     g.fillStyle = OUT; g.fillRect(x, y, 1, 2);

@@ -288,7 +288,10 @@ function textBig(s, x, y, col, k) {
 }
 
 /* ---------- state ---------- */
-const pet = { x:90, dir:1, act:"idle", t0:0, target:90, walked:0, blinkUntil:0, nextThink:0,
+// z is depth: how far back on the grass she stands (0 = the front line, Z_MAX = up by the hills). She is drawn z pixels higher,
+// and once she is deeper than the sign's post she walks behind it.
+const Z_MAX = 11, SIGN_Z = 4;
+const pet = { x:90, z:0, tz:0, dir:1, act:"idle", t0:0, target:90, walked:0, blinkUntil:0, nextThink:0,
               petCooldown:0, earT:-9999, nextEar:0, lastStep:0, lastY:0, box:null };
 let parts = [];
 function startAct(a, now) { pet.act = a; pet.t0 = now; }
@@ -404,6 +407,7 @@ function petPointerDown(e, x, y) {
   if (pet.act === "peek" && pet.peek.kind === "sora" && pet.peek.phase === "wait" && y >= TOP_Y && y < PEEK_BOT) {
     pet.peek.phase = "lick"; pet.peek.t0 = now; hearts(x, y, 3); return true;
   }
+  y += Math.round(pet.z);                                  // into her own ground line
   const info = INFO[G.pet], sx = pet.x - (info.w >> 1) - 3, sy = FEET - info.h - 10;
   if (x >= sx && x < sx + info.w + 6 && y >= sy && y < FEET + 4) {
     press = { id: e.pointerId, t0: now, x, y, sx: x, sy: y, lx: x, ly: y, lt: now, vx: 0, vy: 0,
@@ -414,6 +418,7 @@ function petPointerDown(e, x, y) {
 }
 function petPointerMove(e, x, y) {
   if (!press || e.pointerId !== press.id) return;
+  y += Math.round(pet.z);
   const now = performance.now(), dt = Math.max(8, now - press.lt);
   press.vx = press.vx * 0.5 + (x - press.lx) / dt * 1000 * 0.5;
   press.vy = press.vy * 0.5 + (y - press.ly) / dt * 1000 * 0.5;
@@ -514,7 +519,7 @@ function petPose(now) {
    ground: set down or dropped; she walks over and picks it up when she is free
    fly   : slipped out of her arms, tumbling in 90-degree steps; she catches it if it comes down on her
    lift  : the short hop back into her arms */
-const prop = { state: "hug", x: 0, y: 0, vx: 0, vy: 0, rot: 0, spin: 0, t0: 0, fx: 0, fy: 0, ready: 0, lastAct: "" };
+const prop = { state: "hug", x: 0, y: 0, z: 0, vx: 0, vy: 0, rot: 0, spin: 0, t0: 0, fx: 0, fy: 0, ready: 0, lastAct: "" };
 const teddyOn = () => G.pet === "mochi" && !!(G.equip && G.equip.teddy);
 const teddyHugged = () => !teddyOn() || prop.state === "hug";
 let TEDDY_ROT = null;
@@ -531,10 +536,10 @@ function teddyImg(rot) {                // the bear turned in quarter turns, pix
   return TEDDY_ROT[((rot % 4) + 4) % 4];
 }
 function teddyDown(now, x, rot) {
-  Object.assign(prop, { state: "ground", x: Math.max(10, Math.min(W - 10, x)), y: FEET + 2, vx: 0, vy: 0, rot, ready: now + 900 });
+  Object.assign(prop, { state: "ground", x: Math.max(10, Math.min(W - 10, x)), y: FEET + 2, z: pet.z, vx: 0, vy: 0, rot, ready: now + 900 });
 }
 function teddyToss(now, vx, vy, spin) {
-  Object.assign(prop, { state: "fly", x: pet.x, y: FEET - 4, vx, vy, spin, t0: now, rot: 0 });
+  Object.assign(prop, { state: "fly", x: pet.x, y: FEET - 4, z: pet.z, vx, vy, spin, t0: now, rot: 0 });
 }
 function updateTeddy(now, dt) {
   if (!teddyOn()) { prop.state = "hug"; prop.lastAct = pet.act; return; }
@@ -573,16 +578,23 @@ function updateTeddy(now, dt) {
 function fetchTeddy(now) {
   if (!teddyOn() || prop.state !== "ground" || now < prop.ready || G.sleeping || G.wantSleep) return false;
   const dx = prop.x - pet.x;
-  if (Math.abs(dx) > 9) { pet.act = "walk"; pet.target = prop.x - Math.sign(dx) * 7; return true; }
+  if (Math.abs(dx) > 9 || Math.abs(prop.z - pet.z) > 1.5) { pet.act = "walk"; pet.target = prop.x - Math.sign(dx) * 7; pet.tz = prop.z; return true; }
   Object.assign(prop, { state: "lift", t0: now, fx: prop.x, fy: prop.y });
   pet.dir = Math.sign(dx) || pet.dir; startAct("pet", now); return true;
 }
 function drawTeddy(front) {
   if (!teddyOn() || prop.state === "hug") return;
   if ((prop.state === "ground") === front) return;                 // on the ground it is behind her, in the air in front
-  const im = teddyImg(prop.rot), x = Math.round(prop.x - im.width / 2), y = Math.round(prop.y - im.height);
-  if (prop.state === "ground") { ctx.fillStyle = "rgba(40,50,40,0.2)"; ctx.fillRect(x + 1, Math.round(prop.y) - 1, im.width - 2, 2); }
+  const im = teddyImg(prop.rot), x = Math.round(prop.x - im.width / 2), y = Math.round(prop.y - im.height) - Math.round(prop.z);
+  if (prop.state === "ground") groundShadow(ctx, prop.x, Math.round(prop.y) - Math.round(prop.z) - 1, im.width - 2, 1);
   ctx.drawImage(im, x, y);
+}
+
+// somewhere to stroll to: across the grass and up or down it; now and then over to the sign, in front of it or behind
+function pickWalk() {
+  if (Math.random() < 0.3) { pet.target = SIGN_X + (Math.random() - 0.5) * 18; pet.tz = Math.random() < 0.55 ? Z_MAX - Math.random() * 3 : Math.random() * 2; return; }
+  pet.target = 36 + Math.random() * 108;
+  pet.tz = Math.random() < 0.3 ? pet.z : Math.random() * Z_MAX;
 }
 
 /* ---------- update ---------- */
@@ -642,7 +654,7 @@ function petUpdate(now, dt) {
     else if (G.pet === "mochi" && r < (G.lowMood ? 0.4 : 0.08)) startAct("gloom", now);   // 치카 gets gloomy when her plan falls apart
     else if (G.pet === "mochi" && r < 0.3) startAct("wave", now);
     else if (G.pet === "mochi" && r < 0.45 && startDash(now)) {}
-    else if (r < 0.7) { pet.act = "walk"; pet.target = 36 + Math.random() * 108; }
+    else if (r < 0.7) { pet.act = "walk"; pickWalk(); }
   }
   if (press && !press.grabbed && press.canGrab && now - press.t0 > GRAB_HOLD) grab(now);
   if (pet.act === "held" && press) {
@@ -673,6 +685,7 @@ function petUpdate(now, dt) {
         else { pet.act = "idle"; pet.nextThink = now + 1500; }
       } else {
         const step = Math.min(Math.abs(dx), 34 * dt / 1000); pet.dir = Math.sign(dx); pet.x += pet.dir * step; pet.walked += step;
+        pet.z = Math.max(0, pet.z - step * 0.5); pet.tz = 0;            // close-ups come up from the front edge
         const k = Math.floor(pet.walked / 3) % 4;
         if (k !== pet.lastStep && (k === 0 || k === 2) && pet.x > 0 && pet.x < W) dust(pet.x - pet.dir * 8, FEET - 1);
         pet.lastStep = k;
@@ -685,9 +698,13 @@ function petUpdate(now, dt) {
     else if (pk.phase === "down" && t >= PEEK_DOWN) { pk.phase = "in"; pk.t0 = now; pet.x = pk.edge; pet.target = 90; }
   }
   if (pet.act === "walk") {
-    const dx = pet.target - pet.x;
-    if (Math.abs(dx) < 1) pet.act = "idle";
-    else { const step = Math.min(Math.abs(dx), 16 * dt / 1000); pet.dir = Math.sign(dx); pet.x += pet.dir * step; pet.walked += step; }
+    const dx = pet.target - pet.x, dz = pet.tz - pet.z, dist = Math.hypot(dx, dz * 1.6);   // depth reads shorter on screen, so it is walked slower
+    if (dist < 1) pet.act = "idle";
+    else {
+      const step = Math.min(dist, 16 * dt / 1000);
+      if (Math.abs(dx) > 0.5) pet.dir = Math.sign(dx);
+      pet.x += dx / dist * step; pet.z += dz / dist * step; pet.walked += step;
+    }
     const k = Math.floor(pet.walked / 3) % 4;
     if (k !== pet.lastStep && (k === 0 || k === 2)) dust(pet.x - pet.dir * 8, FEET - 1);
     pet.lastStep = k;
@@ -704,10 +721,9 @@ function drawSprite(g, id, pose, cx, feet, dir, equip, shadow = true) {
   const dw = Math.round(img.width * kx), dh = Math.round(img.height * ky);
   cx += pose.dx || 0;
   const x = Math.round(cx) - (dw >> 1), y = feet - dh + pose.yoff;
-  if (shadow) {
-    const sh = pose.img ? 30 : pose.yoff < -5 ? 12 : 18;
-    g.fillStyle = "rgba(40,50,40,0.22)";
-    g.fillRect(Math.round(cx) - (sh >> 1), feet - 1, sh, 2); g.fillRect(Math.round(cx) - (sh >> 1) + 2, feet + 1, sh - 4, 1);
+  if (shadow) {                                     // as wide as her footprint; it shrinks and fades as she leaves the ground
+    const up = Math.max(0, -pose.yoff), k = Math.max(0.45, 1 - up / 70);
+    groundShadow(g, cx, feet, Math.round(footprint(img) * kx * k), Math.max(0.35, 1 - up / 90));
   }
   g.imageSmoothingEnabled = false;
   const items = equip && typeof drawItems === "function";
@@ -722,6 +738,29 @@ function drawSprite(g, id, pose, cx, feet, dir, equip, shadow = true) {
   return { x, y, w: dw, h: dh };
 }
 
+// how wide she is where she touches the ground (the widest of her lowest rows), cached on the frame
+function footprint(img) {
+  if (img._foot) return img._foot;
+  const gr = img.grid; if (!gr) return (img._foot = Math.round(img.width * 0.7));
+  let w = 0;
+  for (let y = gr.length - 1, n = 0; y >= 0 && n < 6; y--) {
+    const r = gr[y], a = r.search(/[^B]/); if (a < 0) continue;
+    n++; w = Math.max(w, r.length - 1 - r.split("").reverse().join("").search(/[^B]/) - a + 1);
+  }
+  return (img._foot = Math.max(8, w));
+}
+// a soft pixel ellipse on the grass: a darker core with a lighter rim, three rows deep
+function groundShadow(g, cx, feet, w, alpha = 1) {
+  const x = Math.round(cx), half = Math.max(3, (w >> 1) + 2);
+  const rows = [[-2, half - 2, 0.14], [-1, half, 0.26], [0, half - 1, 0.22], [1, half - 4, 0.1]];
+  for (const [dy, hw, a] of rows) {
+    if (hw <= 0) continue;
+    g.fillStyle = `rgba(36,44,52,${(a * alpha).toFixed(3)})`;
+    g.fillRect(x - hw, feet + dy, hw * 2, 1);
+    if (dy === -1 && hw > 6) { g.fillStyle = `rgba(36,44,52,${(0.1 * alpha).toFixed(3)})`; g.fillRect(x - hw + 4, feet - 1, hw * 2 - 8, 1); }   // a darker core right under her
+  }
+}
+
 function petRender(now) {
   ctx.clearRect(0, 0, W, H);
   const pose = petPose(now);
@@ -733,8 +772,8 @@ function petRender(now) {
     dashDust({ x: Math.round(pet.x + (pose.dx || 0)) - (img.width >> 1), y: FEET - img.height + pose.yoff }, false);
   }
   drawTeddy(false);
+  ctx.save(); ctx.translate(0, -Math.round(pet.z));     // her depth on the grass
   const box = pose.hidden ? { x: pet.x, y: FEET - 30, w: 0, h: 30 } : drawSprite(ctx, G.pet, pose, pet.x, FEET, pet.dir, G.equip);
-  drawTeddy(true);
   if (G.pet === "mochi" && pet.act === "fall" && pet.skyDrop) hopLines(box, pose.hopF, now);
   if (G.pet === "mochi" && pet.act === "skyland" && now - pet.t0 < SKYLAND_RUN) { const f = skylandFrame(Math.max(0, now - pet.t0)); hopLines(box, f, now); hopDust(box, f); }
   if (pet.act === "dash" && !pose.hidden) dashDust(box, true);
@@ -753,6 +792,10 @@ function petRender(now) {
     }
   }
   drawParts(now);
+  ctx.restore();
+  box.y -= Math.round(pet.z);                            // back to screen space, for the Zzz and the speech bubble
+  if (pet.z > SIGN_Z + 0.5 && typeof drawSignOver === "function") drawSignOver(ctx, now);   // behind the sign
+  drawTeddy(true);
   if (pet.act === "peek" && pet.peek.phase !== "out" && pet.peek.phase !== "in") {
     const pk = pet.peek, t = now - pk.t0, sora = pk.kind === "sora";
     let img = sora ? soraPeekImg(pk, t) : PEEK_IMG[0], off = 0;
