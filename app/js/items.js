@@ -124,16 +124,18 @@ const POCHETTE = [
 ];
 const bagStrap = d => d.line(4, 17, 17, 21, "#fff7ea");                  // the strap, from her shoulder to her hip
 const bagFace = d => d.grid(POCHETTE, { P: "#f7a8bd", p: "#ec8fab", W: "#fffaf0", D: "#5a4636" }, 16, 20);
-function guitarArt() {
+function guitarArt() {                                   // a small ukulele-like guitar, tilted up to her right shoulder
   return pixmap(d => {
-    d.line(9, 17, 29, -2, "#a8693a", 2);                                     // the neck
-    d.line(10, 16, 29, -3, "#7a4a2a");                                       // its fingerboard
-    d.disc(2, 25, 6.2, "#d9a15e"); d.disc(7, 18.5, 4.6, "#d9a15e");          // lower and upper bout
-    d.disc(2.5, 26.5, 5, "#e6b574");                                         // the light on the wood
-    d.disc(4.5, 22, 1.8, "#5a3a22");                                         // sound hole
-    d.rect(-1, 27, 4, 1, "#7a4a2a");                                         // bridge
-    d.line(0, 27, 10, 16, "#fbeed5");                                        // strings over the body
-    d.rect(29, -6, 3, 4, "#8a5530"); d.put(28, -5, "#fbeed5"); d.put(28, -3, "#fbeed5"); d.put(32, -5, "#fbeed5"); d.put(32, -3, "#fbeed5");   // headstock and pegs
+    d.line(3, 19, 20, 3, "#a8693a", 2);                                      // the neck
+    d.line(3, 19, 20, 3, "#6e4228");                                         // its fingerboard, with frets
+    for (const k of [8, 11, 14, 17]) d.put(k, Math.round(19 - (k - 3) * 16 / 17), "#c9a27a");
+    d.disc(-2, 24, 3.7, "#d9a15e"); d.disc(1.8, 20.2, 2.8, "#d9a15e");       // lower and upper bout
+    d.disc(-2.6, 24.8, 2.2, "#e6b574");                                      // the light on the wood
+    d.rect(0, 21, 2, 2, "#5a3a22");                                          // sound hole
+    d.line(-4, 24, -2, 26, "#7a4a2a");                                       // bridge
+    d.line(-2, 24, 3, 19, "#fbeed5");                                        // strings over the body
+    d.rect(20, 1, 3, 3, "#8a5530"); d.put(21, 0, "#8a5530");                 // headstock and pegs
+    d.put(23, 1, "#fbeed5"); d.put(22, 4, "#fbeed5"); d.put(19, 1, "#fbeed5");
   });
 }
 const ITEM_ART = {
