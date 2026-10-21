@@ -239,7 +239,7 @@ const POCHETTE_SIDE = [
 ];
 const bagSide = d => d.grid(POCHETTE_SIDE, { P: "#f7a8bd", p: "#ec8fab" }, 0, 0);
 // one unbroken strap: a cream line with an outline, from her shoulder to the top of the pouch
-const strapLine = (x0, y0, x1, y1) => pixList("strap:" + [x0, y0, x1, y1], d => { d.line(x0, y0, x1, y1, "#fff7ea"); d.put(x0, y0 - 1, "#fff7ea"); });
+const strapLine = (x0, y0, x1, y1) => pixList("strap:" + [x0, y0, x1, y1], d => d.line(x0, y0, x1, y1, "#fff7ea"));
 ITEM_AUTO.carry = (grid, pet) => {
   if (grid[0].length > 60) return [];
   const at = (x, y) => (grid[y] && grid[y][x]) || "B";
@@ -249,23 +249,27 @@ ITEM_AUTO.carry = (grid, pet) => {
   while (top < bottom && !/[^B]/.test(grid[top])) top++;
   while (bottom > 0 && !/[^B]/.test(grid[bottom])) bottom--;
   const f = faceOf(grid), o = f && weaponOffset(grid, pet);
-  const sy = Math.round(f ? f.cy + 3 : top + (bottom - top) * 0.42), sides = row(sy);   // her shoulder line
+  // A cross-body strap is a loop: from the pouch it runs up across her to the far shoulder, over it, and down her back
+  // to the pouch again. From any side we see one run of it, from the pouch to where it goes over her shoulder: that end
+  // is on her outline, at the shoulder line just under her face (never across her face, never stopping mid-body).
+  const sy = Math.round(f ? f.cy + 4 : top + (bottom - top) * 0.6);
+  const sides = row(sy);
   if (!sides) return [];
   const front = f && f.rx > 7;                                  // two eyes: she faces us; one (or a cheek): a profile
-  if (front && o) {                                              // across her front, left shoulder to right hip
+  if (front && o) {                                              // across her front: her left shoulder to the pouch at her right hip
     const bag = pixList("bagface", bagFace).map(([x, y, c]) => [x + o.dx, y + o.dy, c]);
-    return strapLine(sides[0] + 1, sy, 17 + o.dx, 20 + o.dy).concat(bag);
+    return strapLine(sides[0], sy, 17 + o.dx, 20 + o.dy).concat(bag);
   }
-  if (f) {                                                       // a profile: the pouch side on at her hip, strap over her shoulder
-    const mid = (sides[0] + sides[1]) / 2, dir = f.cx - 0.5 >= mid ? 1 : -1;
+  if (f) {                                                       // a profile: the pouch side on at the hip she faces with,
+    const mid = (sides[0] + sides[1]) / 2, dir = f.cx - 0.5 >= mid ? 1 : -1;   // the strap from her back shoulder to it
     const hip = row(bottom - 4) || sides, bx = dir > 0 ? hip[1] - 2 : hip[0] - 1, by = bottom - 9;
     const bag = pixList("bagside", bagSide).map(([x, y, c]) => [x + bx, y + by, c]);
-    return strapLine(Math.round(mid - dir * 3), sy - 1, bx + 1, by + 1).concat(bag);
+    return strapLine(dir > 0 ? sides[0] : sides[1], sy, bx + 1, by + 1).concat(bag);
   }
-  // her back: the strap the other way across it, the pouch peeking out past her other hip
+  // her back: from her right shoulder down across her back to the pouch peeking out past her left hip
   const hip = row(bottom - 6) || sides, bx = hip[0] - 3, by = bottom - 9;
   const bag = pixList("bagface", bagFace).map(([x, y, c]) => [x - 16 + bx, y - 20 + by, c]).filter(([x, y]) => at(x, y) === "B");
-  return strapLine(sides[1] - 1, sy, bx + 5, by + 1).concat(bag);
+  return strapLine(sides[1], sy, bx + 4, by + 1).concat(bag);
 };
 function weaponMode(img) {
   const act = typeof pet !== "undefined" ? pet.act : "idle";
