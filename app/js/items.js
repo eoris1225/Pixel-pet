@@ -114,6 +114,8 @@ const POCHETTE = [
   ".pPWWWPp.",
   "..ppppp..",
 ];
+const bagStrap = d => d.line(4, 17, 17, 21, "#fff7ea");                  // the strap, from her shoulder to her hip
+const bagFace = d => d.grid(POCHETTE, { P: "#f7a8bd", p: "#ec8fab", W: "#fffaf0", D: "#5a4636" }, 16, 20);
 const ITEM_ART = {
   mochi: {
     tears: { layer: "front", auto: "tears", build: () => pixmap(d => {          // build = the inventory icon; in play it is placed per frame
@@ -123,10 +125,7 @@ const ITEM_ART = {
     teddy: { layer: "front", auto: "teddy", build: () => pixmap(d => d.grid(TEDDY, TEDDY_PAL, 0, 0), false) },
     pajama: { layer: "front", auto: "pajama", under: true, build: () => onesieIcon("mochi") },
     // 치카's pochette: a round pink bear face (little ears, white muzzle) on a long thin cream strap, worn across her body
-    bag: { layer: "front", auto: "carry", build: () => pixmap(d => {
-      d.line(4, 17, 17, 21, "#fff7ea");                                     // the strap, from her shoulder to her hip
-      d.grid(POCHETTE, { P: "#f7a8bd", p: "#ec8fab", W: "#fffaf0", D: "#5a4636" }, 16, 20);
-    }) },
+    bag: { layer: "front", auto: "carry", build: () => pixmap(d => { bagStrap(d); bagFace(d); }) },
     fork: { layer: "front", auto: "weapon", build: () => fork("mochi", "#f59ab6", "#ffd0de") },
   },
   sora: {
@@ -217,10 +216,35 @@ ITEM_AUTO.weapon = (grid, pet) => {
 const LIFT = { 10: 0.45, 11: 0.75, 12: 1, 13: 1, 14: 1, 15: 1, 16: 0.8, 17: 0.6, 18: 0.4, 19: 0.2 };
 const DIAG = { mochi: Math.atan2(-7, 32), sora: Math.atan2(-7, 32), nori: Math.atan2(-6, 44) };   // the slant she holds it at
 // things she wears on her body (치카's pochette) go with her the same way as what she holds, hidden when she faces away
+// facing away she still wears it: the strap runs the other way across her back, and the bag hangs behind her hip,
+// showing only where it sticks out past her body
+function pixList(key, build) {
+  if (ITEM_CACHE[key]) return ITEM_CACHE[key];
+  const it = pixmap(build), d = it.img.getContext("2d").getImageData(0, 0, it.img.width, it.img.height).data, out = [];
+  for (let y = 0; y < it.img.height; y++) for (let x = 0; x < it.img.width; x++) {
+    const i = (y * it.img.width + x) * 4; if (d[i + 3] < 128) continue;
+    out.push([it.x + x, it.y + y, "#" + [d[i], d[i + 1], d[i + 2]].map(v => v.toString(16).padStart(2, "0")).join("")]);
+  }
+  return (ITEM_CACHE[key] = out);
+}
 ITEM_AUTO.carry = (grid, pet) => {
   if (grid[0].length > 60) return [];
-  const o = weaponOffset(grid, pet);
-  return o ? weaponPixels(pet, "bag").map(([x, y, c]) => [x + o.dx, y + o.dy, c]) : [];
+  const o = weaponOffset(grid, pet), at = (x, y) => (grid[y] && grid[y][x]) || "B";
+  if (o) {                                                   // the strap lies on her (never in the air beside a slim pose)
+    const strap = pixList("strap", bagStrap).map(([x, y, c]) => [x + o.dx, y + o.dy, c]).filter(([x, y]) => at(x, y) !== "B");
+    return strap.concat(pixList("bagface", bagFace).map(([x, y, c]) => [x + o.dx, y + o.dy, c]));
+  }
+  // her back: placed by her body (its middle and her feet), mirrored
+  let x0 = 1e9, x1 = -1, bottom = grid.length - 1;
+  grid.forEach(r => { const a = r.search(/[^B]/); if (a >= 0) { x0 = Math.min(x0, a); x1 = Math.max(x1, r.length - 1 - [...r].reverse().join("").search(/[^B]/)); } });
+  while (bottom > 0 && !/[^B]/.test(grid[bottom])) bottom--;
+  if (x1 < 0) return [];
+  const base = SPRITES[pet], bw = base[0].length - 1, cx = (x0 + x1) / 2, dy = bottom - (base.length - 1);
+  const out = [];
+  const place = ([x, y, c]) => [Math.round(cx + (bw / 2 - x)), y + dy, c];
+  for (const p of pixList("strap", bagStrap).map(place)) if (at(p[0], p[1]) !== "B") out.push(p);   // on her back
+  for (const p of pixList("bagface", bagFace).map(place)) if (at(p[0], p[1]) === "B") out.push(p);  // peeking past her side
+  return out;
 };
 function weaponMode(img) {
   const act = typeof pet !== "undefined" ? pet.act : "idle";
