@@ -227,24 +227,45 @@ function pixList(key, build) {
   }
   return (ITEM_CACHE[key] = out);
 }
+// the pouch seen side on (a profile): a slim pink oval with its little ear on top
+const POCHETTE_SIDE = [
+  ".p..",
+  "pPP.",
+  "PPPp",
+  "PPPp",
+  "PPPp",
+  ".PPp",
+  "..p.",
+];
+const bagSide = d => d.grid(POCHETTE_SIDE, { P: "#f7a8bd", p: "#ec8fab" }, 0, 0);
+// one unbroken strap: a cream line with an outline, from her shoulder to the top of the pouch
+const strapLine = (x0, y0, x1, y1) => pixList("strap:" + [x0, y0, x1, y1], d => { d.line(x0, y0, x1, y1, "#fff7ea"); d.put(x0, y0 - 1, "#fff7ea"); });
 ITEM_AUTO.carry = (grid, pet) => {
   if (grid[0].length > 60) return [];
-  const o = weaponOffset(grid, pet), at = (x, y) => (grid[y] && grid[y][x]) || "B";
-  if (o) {                                                   // the strap lies on her (never in the air beside a slim pose)
-    const strap = pixList("strap", bagStrap).map(([x, y, c]) => [x + o.dx, y + o.dy, c]).filter(([x, y]) => at(x, y) !== "B");
-    return strap.concat(pixList("bagface", bagFace).map(([x, y, c]) => [x + o.dx, y + o.dy, c]));
-  }
-  // her back: placed by her body (its middle and her feet), mirrored
-  let x0 = 1e9, x1 = -1, bottom = grid.length - 1;
-  grid.forEach(r => { const a = r.search(/[^B]/); if (a >= 0) { x0 = Math.min(x0, a); x1 = Math.max(x1, r.length - 1 - [...r].reverse().join("").search(/[^B]/)); } });
+  const at = (x, y) => (grid[y] && grid[y][x]) || "B";
+  // her body on this frame: its sides on a row, its top and bottom
+  const row = y => { const r = grid[y] || ""; const a = r.search(/[^B]/); return a < 0 ? null : [a, r.length - 1 - [...r].reverse().join("").search(/[^B]/)]; };
+  let top = 0, bottom = grid.length - 1;
+  while (top < bottom && !/[^B]/.test(grid[top])) top++;
   while (bottom > 0 && !/[^B]/.test(grid[bottom])) bottom--;
-  if (x1 < 0) return [];
-  const base = SPRITES[pet], bw = base[0].length - 1, cx = (x0 + x1) / 2, dy = bottom - (base.length - 1);
-  const out = [];
-  const place = ([x, y, c]) => [Math.round(cx + (bw / 2 - x)), y + dy, c];
-  for (const p of pixList("strap", bagStrap).map(place)) if (at(p[0], p[1]) !== "B") out.push(p);   // on her back
-  for (const p of pixList("bagface", bagFace).map(place)) if (at(p[0], p[1]) === "B") out.push(p);  // peeking past her side
-  return out;
+  const f = faceOf(grid), o = f && weaponOffset(grid, pet);
+  const sy = Math.round(f ? f.cy + 3 : top + (bottom - top) * 0.42), sides = row(sy);   // her shoulder line
+  if (!sides) return [];
+  const front = f && f.rx > 7;                                  // two eyes: she faces us; one (or a cheek): a profile
+  if (front && o) {                                              // across her front, left shoulder to right hip
+    const bag = pixList("bagface", bagFace).map(([x, y, c]) => [x + o.dx, y + o.dy, c]);
+    return strapLine(sides[0] + 1, sy, 17 + o.dx, 20 + o.dy).concat(bag);
+  }
+  if (f) {                                                       // a profile: the pouch side on at her hip, strap over her shoulder
+    const mid = (sides[0] + sides[1]) / 2, dir = f.cx - 0.5 >= mid ? 1 : -1;
+    const hip = row(bottom - 4) || sides, bx = dir > 0 ? hip[1] - 2 : hip[0] - 1, by = bottom - 9;
+    const bag = pixList("bagside", bagSide).map(([x, y, c]) => [x + bx, y + by, c]);
+    return strapLine(Math.round(mid - dir * 3), sy - 1, bx + 1, by + 1).concat(bag);
+  }
+  // her back: the strap the other way across it, the pouch peeking out past her other hip
+  const hip = row(bottom - 6) || sides, bx = hip[0] - 3, by = bottom - 9;
+  const bag = pixList("bagface", bagFace).map(([x, y, c]) => [x - 16 + bx, y - 20 + by, c]).filter(([x, y]) => at(x, y) === "B");
+  return strapLine(sides[1] - 1, sy, bx + 5, by + 1).concat(bag);
 };
 function weaponMode(img) {
   const act = typeof pet !== "undefined" ? pet.act : "idle";
