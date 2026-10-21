@@ -58,7 +58,7 @@ function headHat(p, main, rib) {
 }
 // Lv10 weapons, held in both hands across the belly like the plush toys and the anime.
 // 치카 and 하와: a long-handled two-pronged fork (a weeding fork). The prongs spread from the handle, run forward and
-// flick outward at the tips, with little dark thorns along both their outer and inner edges. It is held slanting up
+// flick outward at the tips, packed with little white thorns along both their outer and inner edges. It is held slanting up
 // towards the way she faces, her two little hands on the handle.
 const PRONG = [[0, 0], [1, -1], [2, -2], [3, -3], [4, -4], [5, -4], [6, -5], [7, -5], [8, -5], [9, -5], [10, -5], [11, -6], [12, -7]];
 const HAND = [".KKK.", "KWWWK", "KWWWK", ".KKK."];
@@ -74,15 +74,15 @@ function fork(p, main, light) {
     for (const s of [-1, 1]) PRONG.forEach(([px, py], i) => {          // s = -1: the upper prong, 1: the lower (mirrored)
       const yy = hy + (s < 0 ? py : 1 - py);
       put(hx + px, yy, main); put(hx + px, yy + s, light);              // two thick, lit on the outside
-      if (i === 3 || i === 7 || i === 10) thorns.push([hx + px, yy + 3 * s]);   // outer thorns
-      if (i === 5 || i === 9) thorns.push([hx + px, yy - 2 * s]);            // inner thorns
+      if (i >= 2 && i % 2 === 0) thorns.push([hx + px, yy + 2 * s]);    // white thorns packed along the outer edge
+      if (i >= 5 && i % 2 === 1) thorns.push([hx + px, yy - s]);        // and the inner one
     });
+    for (const [x, y] of thorns) if (!body.has(x + "," + y)) put(x, y, "#ffffff");
     for (const [k, c] of body) { const [x, y] = k.split(",").map(Number); d.put(x, y, c); }
     for (const k of body.keys()) {                                       // outline round it all
       const [x, y] = k.split(",").map(Number);
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!body.has((x + dx) + "," + (y + dy))) d.put(x + dx, y + dy, OUT);
     }
-    for (const [x, y] of thorns) d.put(x, y, OUT);
     for (const hx2 of [4, 17]) d.grid(HAND, { K: OUT, W: "#fffaf0" }, hx2 - 2, at(hx2) - 1);   // her hands round the handle
   }, false);
 }
