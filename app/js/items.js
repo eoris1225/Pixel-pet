@@ -167,8 +167,8 @@ function itemImg(pet, id) {
   return ITEM_CACHE[k] || (ITEM_CACHE[k] = ITEM_ART[pet][id].build());
 }
 // Lv10 weapons are their own thing, like 치카's bear: held across her belly they move with her face; turned away she
-// still holds it, so it shows behind her with both long ends sticking out; lying down or asleep she leaves it on the
-// grass beside her; on 치카's sky-landing it goes up and down with her arms; and it swings gently as she walks, dances
+// still holds it, so it shows behind her with both long ends sticking out; lying down or asleep she lays it on the
+// grass beside her, where it stays (pet.js); on 치카's sky-landing it goes up and down with her arms; and it swings gently as she walks, dances
 // or waves.
 const WEAPON_OF = { mochi: "fork", sora: "trident", nori: "pencil" };
 const WEAPON_FLAT = { mochi: () => fork("mochi", "#f59ab6", "#ffd0de", true), sora: () => fork("sora", "#4f9fe0", "#a9d6f7", true), nori: () => staff("nori", true) };
@@ -208,7 +208,7 @@ const LIFT = { 10: 0.45, 11: 0.75, 12: 1, 13: 1, 14: 1, 15: 1, 16: 0.8, 17: 0.6,
 const DIAG = { mochi: Math.atan2(-7, 32), sora: Math.atan2(-7, 32), nori: Math.atan2(-6, 44) };   // the slant she holds it at
 function weaponMode(img) {
   const act = typeof pet !== "undefined" ? pet.act : "idle";
-  if ((typeof G !== "undefined" && G.sleeping) || ["lieDown", "lie", "getUp", "loaf"].includes(act)) return "ground";
+  if (typeof wprop !== "undefined" && wprop.state !== "held" && typeof G !== "undefined" && WEAPON_OF[G.pet]) return "away";   // set down in the world (pet.js)
   const m = /^mochi-hop:(\d+)$/.exec((img && img.key) || "");
   if (m && LIFT[+m[1]]) return "lift";
   return "held";
@@ -230,16 +230,11 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
   const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid;
   const w = grid[0].length, h = grid.length, arm = ANCHOR[petId].arm, mode = weaponMode(img), mid = WEAPON_MID[petId];
   // breathing (squash / stretch) adds or drops a row low on her body: what she holds above it bobs with her, the ground does not
-  const shift = base && arm >= INFO[petId].dup ? dy : 0, ground = base ? dy : 0;
+  const shift = base && arm >= INFO[petId].dup ? dy : 0;
   const cache = base ? (ITEM_CACHE["base:" + petId] || (ITEM_CACHE["base:" + petId] = {})) : (img._auto || (img._auto = {}));
   if (!("wo" in cache)) cache.wo = weaponOffset(grid, petId);
   const o = cache.wo;
-  if (mode === "ground") {                                   // laid on the grass beside her, behind her
-    if (layer !== "back") return;
-    const f = weaponFlat(petId);
-    g.drawImage(f.img, f.x + w - 2, f.y + h - 3 - arm + ground);   // the handle on the ground line, just past her side
-    return;
-  }
+  if (mode === "away") return;                               // lying on the grass where she put it (drawn by pet.js)
   if (mode === "lift") {                                     // arms going up and down: from across her belly to over her head
     if (layer !== "front") return;
     const q = LIFT[+/(\d+)$/.exec(img.key)[1]], f = weaponFlat(petId), top = grid.findIndex(r => /[^B]/.test(r));

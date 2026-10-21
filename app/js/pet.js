@@ -585,6 +585,37 @@ function updateTeddy(now, dt) {
     if (q >= 1) teddyDown(now, prop.tx, prop.trot);
   }
 }
+// her Lv10 weapon, set down on the grass while she lies down, loafs or sleeps: like the bear it stays where she put it
+// (it does not hop to her other side when she turns), she lays it down and picks it up again
+const wprop = { state: "held", x: 0, y: 0, z: 0, fx: 0, fy: 0, tx: 0, side: 1, t0: 0 };
+const weaponOn = () => typeof WEAPON_OF !== "undefined" && !!(G.equip && G.equip[WEAPON_OF[G.pet]]);
+function updateWeaponProp(now) {
+  if (!weaponOn()) { wprop.state = "held"; return; }
+  const rest = G.sleeping || G.wantSleep && pet.act === "lieDown" || ["lieDown", "lie", "getUp", "loaf"].includes(pet.act);
+  const hands = FEET - (INFO[G.pet].h - ANCHOR[G.pet].arm);
+  if (rest && wprop.state === "held") {
+    const side = (pet.x < W / 2 ? 1 : -1) * (teddyOn() && prop.state !== "hug" ? -1 : 1);   // the other side from her bear
+    Object.assign(wprop, { state: "place", t0: now, fx: pet.x, fy: hands, tx: Math.max(16, Math.min(W - 16, pet.x + side * 24)), side, z: pet.z });
+  }
+  if (!rest && wprop.state === "ground") Object.assign(wprop, { state: "lift", t0: now, fx: wprop.x, fy: wprop.y });
+  if (wprop.state === "place") {
+    const q = Math.min(1, (now - wprop.t0) / 320);
+    wprop.x = wprop.fx + (wprop.tx - wprop.fx) * q; wprop.y = wprop.fy + (FEET - 2 - wprop.fy) * q - Math.sin(q * Math.PI) * 6;
+    if (q >= 1) wprop.state = "ground";
+  }
+  if (wprop.state === "lift") {
+    const q = Math.min(1, (now - wprop.t0) / 260);
+    wprop.x = wprop.fx + (pet.x - wprop.fx) * q; wprop.y = wprop.fy + (hands - wprop.fy) * q - Math.sin(q * Math.PI) * 8;
+    if (q >= 1) wprop.state = "held";
+  }
+}
+function drawWeaponProp(front) {
+  if (!weaponOn() || wprop.state === "held" || (wprop.state === "ground") === front) return;   // on the ground behind her, moving in front
+  const f = weaponFlat(G.pet), mid = WEAPON_MID[G.pet], arm = ANCHOR[G.pet].arm;
+  ctx.save(); ctx.translate(Math.round(wprop.x), Math.round(wprop.y) - Math.round(wprop.z)); if (wprop.side < 0) ctx.scale(-1, 1);   // pointing away from her
+  ctx.drawImage(f.img, f.x - mid, f.y - arm);
+  ctx.restore();
+}
 // when she is free and her bear is on the ground, she goes to get it (called before she picks something else to do)
 function fetchTeddy(now) {
   if (!teddyOn() || prop.state !== "ground" || now < prop.ready || G.sleeping || G.wantSleep) return false;
@@ -663,6 +694,7 @@ function petUpdate(now, dt) {
   if (!G.sleeping && pet.act === "idle" && now > pet.nextEar) { pet.earT = now; pet.nextEar = now + 3000 + Math.random() * 5000; }
 
   updateTeddy(now, dt);
+  updateWeaponProp(now);
   if (G.still) pet.nextThink = now + 1500;                               // the tutorial is talking: she stands and listens
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && now > prop.ready && fetchTeddy(now)) {}
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && now > pet.nextThink) {
@@ -799,7 +831,7 @@ function petRender(now) {
     const img = pose.img || MOCHIBOX_IMG[0];
     dashDust({ x: Math.round(pet.x + (pose.dx || 0)) - (img.width >> 1), y: FEET - img.height + pose.yoff }, false);
   }
-  drawTeddy(false);
+  drawTeddy(false); drawWeaponProp(false);
   ctx.save(); ctx.translate(0, -Math.round(pet.z));     // her depth on the grass
   const box = pose.hidden ? { x: pet.x, y: FEET - 30, w: 0, h: 30 } : drawSprite(ctx, G.pet, pose, pet.x, FEET, pet.dir, G.equip);
   if (G.pet === "mochi" && pet.act === "fall" && pet.skyDrop) hopLines(box, pose.hopF, now);
@@ -823,7 +855,7 @@ function petRender(now) {
   ctx.restore();
   box.y -= Math.round(pet.z);                            // back to screen space, for the Zzz and the speech bubble
   if (pet.z > SIGN_Z + 0.5 && typeof drawSignOver === "function") drawSignOver(ctx, now);   // behind the sign
-  drawTeddy(true);
+  drawTeddy(true); drawWeaponProp(true);
   if (pet.act === "peek" && pet.peek.phase !== "out" && pet.peek.phase !== "in") {
     const pk = pet.peek, t = now - pk.t0, sora = pk.kind === "sora";
     let img = sora ? soraPeekImg(pk, t) : PEEK_IMG[0], off = 0;
