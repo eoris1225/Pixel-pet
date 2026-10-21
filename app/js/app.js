@@ -859,5 +859,14 @@ addEventListener("pagehide", save);
 // every face is fetched up front (the ones the first screens need are waited for), so nothing appears in a fallback
 // font or as an empty bubble the first time it is used
 const FACES = ["PF", "Galmuri11", "Galmuri14", "Ramche", "PFSX", "Galmuri9", "Galmuri11B", "Galmuri11C", "GalmuriMono9", "Mulmaru", "Silver", "Roborobo", "PFS"];
-const faceLoads = document.fonts ? FACES.map(f => document.fonts.load(`16px "${f}"`, "가나다Aa1").catch(() => {})) : [];
-Promise.all(faceLoads.slice(0, 6)).then(() => requestAnimationFrame(loop));
+const loader = document.getElementById("loader"), loaderBar = loader.querySelector("i");
+{ const id = appEl.dataset.pet || "mochi", g = document.getElementById("loader-pet");   // the chosen pet hops while the fonts arrive
+  const img = gridToCanvas(SPRITES[id], PET[id].pal); g.width = img.width; g.height = img.height; g.getContext("2d").drawImage(img, 0, 0); }
+let loaded = 0;
+const faceLoads = document.fonts ? FACES.map(f => document.fonts.load(`16px "${f}"`, "가나다Aa1").catch(() => {})
+  .then(() => { loaded++; loaderBar.style.width = Math.round(8 + 92 * loaded / FACES.length) + "%"; })) : [];
+Promise.all(faceLoads.slice(0, 6)).then(() => {
+  requestAnimationFrame(loop);
+  loaderBar.style.width = "100%";
+  setTimeout(() => { loader.classList.add("done"); setTimeout(() => loader.remove(), 300); }, 200);
+});

@@ -6,6 +6,26 @@
 
 const TEAR = { main: "#8fd0f6", tip: "#bfe5fb" };
 
+// the body's own outline (the biggest connected run of outline): ear tips and limbs belong to it, pupils never do
+function mainOutline(grid) {
+  const h = grid.length, w = grid[0].length, at = (x, y) => (y >= 0 && y < h && x >= 0 && x < w ? grid[y][x] : "B");
+  const main = new Set(), seen = new Set(); let best = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (at(x, y) !== "K" || seen.has(x + "," + y)) continue;
+    const comp = [], stack = [[x, y]]; seen.add(x + "," + y);
+    while (stack.length) {
+      const [px, py] = stack.pop(); comp.push(px + "," + py);
+      for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+        const k = (px + dx) + "," + (py + dy);
+        if (at(px + dx, py + dy) === "K" && !seen.has(k)) { seen.add(k); stack.push([px + dx, py + dy]); }
+      }
+    }
+    if (comp.length > best.length) best = comp;
+  }
+  best.forEach(k => main.add(k));
+  return main;
+}
+
 // eyes: a white highlight pixel with outline on at least three sides marks a pupil; nearby highlights
 // are one eye, and the eye's extent is the outline right around them. Faces turned away and closed or blinking
 // eyes have no such highlight, so nothing is drawn there.
@@ -22,23 +42,7 @@ function findEyes(grid) {
     const g = groups.find(g => g.pts.length < 2 && g.pts.some(q => Math.abs(q[0] - p[0]) <= 1 && Math.abs(q[1] - p[1]) <= 1));
     if (g) g.pts.push(p); else groups.push({ pts: [p] });
   }
-  // the body's own outline (the biggest connected run of outline): ear tips and limbs belong to it, pupils never do
-  const main = new Set(); {
-    const seen = new Set(); let best = [];
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      if (at(x, y) !== "K" || seen.has(x + "," + y)) continue;
-      const comp = [], stack = [[x, y]]; seen.add(x + "," + y);
-      while (stack.length) {
-        const [px, py] = stack.pop(); comp.push(px + "," + py);
-        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
-          const k = (px + dx) + "," + (py + dy);
-          if (at(px + dx, py + dy) === "K" && !seen.has(k)) { seen.add(k); stack.push([px + dx, py + dy]); }
-        }
-      }
-      if (comp.length > best.length) best = comp;
-    }
-    best.forEach(k => main.add(k));
-  }
+  const main = mainOutline(grid);
   const eyes = groups.map(g => {
     const xs = g.pts.map(p => p[0]), ys = g.pts.map(p => p[1]);
     let x0 = Math.min(...xs) - 1, x1 = Math.max(...xs) + 1, y0 = Math.min(...ys) - 1, y1 = Math.max(...ys) + 1;
@@ -127,7 +131,7 @@ function findFace(grid) {
     c.pts.push([x, y]);
     if (at(x + 1, y) === "K" && at(x + 2, y) === "P") c.striped = true;
   }
-  cheeks.forEach(c => { c.cx = c.pts.reduce((a, p) => a + p[0], 0) / c.pts.length; c.cy = c.pts.reduce((a, p) => a + p[1], 0) / c.pts.length; });
+  cheeks.forEach(c => { c.y1 = Math.max(...c.pts.map(p => p[1])); c.cx = c.pts.reduce((a, p) => a + p[0], 0) / c.pts.length; c.cy = c.pts.reduce((a, p) => a + p[1], 0) / c.pts.length; });
   const blush = cheeks.filter(c => c.pts.length <= 14);
   const pair = (list, far) => { let best = null;
     for (const a of list) for (const b of list) if (a.cx < b.cx && Math.abs(a.cy - b.cy) <= 2.5 && b.cx - a.cx >= (far > 14 ? 8 : 4) && b.cx - a.cx <= far && (far <= 14 || a.striped || b.striped)) best = best || [a, b];
@@ -135,7 +139,10 @@ function findFace(grid) {
   const ep = pair(eyes, 14);
   if (ep) { const d = ep[1].cx - ep[0].cx; return { cx: (ep[0].cx + ep[1].cx) / 2, cy: (ep[0].cy + ep[1].cy) / 2 + 3, rx: d / 2 + 5.2, ry: 6 }; }
   const cp = pair(blush, 20);
-  if (cp) { const d = cp[1].cx - cp[0].cx; return { cx: (cp[0].cx + cp[1].cx) / 2 + 0.5, cy: (cp[0].cy + cp[1].cy) / 2, rx: Math.max(6.5, d / 2 + 1.7), ry: 6 }; }
+  if (cp) {                                                // the opening ends just under the cheeks (on a bowed head the chin is right there)
+    const d = cp[1].cx - cp[0].cx, cy = (cp[0].cy + cp[1].cy) / 2;
+    return { cx: (cp[0].cx + cp[1].cx) / 2 + 0.5, cy, rx: Math.max(6.5, d / 2 + 1.7), ry: 6, down: Math.max(cp[0].y1, cp[1].y1) + 2 - cy };
+  }
   if (eyes.length) return { cx: eyes[0].cx, cy: eyes[0].cy + 3, rx: 6.5, ry: 6 };
   const one = blush.find(c => c.striped);
   if (one) {                                               // one cheek: a profile, the face sits between it and the middle of the body
@@ -149,10 +156,11 @@ function findFace(grid) {
 
 // Lv6 pajamas: a hooded onesie in the character's colour. Everything but the face turns into the suit, so her own
 // ears become the hood's ears; a lighter rim marks the hood opening and two white buttons sit on the chest.
-// Facing away, the whole body is the suit (the back of the hood). 욱's white tail pokes out of it. Close-ups keep their own look.
+// Facing away, the whole body is the suit (the back of the hood). 욱's white tail pokes out of it; 하와's opening reaches up
+// to her hair, so her bangs show in a deeper blue under the hood. Close-ups keep their own look.
 const PAJAMA = {
   mochi: { main: "#ffbdd0", shade: "#f29ab5", rim: "#ffdbe6" },
-  sora:  { main: "#acdaf8", shade: "#84bfeb", rim: "#d6eefd" },
+  sora:  { main: "#acdaf8", shade: "#84bfeb", rim: "#d6eefd", up: 4, bangs: "S", bang: "#5eaee6" },
   nori:  { main: "#ffd766", shade: "#efb53a", rim: "#ffeaa8", keep: "W" },
 };
 function autoPajama(grid, pet) {
@@ -163,18 +171,36 @@ function autoPajama(grid, pet) {
   if (eyes.length === 2) { const d = eyes[1].cx - eyes[0].cx; face = { cx: (eyes[0].cx + eyes[1].cx) / 2 + 0.5, cy: (eyes[0].cy + eyes[1].cy) / 2 + 2.5, rx: d / 2 + 5.2, ry: 6 }; }
   else if (eyes.length === 1) face = { cx: eyes[0].cx + 0.5, cy: eyes[0].cy + 2.5, rx: 6.5, ry: 6 };
   else face = findFace(grid);
-  const ell = (x, y, grow) => face && ((x + 0.5 - face.cx) / (face.rx + grow)) ** 2 + ((y + 0.5 - face.cy) / (face.ry + grow)) ** 2 <= 1;
+  if (face) {                                              // the opening ends just under the mouth, so a low face (a bow) leaves the body to the suit
+    const main = mainOutline(grid); let low = -1;
+    for (let y = Math.ceil(face.cy); y <= face.cy + face.ry; y++) for (let x = Math.floor(face.cx - 3); x <= face.cx + 3; x++)
+      if (grid[y] && grid[y][x] === "K" && !main.has(x + "," + y)) low = Math.max(low, y);
+    face.down = Math.min(face.down || face.ry, low < 0 ? face.ry : Math.max(2.5, low + 1.5 - face.cy));
+  }
+  const ell = (x, y, grow) => {
+    if (!face) return false;
+    const dy = y + 0.5 - face.cy, ry = dy < 0 ? face.ry + (pal.up || 0) : face.down, ex = dy < 0 && pal.up ? 4 : 2;   // 하와's top is squarer, to show her bangs
+    return Math.abs((x + 0.5 - face.cx) / (face.rx + grow)) ** ex + Math.abs(dy / (ry + grow)) ** ex <= 1;
+  };
   const out = [];
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const c = grid[y][x];
-    if (c === "B" || c === "K" || (pal.keep && pal.keep.includes(c)) || ell(x, y, 0)) continue;
-    out.push([x, y, ell(x, y, 1.3) ? pal.rim : "LNQM".includes(c) ? pal.shade : pal.main]);
+    if (c === "B" || c === "K" || (pal.keep && pal.keep.includes(c))) continue;
+    if (ell(x, y, 0)) { if (pal.bangs && pal.bangs.includes(c)) out.push([x, y, pal.bang]); continue; }
+    // a gloomy shadow (Q) stays on the face only: the suit itself is plain
+    out.push([x, y, ell(x, y, 1.3) ? pal.rim : "LNM".includes(c) ? pal.shade : pal.main]);
   }
-  if (face) {                                              // two buttons down the front
-    const bx = Math.floor(face.cx), by = Math.ceil(face.cy + face.ry) + 2;
-    for (const y of [by, by + 3]) {
-      const c = grid[y] && grid[y][bx];
-      if (c && c !== "B" && c !== "K") { out.push([bx, y, "#ffffff"]); if (grid[y + 1] && grid[y + 1][bx] !== "K" && grid[y + 1][bx] !== "B") out.push([bx, y + 1, pal.shade]); }
+  if (face) {                                              // two buttons down the front, as far as the body has room
+    const bx = Math.floor(face.cx), top = Math.ceil(face.cy + face.down) + 1;
+    const ok = y => { const c = grid[y] && grid[y][bx]; return c && c !== "B" && c !== "K" && !ell(bx, y, 1.3); };
+    const first = [top, top + 1].find(ok);
+    if (first !== undefined) {
+      const gap = ok(first + 3) && ok(first + 4) ? 3 : 2;
+      for (const y of [first, first + gap]) {
+        if (!ok(y)) continue;
+        out.push([bx, y, "#ffffff"]);
+        if (gap === 3 && ok(y + 1)) out.push([bx, y + 1, pal.shade]);
+      }
     }
   }
   return out;
