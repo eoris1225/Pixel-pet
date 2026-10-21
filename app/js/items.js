@@ -226,6 +226,22 @@ function weaponSway() {
     default: return 0;
   }
 }
+// her hands on a frame where they are drawn out from her body (하와's dance): on each side, the short run of rows where
+// the outline juts out past the rows a few above and below it, between her face and her feet
+function findHands(grid) {
+  const h = grid.length, f = faceOf(grid), top = f ? Math.round(f.cy) : Math.round(h * 0.35), out = {};
+  for (const side of [-1, 1]) {
+    const edge = y => { const r = grid[y] || ""; const i = side < 0 ? r.search(/[^B]/) : r.length - 1 - [...r].reverse().join("").search(/[^B]/); return i < 0 || i >= r.length ? null : i; };
+    let best = null;
+    for (let y = top; y < h - 7; y++) {
+      const e = edge(y), a = edge(y - 3), b = edge(y + 3); if (e === null || a === null || b === null) continue;
+      const jut = side < 0 ? Math.min(a, b) - e : e - Math.max(a, b);   // how far this row sticks out
+      if (jut >= 2 && (!best || jut > best.jut)) best = { jut, x: e - side, y };
+    }
+    if (best) out[side < 0 ? "l" : "r"] = [best.x, best.y];
+  }
+  return out;
+}
 function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
   const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid;
   const w = grid[0].length, h = grid.length, arm = ANCHOR[petId].arm, mode = weaponMode(img), mid = WEAPON_MID[petId];
@@ -235,6 +251,19 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
   if (!("wo" in cache)) cache.wo = weaponOffset(grid, petId);
   const o = cache.wo;
   if (mode === "away") return;                               // lying on the grass where she put it (drawn by pet.js)
+  if (!base && typeof pet !== "undefined" && pet.act === "dance") {   // dancing, her hands are drawn out: the weapon goes with them
+    if (layer !== "front") return;
+    const hd = cache.hands || (cache.hands = findHands(grid)), f = weaponFlat(petId);
+    if (hd.l || hd.r) {
+      let cx, cy, ang, flip = false;
+      if (hd.l && hd.r) { cx = (hd.l[0] + hd.r[0]) / 2; cy = (hd.l[1] + hd.r[1]) / 2; ang = Math.atan2(hd.r[1] - hd.l[1], hd.r[0] - hd.l[0]); }
+      else { const [x, y] = hd.r || hd.l; flip = !hd.r; cx = x; cy = y; ang = -1.2; }   // one hand out: raised up on that side, gripped low
+      g.save(); g.translate(Math.round(cx), Math.round(cy)); if (flip) g.scale(-1, 1); g.rotate(ang);
+      g.drawImage(f.img, f.x - (hd.l && hd.r ? mid : mid - 12), f.y - arm);
+      g.restore();
+      return;
+    }
+  }
   if (mode === "lift") {                                     // arms going up and down: from across her belly to over her head
     if (layer !== "front") return;
     const q = LIFT[+/(\d+)$/.exec(img.key)[1]], f = weaponFlat(petId), top = grid.findIndex(r => /[^B]/.test(r));
