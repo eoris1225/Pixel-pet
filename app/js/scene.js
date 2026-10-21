@@ -59,7 +59,17 @@ const TUFTS = Array.from({ length: 46 }, () => ({ x: rnd() * W, y: rnd(), h: 2 +
 const FLOWERS = Array.from({ length: 16 }, () => ({ x: 4 + rnd() * (W - 8), y: rnd(), c: ["#ffffff", "#ffc4d6", "#ffe58a", "#d9c8ff", "#ffffff"][rnd() * 5 | 0], p: rnd() * 6 }));
 
 let horizon = 210;
-const SIGN_X = 30;
+const SIGN_X = 26;
+const TREE = { x: 163, leaves: [], blossoms: [] };
+function placeTree() {
+  const y = FEET - 46;
+  TREE.leaves = [[163, y - 14, 19], [178, y - 4, 15], [146, y - 2, 12], [170, y - 30, 13], [150, y - 22, 12], [184, y - 22, 12]];
+  seed = 31; TREE.blossoms = Array.from({ length: 22 }, () => {
+    const c = TREE.leaves[rnd() * TREE.leaves.length | 0], a = rnd() * 6.28, d = rnd() * c[2] * 0.8;
+    return [Math.round(c[0] + Math.cos(a) * d), Math.round(c[1] + Math.sin(a) * d), ["#ffd1dc", "#ffffff", "#ffb3c7"][rnd() * 3 | 0]];
+  });
+}
+let petals = [];
 
 /* ---------- clouds ---------- */
 const CLOUD_SHAPES = [
@@ -135,13 +145,14 @@ let cacheKey = "";
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(v => (v + 0.5) / 16);
 
 function sceneResize() {
-  horizon = FEET - 42;
+  horizon = FEET - 46;
   bg.width = W; bg.height = H;
   skyCv.width = W; skyCv.height = H; landCv.width = W; landCv.height = H;
   cacheKey = "";
   STARS.forEach(s => s.yy = 4 + s.y * (horizon - 30));
+  placeTree();
   TUFTS.forEach(t => t.yy = horizon + 6 + t.y * (H - horizon - 8));
-  FLOWERS.forEach(f => f.yy = horizon + 10 + f.y * (FEET - horizon + 12));
+  FLOWERS.forEach(f => f.yy = horizon + 10 + f.y * (FEET - horizon + 8));
   TUFTS.sort((a, b) => a.yy - b.yy);
 }
 
@@ -193,6 +204,40 @@ function paintLand(h) {
     const q = Math.min(1, (y - horizon - 18) / 50);
     for (let x = 0; x < W; x++) if (q > BAYER[(y & 3) * 4 + (x & 3)]) { g.fillStyle = css(deep); g.fillRect(x, y, 1, 1); }
   }
+  // the front of the meadow: a big blossom tree on the right, a bush behind the sign, mushrooms and pebbles
+  const L = c => lit(c, h);
+  const tx = TREE.x, base = FEET + 4;
+  g.fillStyle = OUT; g.fillRect(tx - 5, base - 46, 11, 47);
+  g.fillStyle = css(L("#b5835a")); g.fillRect(tx - 4, base - 46, 9, 46);
+  g.fillStyle = css(L("#97683f")); g.fillRect(tx + 2, base - 46, 3, 46); g.fillRect(tx - 2, base - 30, 1, 5); g.fillRect(tx, base - 18, 1, 4);
+  g.fillStyle = OUT; g.fillRect(tx - 8, base, 17, 1); g.fillRect(tx - 7, base - 1, 2, 1); g.fillRect(tx + 6, base - 1, 2, 1);
+  g.fillStyle = css(L("#b5835a")); g.fillRect(tx - 9, base - 30, 6, 2); g.fillRect(tx - 10, base - 32, 2, 2);  // a little branch
+  blob(g, TREE.leaves, L("#9fd99a"), L("#7fc184"), L("#c4ecb5"));
+  TREE.blossoms.forEach(([x, y, c]) => { g.fillStyle = css(L(c)); g.fillRect(x, y, 2, 1); g.fillRect(x, y + 1, 1, 1); });
+  blob(g, [[6, FEET - 8, 9], [16, FEET - 6, 7], [-2, FEET - 4, 7]], L("#93d394"), L("#78bd80"), L("#bfe8b4"));
+  [[118, FEET + 6, "#ffb3c7"], [124, FEET + 8, "#ffd98a"]].forEach(([x, y, c]) => {      // mushrooms
+    g.fillStyle = OUT; g.fillRect(x - 3, y - 6, 7, 1); g.fillRect(x - 4, y - 5, 9, 2); g.fillRect(x - 1, y - 3, 3, 4);
+    g.fillStyle = css(L(c)); g.fillRect(x - 2, y - 5, 5, 1); g.fillRect(x - 3, y - 4, 7, 1);
+    g.fillStyle = css(L("#fffaf0")); g.fillRect(x, y - 3, 1, 3); g.fillRect(x - 1, y - 5, 1, 1); g.fillRect(x + 2, y - 4, 1, 1);
+  });
+  [[64, FEET + 10, 4], [90, FEET + 13, 3]].forEach(([x, y, r]) => {                        // pebbles
+    g.fillStyle = OUT; g.fillRect(x - r, y - 2, r * 2 + 1, 3); g.fillRect(x - r + 1, y - 3, r * 2 - 1, 1);
+    g.fillStyle = css(L("#d8d4cc")); g.fillRect(x - r + 1, y - 2, r * 2 - 1, 2); g.fillStyle = css(L("#f2efe8")); g.fillRect(x - r + 2, y - 2, 2, 1);
+  });
+}
+// a pixel blob from circles: outlined, lit from the top-left, a shade underneath
+function blob(g, circles, fill, shade, hi) {
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  circles.forEach(([x, y, r]) => { x0 = Math.min(x0, x - r - 1); y0 = Math.min(y0, y - r - 1); x1 = Math.max(x1, x + r + 1); y1 = Math.max(y1, y + r + 1); });
+  const inside = (x, y) => circles.some(([cx, cy, r]) => (x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2 <= r * r);
+  for (let y = Math.floor(y0); y <= y1; y++) for (let x = Math.floor(x0); x <= x1; x++) {
+    if (x < 0 || x >= W || !inside(x, y)) continue;
+    const edge = !inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1);
+    const top = !inside(x, y - 2) || !inside(x - 2, y - 1);
+    const low = circles.every(([cx, cy, r]) => (x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2 > r * r || y - cy > r * 0.35);
+    g.fillStyle = edge ? OUT : top ? css(hi) : low ? css(shade) : css(fill);
+    g.fillRect(x, y, 1, 1);
+  }
 }
 
 /* ---------- update ---------- */
@@ -226,6 +271,11 @@ function sceneUpdate(now, dt) {
 
   if (!fly && now > nextFly && dark < 0.3) fly = { x: -6, y: FEET - 30, base: FEET - 26 - rnd() * 30, t: 0, c: ["#ffd84d", "#ffffff", "#ffb3c7", "#c6b5ff"][rnd() * 4 | 0] };
   if (fly) { fly.t += dt; fly.x += 12 * s; fly.y = fly.base + Math.sin(fly.t / 600) * 8 + Math.sin(fly.t / 170) * 2; if (fly.x > W + 6) { fly = null; nextFly = now + 30000 + rnd() * 40000; } }
+
+  // blossom petals drift down from the tree in the wind
+  if (petals.length < 5 && Math.random() < dt / 2600) { const c = TREE.leaves[Math.random() * 4 | 0]; petals.push({ x: c[0] - 10 + Math.random() * 14, y: c[1] + 6, p: Math.random() * 6, c: Math.random() < 0.5 ? "#ffd1dc" : "#ffffff" }); }
+  for (const p of petals) { p.y += 9 * s; p.x -= (5 + wind * 6) * s; p.p += s * 3; }
+  petals = petals.filter(p => p.y < FEET + 10 && p.x > -4);
 
   // a sparrow flies to the sign, hops and pecks for a while, then leaves
   const sx = SIGN_X + 6, sy = FEET - 30;
@@ -361,6 +411,10 @@ function sceneRender(now, signInfo) {
     g.restore();
     if (flying) { g.fillStyle = "#b88a64"; const up = Math.floor(now / 90) % 2; g.fillRect(Math.round(b.x) + 2, Math.round(b.y) + (up ? -1 : 2), 3, 1); }
   }
+  for (const p of petals) {
+    g.fillStyle = css(lit(p.c, h)); const x = Math.round(p.x + Math.sin(p.p) * 3), y = Math.round(p.y);
+    g.fillRect(x, y, Math.sin(p.p * 2) > 0 ? 2 : 1, 1);
+  }
   if (fly) {
     const open = Math.floor(now / 140) % 2, x = Math.round(fly.x), y = Math.round(fly.y);
     g.fillStyle = OUT; g.fillRect(x, y, 1, 2);
@@ -379,5 +433,5 @@ function sceneSpeech(now) {
   if (!faceCloud || !faceImg) return null;
   const x = faceCloud.x + faceImg.width / 2;
   if (x < 20 || x > W - 10) return null;
-  return { x, y: faceCloud.y - 2, text: "지나가유~ ♪" };
+  return { x, y: faceCloud.y - 2, text: "지나가유~" };
 }

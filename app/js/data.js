@@ -48,11 +48,11 @@ const SUBJECT_COLORS = ["#ffb3a7", "#a7c7ff", "#b5e6a3", "#ffd98a", "#d4b5ff", "
 
 const TUTORIAL = [
   { target: null,       text: "톡톡? 처음이지? 사용법을 알려줄게! 화면을 눌러 줘." },
-  { target: "#hud",     text: "① 1시간 공부하면 레벨이 하나 올라! 캐릭터마다 최대 10레벨이야." },
-  { target: "#hud",     text: "② 버닝 시간은 18시~0시! 이때는 50분마다 레벨 업이라 더 빨라." },
-  { target: "#controls", text: "③ [시작]을 누르면 타이머가 돌아가고, [끝]을 누르면 멈춰. 그때 뭘 했는지 적어 줘!" },
+  { target: "#hud",     text: "1. 1시간 공부하면 레벨이 하나 올라! 캐릭터마다 최대 10레벨이야." },
+  { target: "#hud",     text: "2. 버닝 시간은 18시~0시! 이때는 50분마다 레벨 업이라 더 빨라." },
+  { target: "#controls", text: "3. [시작]을 누르면 타이머가 돌아가고, [끝]을 누르면 멈춰. 그때 뭘 했는지 적어 줘!" },
   { target: "#controls", text: "[휴식]을 누르면 타이머가 잠깐 멈춰. 다시 누르면 이어서 공부해." },
   { target: "#sidetab", text: "여기를 누르면 공부 시간, 공부 계획표, 설정이 있어!" },
-  { target: "#sidetab", text: "④ 레벨 업 하면 아이템이 생겨. 설정 > 인벤토리에서 뗐다 붙였다 할 수 있어!" },
+  { target: "#sidetab", text: "4. 레벨 업 하면 아이템이 생겨. 설정의 인벤토리에서 뗐다 붙였다 할 수 있어!" },
   { target: "#sidetab", text: "튜토리얼은 설정에서 언제든 다시 볼 수 있어. 그럼 시작해 볼까?", fly: true },
 ];
