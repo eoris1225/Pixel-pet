@@ -314,7 +314,7 @@ function updateSelInfo() {
   if (!selPick) { info.hidden = true; $("#sel-ok").disabled = true; return; }
   const c = CHARS[selPick];
   info.hidden = false;
-  info.innerHTML = `<p><b class="f-sm">이름</b>${c.name}${selMode === "change" && S.chars[selPick] ? ` <span class="f-num s muted">Lv.${lvOf(curExp(selPick))}</span>` : ""}</p><p><b class="f-sm">특징</b><span class="f-sm">${c.trait}</span></p>`;
+  info.innerHTML = `<p><b class="f-sm">이름</b><span class="f-name">${c.name}</span>${selMode === "change" && S.chars[selPick] ? ` <span class="f-num s muted">Lv.${lvOf(curExp(selPick))}</span>` : ""}</p><p><b class="f-sm">특징</b><span class="f-sm">${c.trait}</span></p>`;
   $("#sel-ok").disabled = selMode === "change" && selPick === S.pet;
 }
 $("#sel-ok").onclick = () => {

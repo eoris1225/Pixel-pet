@@ -1,14 +1,28 @@
 /* Pixel UI on the game's 180x320 grid (#app is scaled up by a whole number in app.js).
-   Shapes, outlines, icons and sprites sit on that grid. Korean text is the exception: it is set in screen pixels
-   (--px = one screen pixel), so the pixel fonts render at their own sharp sizes, finer than the game pixels.
+   Shapes, outlines, icons and sprites sit on that grid. Korean text is the exception: its unit (--px) is half a game
+   pixel, so the pixel fonts are drawn twice as fine as the game and still scale with the frame.
 
-   Type, by situation and by how warm or loud a line is:
-     PF Stardust Bold 16      .f-ui    the voice of the app: buttons, titles, ordinary lines
-     PF Stardust S Bold 12    .f-sm    secondary: hints, meta, legends
-     PF Stardust S ExtraBold  .f-num   numbers (Lv, time, %), and excited lines (t-high)
-     Ramche 12                .t-low   quiet, timid, trailing-off lines (...), placeholders
-     Silver 19                .f-amb   the world talking (a passing cloud), small asides
-     Pixelroborobo 16         .t-peak  accent only: the level-up title and 욱's loudest shouts */
+   Type, by situation and by how warm or loud a line is (every size is the font's own pixel size):
+     Galmuri11 12          body          the default: descriptions, cards, inputs
+     PF Stardust Bold 16   .f-ui         the app's voice: buttons, titles, window bars, menu rows
+     Galmuri9 10           .f-sm         secondary: hints, meta, legends
+     Galmuri11 Bold 12     .f-num        numbers that matter (Lv, %, totals); GalmuriMono9 10 for small tabular ones
+     Galmuri11 Condensed   .f-cond       names in narrow slots
+     Mulmaru 12            .f-name       name tags: characters, subjects
+     Silver 19             .f-amb        the world talking (a passing cloud)
+   Dialogue temperature:
+     Ramche 12             .t-low        quiet, timid, trailing off (...)
+     Galmuri14 15          .t-mid        ordinary warm lines
+     PF Stardust S ExtraBold 16  .t-high excited (!!)
+     Pixelroborobo 16      .t-peak       accent only: the level-up title and 욱's loudest shouts
+   Line heights are generous (about 1.6x) so wrapped lines never touch. */
+@font-face { font-family: "Galmuri11"; src: url("../fonts/galmuri11.woff2") format("woff2"); font-display: block; }
+@font-face { font-family: "Galmuri11B"; src: url("../fonts/galmuri11-bold.woff2") format("woff2"); font-display: block; }
+@font-face { font-family: "Galmuri11C"; src: url("../fonts/galmuri11-condensed.woff2") format("woff2"); font-display: block; }
+@font-face { font-family: "Galmuri9"; src: url("../fonts/galmuri9.woff2") format("woff2"); font-display: block; }
+@font-face { font-family: "Galmuri14"; src: url("../fonts/galmuri14.woff2") format("woff2"); font-display: block; }
+@font-face { font-family: "GalmuriMono9"; src: url("../fonts/galmurimono9.woff2") format("woff2"); font-display: block; }
+@font-face { font-family: "Mulmaru"; src: url("../fonts/mulmaru.woff2") format("woff2"); font-display: block; }
 @font-face { font-family: "PF"; src: url("../fonts/pfb.woff2") format("woff2"); font-display: block; }
 @font-face { font-family: "PFS"; src: url("../fonts/pfsb.woff2") format("woff2"); font-display: block; }
 @font-face { font-family: "PFSX"; src: url("../fonts/pfseb.woff2") format("woff2"); font-display: block; }
@@ -56,15 +70,18 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: bloc
 h2, h3, h4, p, ul, ol, dl, dd { margin: 0; padding: 0; font-weight: normal; }
 
 /* ---------- type ---------- */
-#app, .f-ui { font: calc(16 * var(--px)) / calc(20 * var(--px)) "PF", sans-serif; }
-.f-sm  { font: calc(12 * var(--px)) / calc(16 * var(--px)) "PFS", "PF", sans-serif; }
-.f-num { font: calc(16 * var(--px)) / calc(18 * var(--px)) "PFSX", "PF", sans-serif; }
-.f-num.s { font-size: calc(12 * var(--px)); line-height: calc(14 * var(--px)); }
-.f-amb { font: calc(19 * var(--px)) / calc(16 * var(--px)) "Silver", "PFS", sans-serif; }
-.t-low  { font: calc(12 * var(--px)) / calc(17 * var(--px)) "Ramche", "PFS", sans-serif; }
-.t-mid  { font: calc(16 * var(--px)) / calc(20 * var(--px)) "PF", sans-serif; }
-.t-high { font: calc(16 * var(--px)) / calc(20 * var(--px)) "PFSX", "PF", sans-serif; }
-.t-peak { font: calc(16 * var(--px)) / calc(20 * var(--px)) "Roborobo", "PFSX", sans-serif; }
+#app { font: calc(12 * var(--px)) / calc(20 * var(--px)) "Galmuri11", "PF", sans-serif; }
+.f-ui, .pxb, .scr-head h2, .win-t, .card-t, .lbl-mark { font: calc(16 * var(--px)) / calc(22 * var(--px)) "PF", sans-serif; }
+.f-sm  { font: calc(10 * var(--px)) / calc(16 * var(--px)) "Galmuri9", "Galmuri11", sans-serif; }
+.f-num { font: calc(12 * var(--px)) / calc(16 * var(--px)) "Galmuri11B", "Galmuri11", sans-serif; }
+.f-num.s { font: calc(10 * var(--px)) / calc(14 * var(--px)) "GalmuriMono9", "Galmuri9", monospace; }
+.f-cond { font: calc(12 * var(--px)) / calc(16 * var(--px)) "Galmuri11C", "Galmuri11", sans-serif; }
+.f-name { font: calc(12 * var(--px)) / calc(18 * var(--px)) "Mulmaru", "Galmuri11B", sans-serif; }
+.f-amb { font: calc(19 * var(--px)) / calc(16 * var(--px)) "Silver", "Galmuri9", sans-serif; }
+.t-low  { font: calc(12 * var(--px)) / calc(21 * var(--px)) "Ramche", "Galmuri11", sans-serif; }
+.t-mid  { font: calc(15 * var(--px)) / calc(24 * var(--px)) "Galmuri14", "Galmuri11", sans-serif; }
+.t-high { font: calc(16 * var(--px)) / calc(25 * var(--px)) "PFSX", "PF", sans-serif; }
+.t-peak { font: calc(16 * var(--px)) / calc(25 * var(--px)) "Roborobo", "PFSX", sans-serif; }
 .muted { color: var(--muted); }
 
 /* ---------- pixel shapes ----------
@@ -176,7 +193,7 @@ textarea.field { height: 38px; resize: none; display: block; padding: 1px 3px; }
 .row2 { display: flex; gap: 4px; align-items: center; }
 .row2 .field { flex: 1; min-width: 0; }
 .hint { color: var(--muted); margin-top: 2px; }
-.tag { display: inline-block; padding: 0 3px 1px; background: var(--c, #eee); border: 1px solid var(--ink); }
+.tag { font-family: "Mulmaru", sans-serif; display: inline-block; padding: 0 3px 1px; background: var(--c, #eee); border: 1px solid var(--ink); }
 .sw { display: inline-block; width: 6px; height: 6px; background: var(--c); border: 1px solid var(--ink); margin-right: 3px; flex: none; }
 .lbl-mark { display: flex; align-items: center; gap: 3px; margin: 3px 0 2px; }
 .lbl-mark::before { content: ""; width: 3px; height: 7px; background: var(--accent-deep); flex: none; }
@@ -185,9 +202,10 @@ textarea.field { height: 38px; resize: none; display: block; padding: 1px 3px; }
 #scr-select .scr-body { display: flex; flex-direction: column; padding-top: 7px; }
 .sel-bubble { margin: 0 0 9px; --tail: 85px; }
 .sel-bubble .bb { min-height: 54px; text-align: left; padding: 4px 6px; }
-.sel-bubble .bb.t-mid, .sel-bubble .bb.t-high { font-size: calc(13 * var(--px)); line-height: calc(17 * var(--px)); }   /* the intro is long: one size down */
+.sel-bubble .bb.t-high { font: calc(12 * var(--px)) / calc(21 * var(--px)) "Galmuri11B", sans-serif; }   /* the intro is long: excited lines one size down */
 .sel-bubble { --tail: 85px; }
 .sel-row { display: grid; grid-template-columns: repeat(3, 52px); gap: 5px; justify-content: center; margin-bottom: 7px; }
+.sel-card span { font: calc(12 * var(--px)) / calc(18 * var(--px)) "Mulmaru", sans-serif; }
 .sel-card { height: 58px; flex-direction: column; gap: 0; --face: var(--c-soft); --sh: var(--line); padding-top: 1px; }
 .sel-card canvas { width: 44px; height: 38px; }
 .sel-card[aria-pressed="true"] { --face: var(--c); --sh: var(--c-deep); }
@@ -245,10 +263,11 @@ textarea.field { height: 38px; resize: none; display: block; padding: 1px 3px; }
 /* tutorial page */
 .steps { list-style: none; display: grid; gap: 6px; padding: 2px 0; }
 .steps li { display: flex; gap: 5px; align-items: flex-start; line-height: calc(26 * var(--px)); }
+.steps li .nb { font: calc(10 * var(--px)) / 1 "GalmuriMono9", monospace; }
 .steps li .nb { margin-top: 1px; }
 
 /* explanations: the real keys in miniature, tab icons, numbered badges */
-.kbd { height: 11px; padding: 0 3px 1px; gap: 2px; vertical-align: -2px; font: calc(12 * var(--px)) / 1 "PFS", "PF", sans-serif; margin: 0 1px; }
+.kbd { height: 11px; padding: 0 3px 1px; gap: 2px; vertical-align: -2px; font: calc(10 * var(--px)) / 1 "Galmuri9", sans-serif; margin: 0 1px; }
 .kbd canvas { width: 5px; height: 5px; }
 .tabi { width: 13px; height: 13px; vertical-align: -3px; margin: 0 1px; padding: 0; }
 .tabi canvas { width: 11px; height: 11px; }
@@ -256,7 +275,7 @@ textarea.field { height: 38px; resize: none; display: block; padding: 1px 3px; }
   border: 1px solid var(--ink); clip-path: polygon(1px 0, calc(100% - 1px) 0, 100% 1px, 100% calc(100% - 1px), calc(100% - 1px) 100%, 1px 100%, 0 calc(100% - 1px), 0 1px);
   background: linear-gradient(rgba(255,255,255,.7), rgba(255,255,255,.7)) left 1px top 0 / calc(100% - 2px) 1px no-repeat padding-box,
     linear-gradient(rgba(58,42,26,.18), rgba(58,42,26,.18)) left 0 bottom 0 / 100% 1px no-repeat padding-box, var(--face); }
-.coach-card p { line-height: calc(26 * var(--px)); }
+.coach-card p { font: calc(15 * var(--px)) / calc(27 * var(--px)) "Galmuri14", "Galmuri11", sans-serif; }
 
 /* inventory */
 .inv-preview { padding: 1px; margin-bottom: 7px; --sh: transparent; }
@@ -265,7 +284,7 @@ textarea.field { height: 38px; resize: none; display: block; padding: 1px 3px; }
 .slot { width: 52px; min-height: 58px; flex-direction: column; justify-content: flex-start; gap: 1px; padding: 3px 1px 4px; white-space: normal; word-break: keep-all; text-align: center; }
 .slot canvas { width: 34px; height: 30px; flex: none; }
 .slot .q { width: 30px; height: 26px; margin: 2px 0; flex: none; background: #f2e6cc; border: 1px solid var(--line); display: grid; place-items: center; color: var(--muted); }
-.slot .nm { font-size: calc(13 * var(--px)); line-height: calc(16 * var(--px)); }
+.slot .nm { font: calc(12 * var(--px)) / calc(16 * var(--px)) "Galmuri11C", "Galmuri11", sans-serif; }
 .slot .sub { color: var(--muted); }
 .slot.on { --face: var(--accent-soft); --sh: var(--accent); }
 .slot.on .sub { color: var(--accent-deep); }
@@ -286,7 +305,7 @@ textarea.field { height: 38px; resize: none; display: block; padding: 1px 3px; }
 .actions { display: flex; gap: 5px; margin-top: 7px; }
 .actions .btn { flex: 1; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 2px 0 6px; }
-.chip { height: 16px; padding: 0 4px 1px; --face: var(--c, #eee); }
+.chip { height: 16px; padding: 0 4px 1px; --face: var(--c, #eee); font: calc(12 * var(--px)) / 1 "Mulmaru", sans-serif; }
 .chip[aria-pressed="true"] { --sh: var(--ink); }
 .summary { display: grid; grid-template-columns: auto 1fr; column-gap: 6px; row-gap: 1px; margin-bottom: 3px; align-items: center; }
 .summary dt { color: var(--muted); }
