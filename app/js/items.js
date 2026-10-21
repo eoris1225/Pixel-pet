@@ -56,29 +56,35 @@ function headHat(p, main, rib) {
     for (let x = 0; x < g[bottom].length; x++) if (g[bottom][x] !== "B") d.put(x, bottom + 1, OUT);
   }, false);
 }
-// Lv10 weapons, held in both hands across the belly like the plush toys.
-// 치카 and 하와: a long-handled trident (a weeding fork): two curved outer prongs with little white teeth on the inside
-// and a middle prong, pointing the way she faces.
-const TRIDENT_HEAD = [
-  ".MMMMMMMMM",
-  "MLTMTMTMT.",
-  "M.........",
-  "M.........",
-  "M.........",
-  "MLMMMMMMMM",
-  "M.........",
-  "M.........",
-  "M.........",
-  "MLTMTMTMT.",
-  ".MMMMMMMMM",
+// Lv10 weapons, held in both hands across the belly like the plush toys and the anime.
+// 치카 and 하와: a long-handled two-pronged fork (a weeding fork): the prongs curve apart into a U and have dark teeth
+// on their inner side. It is held slanting up towards the way she faces, her two little hands on the handle.
+const FORK_HEAD = [
+  ".....MMMMMMM",
+  "...MMLLLLLLM",
+  "..ML..D...D.",
+  ".ML.........",
+  ".M..........",
+  "ML..........",
+  "M...........",
+  "ML..........",
+  ".M..........",
+  ".ML.........",
+  "..ML..D...D.",
+  "...MMLLLLLLM",
+  ".....MMMMMMM",
 ];
-function trident(p, main, light) {
-  const y = ANCHOR[p].arm, x1 = 25;
+const HAND = [".KKK.", "KWWWK", "KWWWK", ".KKK."];
+function fork(p, main, light) {
+  const y = ANCHOR[p].arm, x0 = -6, x1 = 27, y0 = y + 4, y1 = y - 3;
+  const at = x => Math.round(y0 + (x - x0) * (y1 - y0) / (x1 - x0));
   return pixmap(d => {
-    d.rect(-5, y, x1 + 5, 2, main); d.rect(-5, y, x1 + 5, 1, light);       // the handle, lit along its top
-    d.grid(TRIDENT_HEAD, { M: main, L: light, T: "#ffffff" }, x1, y - 5);
+    for (let x = x0; x <= x1; x++) { d.put(x, at(x), light); d.put(x, at(x) + 1, main); }   // the handle, lit along its top
+    d.grid(FORK_HEAD, { M: main, L: light, D: OUT }, x1 + 1, y1 - 6);
+    for (const hx of [4, 17]) d.grid(HAND, { K: OUT, W: "#fffaf0" }, hx - 2, at(hx) - 1);   // her hands round the handle
   });
 }
+
 // 욱: a long yellow staff with white caps at both ends, tilted a little, with the rabbit she doodled on it (a dark speck)
 function staff(p) {
   const y = ANCHOR[p].arm + 1, x0 = -8, x1 = 36, rise = 6;
@@ -106,7 +112,7 @@ const ITEM_ART = {
       d.line(6, 18, 18, 24, "#a8714a");
       d.rect(17, 23, 7, 5, "#ffc4a8"); d.rect(17, 23, 7, 2, "#f29b8a"); d.put(20, 25, "#fff4dc");
     }) },
-    fork: { layer: "front", build: () => trident("mochi", "#f59ab6", "#ffd0de") },
+    fork: { layer: "front", build: () => fork("mochi", "#f59ab6", "#ffd0de") },
   },
   sora: {
     beanie: { layer: "front", build: () => headHat("sora", "#9fd3f5", "#d6eefc") },
@@ -121,7 +127,7 @@ const ITEM_ART = {
       d.rect(10, 21, 9, 6, "#f4f1ea"); d.rect(10, 21, 9, 1, "#4a4f6e"); d.rect(11, 20, 3, 1, "#4a4f6e");
       d.disc(14.5, 24, 1.9, "#4a4f6e"); d.put(14, 23, "#a6d6f2"); d.put(17, 22, "#ffd84d");
     }) },
-    trident: { layer: "front", build: () => trident("sora", "#4f9fe0", "#a9d6f7") },
+    trident: { layer: "front", build: () => fork("sora", "#4f9fe0", "#a9d6f7") },
   },
   nori: {
     shades: { layer: "front", build: () => pixmap(d => {
