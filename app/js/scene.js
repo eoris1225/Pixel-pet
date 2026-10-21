@@ -229,7 +229,7 @@ function sceneUpdate(now, dt) {
   if (fly) { fly.t += dt; fly.x += 12 * s; fly.y = fly.base + Math.sin(fly.t / 600) * 8 + Math.sin(fly.t / 170) * 2; if (fly.x > W + 6) { fly = null; nextFly = now + 30000 + rnd() * 40000; } }
 
   // a sparrow flies to the sign, hops and pecks for a while, then leaves
-  const sx = SIGN_X + 6, sy = FEET - 30;
+  const sx = SIGN_X + 4, sy = FEET - 36;          // standing on the top edge of the sign board
   if (!sparrow && now > nextSparrow && dark < 0.4) sparrow = { st: "in", x: W + 8, y: 50, t: 0, stay: 6000 + rnd() * 6000 };
   if (sparrow) {
     const b = sparrow; b.t += dt;

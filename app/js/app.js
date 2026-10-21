@@ -79,7 +79,7 @@ function equipOf(id) {
 }
 
 /* ---------- one resolution for everything: 180x320, scaled by a whole number when the screen allows ---------- */
-H = 320; FEET = 272; PEEK_BOT = 320; TOP_Y = 30;
+H = 320; FEET = 272; PEEK_BOT = 282; TOP_Y = 30;      // close-ups rise from just above the button plaque
 fg.width = W; fg.height = H;
 sceneResize();
 let K = 2;
@@ -90,8 +90,6 @@ function layout() {
   frameEl.style.width = W * K + "px"; frameEl.style.height = H * K + "px";
   frameEl.style.left = Math.round((vw - W * K) / 2) + "px"; frameEl.style.top = Math.round((vh - H * K - 10) / 2) + "px";
   appEl.style.transform = `scale(${K})`;
-  // Korean text is set in screen pixels (one --px = one screen pixel), doubled only on very large screens
-  appEl.style.setProperty("--px", ((K >= 4 ? 2 : 1) / K) + "px");
 }
 addEventListener("resize", layout);
 
@@ -257,7 +255,15 @@ function selectChar(id) {
   const p = portraits.find(p => p.canvas.closest(".sel-card")?.dataset.id === id); if (p) p.happy = performance.now() + 900;
   const st = $("#sel-text"); st.className = "bb pxp " + tClass(CHARS[id].intro, id).replace("t-peak", "t-high");
   typeText(st, CHARS[id].intro);
+  pointSelTail(id);
   updateSelInfo();
+}
+// the select bubble's tail points at the chosen character
+function pointSelTail(id) {
+  const bub = $(".sel-bubble"), card = document.querySelector(`.sel-card[data-id="${id}"]`);
+  if (!bub || !card) return;
+  const a = bub.getBoundingClientRect(), c = card.getBoundingClientRect();
+  bub.style.setProperty("--tail", Math.round((c.left + c.width / 2 - a.left) / K) + "px");
 }
 function updateSelInfo() {
   const info = $("#sel-info");

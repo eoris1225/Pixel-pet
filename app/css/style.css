@@ -30,7 +30,7 @@
     100% calc(100% - 2px), calc(100% - 1px) calc(100% - 2px), calc(100% - 1px) calc(100% - 1px), calc(100% - 2px) calc(100% - 1px),
     calc(100% - 2px) 100%, 2px 100%, 2px calc(100% - 1px), 1px calc(100% - 1px), 1px calc(100% - 2px), 0 calc(100% - 2px),
     0 2px, 1px 2px, 1px 1px, 2px 1px);
-  --px: .5px;
+  --px: .5px;            /* half a game pixel: text scales with the frame but is not tied to its pixel grid */
   color-scheme: light;
 }
 #app[data-pet="mochi"] { --accent: #ffb3c7; --accent-soft: #ffe3ea; --accent-deep: #e88fa8; }
@@ -84,7 +84,7 @@ h2, h3, h4, p, ul, ol, dl, dd { margin: 0; padding: 0; font-weight: normal; }
 }
 .pxp { --sh: var(--ivory-2); --hi: transparent; }
 .pxb { display: inline-flex; align-items: center; justify-content: center; gap: 2px; padding-bottom: 1px; white-space: nowrap; }
-.pxb:active:not(:disabled) { --st: var(--sh); --sh: transparent; --hi: transparent; padding: 1px 0 0; }
+.pxb:active:not(:disabled) { --st: var(--sh); --sh: transparent; --hi: transparent; padding-top: 1px; padding-bottom: 0; }
 .pxb:disabled { --face: #ebe7dc; --sh: #d6d1c3; color: #b2ab9a; cursor: default; }
 .pxb.accent { --face: var(--accent); --sh: var(--accent-deep); }
 .pxb.soft { --face: var(--accent-soft); --sh: var(--line); }
@@ -184,6 +184,8 @@ textarea.field { height: 38px; resize: none; display: block; padding: 1px 3px; }
 #scr-select .scr-body { display: flex; flex-direction: column; padding-top: 7px; }
 .sel-bubble { margin: 0 0 9px; --tail: 85px; }
 .sel-bubble .bb { min-height: 54px; text-align: left; padding: 4px 6px; }
+.sel-bubble .bb.t-mid, .sel-bubble .bb.t-high { font-size: calc(13 * var(--px)); line-height: calc(17 * var(--px)); }   /* the intro is long: one size down */
+.sel-bubble { --tail: 85px; }
 .sel-row { display: grid; grid-template-columns: repeat(3, 52px); gap: 5px; justify-content: center; margin-bottom: 7px; }
 .sel-card { height: 58px; flex-direction: column; gap: 0; --face: var(--c-soft); --sh: var(--line); padding-top: 1px; }
 .sel-card canvas { width: 44px; height: 38px; }
