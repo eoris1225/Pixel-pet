@@ -272,11 +272,15 @@ ITEM_AUTO.carry = (grid, pet) => {
     const bag = pixList("bagface", bagFace).map(([x, y, c]) => [x + o.dx, y + o.dy, c]);
     return strapLine(sides[0], sy, 17 + o.dx, 20 + o.dy).concat(bag);
   }
-  if (f) {                                                       // a profile: the pouch side on at the hip she faces with,
-    const mid = (sides[0] + sides[1]) / 2, dir = f.cx - 0.5 >= mid ? 1 : -1;   // the strap from her back shoulder to it
-    const hip = row(bottom - 4) || sides, bx = dir > 0 ? hip[1] - 2 : hip[0] - 1, by = bottom - 9;
+  if (f) {
+    // a profile. The pouch hangs at her left hip (our right when she faces us). Turned to our right we see that side:
+    // it hangs at her front, side on, the strap from her back shoulder. Turned to our left that hip is on her far side:
+    // it hangs behind her and peeks out past her back, still on our right, so it does not hop across on a turn
+    const mid = (sides[0] + sides[1]) / 2, dir = f.cx - 0.5 >= mid ? 1 : -1;
+    const hip = row(bottom - 4) || sides, bx = hip[1] - 2, by = bottom - 9;
     const bag = pixList("bagside", bagSide).map(([x, y, c]) => [x + bx, y + by, c]);
-    return strapLine(dir > 0 ? sides[0] : sides[1], sy, bx + 1, by + 1).concat(bag);
+    if (dir > 0) return strapLine(sides[0], sy, bx + 1, by + 1).concat(bag);
+    return bag.map(([x, y, c]) => [x + 2, y, c]).filter(([x, y]) => at(x, y) === "B");
   }
   // her back: from her right shoulder down across her back to the pouch peeking out past her left hip
   const hip = row(bottom - 6) || sides, bx = hip[0] - 3, by = bottom - 9;
