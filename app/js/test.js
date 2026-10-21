@@ -36,7 +36,7 @@
   const drop = sky => go(() => { pet.act = "fall"; pet.t0 = now(); pet.hy = FEET - 90; pet.vx = 0; pet.vy = 0; pet.bounced = false; pet.skyDrop = sky; });
   const MOTIONS = {
     all: [["걷기", go(() => { pet.act = "walk"; pickWalk(); })], ["쓰다듬기", go(t => startAct("pet", t))],
-          ["무기 돌리기", go(t => startAct("wspin", t))], ["떨어뜨리기", drop(false)],
+          ["떨어뜨리기", drop(false)],
           ["표지판 앞", walkTo(SIGN_X, 0)], ["표지판 뒤", walkTo(SIGN_X, Z_MAX)], ["가운데로", walkTo(90, 0)]],
     mochi: [["손 흔들기", go(t => startAct("wave", t))], ["시무룩", go(t => startAct("gloom", t))],
             ["돌진", go(t => startDash(t))], ["하늘에서 착지", drop(true)]],

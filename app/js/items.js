@@ -168,10 +168,9 @@ function itemImg(pet, id) {
 }
 // Lv10 weapons are their own thing, like 치카's bear: held across her belly they move with her face; turned away she
 // still holds it, so it shows behind her with both long ends sticking out; lying down or asleep she leaves it on the
-// grass beside her; on 치카's sky-landing her arms are up and so is the weapon; and now and then (and while spinning or
-// dancing) she twirls it like a baton.
+// grass beside her; on 치카's sky-landing it goes up and down with her arms; and it swings gently as she walks, dances
+// or waves.
 const WEAPON_OF = { mochi: "fork", sora: "trident", nori: "pencil" };
-const WSPIN_LEN = 1400;
 const WEAPON_FLAT = { mochi: () => fork("mochi", "#f59ab6", "#ffd0de", true), sora: () => fork("sora", "#4f9fe0", "#a9d6f7", true), nori: () => staff("nori", true) };
 const WEAPON_MID = { mochi: 10, sora: 10, nori: 14 };                       // the middle of the handle, where it turns
 function weaponFlat(pet) { const k = "flat:" + pet; return ITEM_CACHE[k] || (ITEM_CACHE[k] = WEAPON_FLAT[pet]()); }
@@ -201,17 +200,33 @@ ITEM_AUTO.weapon = (grid, pet) => {
   const o = weaponOffset(grid, pet);
   return o ? weaponPixels(pet).map(([x, y, c]) => [x + o.dx, y + o.dy, c]) : [];
 };
+// 치카's sky-landing: how far her arms are up on each frame of it (0 = the weapon across her belly, 1 = flat over her head),
+// so the weapon rises and comes back down with her arms instead of jumping
+const LIFT = { 10: 0.45, 11: 0.75, 12: 1, 13: 1, 14: 1, 15: 1, 16: 0.8, 17: 0.6, 18: 0.4, 19: 0.2 };
+const DIAG = { mochi: Math.atan2(-7, 32), sora: Math.atan2(-7, 32), nori: Math.atan2(-6, 44) };   // the slant she holds it at
 function weaponMode(img) {
   const act = typeof pet !== "undefined" ? pet.act : "idle";
   if ((typeof G !== "undefined" && G.sleeping) || ["lieDown", "lie", "getUp", "loaf"].includes(act)) return "ground";
-  if (["wspin", "spin", "twirl", "dance"].includes(act)) return "spin";
   const m = /^mochi-hop:(\d+)$/.exec((img && img.key) || "");
-  if (m && +m[1] >= 10 && +m[1] <= 18) return "overhead";
+  if (m && LIFT[+m[1]]) return "lift";
   return "held";
+}
+// a gentle swing that goes with what she is doing: a bob in step while walking, a sway while dancing or waving
+function weaponSway() {
+  if (typeof pet === "undefined") return 0;
+  const t = performance.now() - pet.t0, deg = Math.PI / 180;
+  switch (pet.act) {
+    case "walk": return Math.sin(pet.walked / 3 * Math.PI / 2) * 4 * deg;
+    case "dance": return Math.sin(t / 170) * 12 * deg;
+    case "wave": return Math.sin(t / 140) * 8 * deg;
+    case "pet": return Math.sin(t / 70) * 6 * deg * Math.max(0, 1 - t / 600);
+    case "land": return Math.sin(t / 60) * 5 * deg * Math.max(0, 1 - t / 460);
+    default: return 0;
+  }
 }
 function drawWeapon(g, petId, layer, dy, pose, img) {
   const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base ? dy : 0;
-  const w = grid[0].length, h = grid.length, arm = ANCHOR[petId].arm, mode = weaponMode(img);
+  const w = grid[0].length, h = grid.length, arm = ANCHOR[petId].arm, mode = weaponMode(img), mid = WEAPON_MID[petId];
   const cache = base ? (ITEM_CACHE["base:" + petId] || (ITEM_CACHE["base:" + petId] = {})) : (img._auto || (img._auto = {}));
   if (!("wo" in cache)) cache.wo = weaponOffset(grid, petId);
   const o = cache.wo;
@@ -221,30 +236,23 @@ function drawWeapon(g, petId, layer, dy, pose, img) {
     g.drawImage(f.img, f.x + w - 2, f.y + h - 3 - arm + shift);   // the handle on the ground line, just past her side
     return;
   }
-  if (mode === "overhead") {                                 // both arms up: held flat above her head
+  if (mode === "lift") {                                     // arms going up and down: from across her belly to over her head
     if (layer !== "front") return;
-    const f = weaponFlat(petId), top = grid.findIndex(r => /[^B]/.test(r));
-    g.drawImage(f.img, f.x + Math.round(w / 2) - WEAPON_MID[petId], f.y + top + 1 - arm + shift);
-    return;
-  }
-  if (mode === "spin") {                                     // twirled like a baton round the middle of the handle
-    if (layer !== (o ? "front" : "back")) return;           // behind her while she faces away
-    const f = weaponFlat(petId), t = typeof pet !== "undefined" ? performance.now() - pet.t0 : 0;
-    const cx = (o ? WEAPON_MID[petId] + o.dx : w / 2), cy = (o ? arm + o.dy : h - (INFO[petId].h - arm)) + shift;
-    g.save(); g.translate(Math.round(cx), Math.round(cy)); g.rotate(Math.floor(t / 60) * Math.PI / 4);
-    g.drawImage(f.img, f.x - WEAPON_MID[petId], f.y - arm);
+    const q = LIFT[+/(\d+)$/.exec(img.key)[1]], f = weaponFlat(petId), top = grid.findIndex(r => /[^B]/.test(r));
+    const hx = mid + (o ? o.dx : 0), hy = arm + 0.5 + (o ? o.dy : 0);
+    const cx = hx + (w / 2 - hx) * q, cy = hy + (top + 1 - hy) * q;
+    g.save(); g.translate(Math.round(cx), Math.round(cy) + shift); g.rotate(DIAG[petId] * (1 - q));
+    g.drawImage(f.img, f.x - mid, f.y - arm);
     g.restore();
     return;
   }
-  if (o) {                                                   // in her hands, in front
-    if (layer !== "front") return;
-    const px = cache.wpx || (cache.wpx = weaponPixels(petId).map(([x, y, c]) => [x + o.dx, y + o.dy, c]));
-    for (const [x, y, c] of px) { g.fillStyle = c; g.fillRect(x, y + shift, 1, 1); }
-    return;
-  }
-  if (layer !== "back") return;                              // turned away: still in her hands, seen behind her
-  const it = itemImg(petId, WEAPON_OF[petId]);
-  g.drawImage(it.img, Math.round(w / 2 - 14) + it.x, it.y + (h - INFO[petId].h) + shift);
+  // in her hands: in front, or behind her (both long ends showing) while she faces away; swinging with what she does
+  if (layer !== (o ? "front" : "back")) return;
+  const it = itemImg(petId, WEAPON_OF[petId]), sway = weaponSway();
+  const ox = o ? o.dx : Math.round(w / 2 - 14), oy = (o ? o.dy : h - INFO[petId].h) + shift;
+  if (!sway) { g.drawImage(it.img, it.x + ox, it.y + oy); return; }
+  const cx = mid + ox, cy = arm + oy;
+  g.save(); g.translate(cx, cy); g.rotate(sway); g.drawImage(it.img, it.x + ox - cx, it.y + oy - cy); g.restore();
 }
 
 // draws the equipped items of one layer, in the sprite's own pixels (the caller has set up the transform).
