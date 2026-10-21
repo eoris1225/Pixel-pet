@@ -115,7 +115,7 @@ h2, h3, h4, p, ul, ol, dl, dd { margin: 0; padding: 0; font-weight: normal; }
   left: calc(var(--tail, 20px) - 2px); width: 5px; height: 3px; background: var(--paper);
   clip-path: polygon(0 0, 5px 0, 5px 1px, 4px 1px, 4px 2px, 3px 2px, 3px 3px, 2px 3px, 2px 2px, 1px 2px, 1px 1px, 0 1px);
 }
-#world-bubble .bb { color: #5b6280; padding: 1px 4px 2px; }
+#world-bubble .bb { color: #5b6280; padding: 4px 4px 0; line-height: calc(14 * var(--px)); }   /* Silver sits high in its line box (deep descent): padding re-centres it */   /* Silver sits high in its line box (deep descent): padding re-centres it */   /* Silver sits high in its line box (deep descent): padding re-centres it */   /* Silver sits low in its line box: padding re-centres it */   /* Silver sits low in its line box: padding re-centres it */   /* Silver sits low in its line box: padding re-centres it */   /* Silver sits low in its line box: a taller line centres it */
 .bubble.static { position: relative; max-width: none; width: auto; }
 
 /* ---------- HUD ---------- */
