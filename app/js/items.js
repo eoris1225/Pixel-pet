@@ -231,7 +231,16 @@ function weaponSway() {
 // a held stick as a little physical thing: the grip is pulled toward the hands by a spring, and the stick turns toward
 // its pose by a softer, bouncier spring, pushed by the hands' own jolts (a sudden lift tips the far end down, then it
 // swings back past and settles), so it sways, lags and overshoots like something with weight
-const DANCE_W = { x: 0, y: 0, vx: 0, vy: 0, a: 0, va: 0, g: 0, t: 0, t0: -1 };
+const DANCE_W = { x: 0, y: 0, vx: 0, vy: 0, a: 0, va: 0, g: 0, d: 0, t: 0, t0: -1 };
+// her little paws on the handle wherever she is gripping it (the fork only), in her own colour or her onesie's
+function drawPaws(g, petId, equip, pts) {
+  if (petId === "nori") return;
+  const paw = equip.pajama && typeof PAJAMA !== "undefined" ? PAJAMA[petId].main : PET[petId].pal[PET[petId].body];
+  for (const [x, y] of pts) HAND.forEach((row, j) => [...row].forEach((ch, i) => {
+    if (ch === ".") return;
+    g.fillStyle = ch === "K" ? OUT : paw; g.fillRect(Math.round(x) - 2 + i, Math.round(y) - 1 + j, 1, 1);
+  }));
+}
 function stickStep(S, tx, ty, ta, tg, run) {
   const now = performance.now();
   if (!S.t || now - S.t > 250 || S.t0 !== run) Object.assign(S, { x: tx, y: ty, vx: 0, vy: 0, a: ta, va: 0, g: tg, t: now, t0: run });
@@ -280,9 +289,13 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
     } else if (hd.r) { [tx, ty] = hd.r; ta = -0.75; tg = -12; }
     else if (hd.l) { [tx, ty] = hd.l; ta = -0.25; tg = -12; }
     stickStep(DANCE_W, tx, ty, ta, tg, pet.t0);
+    const td = hd.l && hd.r ? Math.hypot(hd.r[0] - hd.l[0], hd.r[1] - hd.l[1]) / 2 : 0;   // how far apart her two grips are
+    DANCE_W.d += (td - DANCE_W.d) * 0.3;
     g.save(); g.translate(Math.round(DANCE_W.x), Math.round(DANCE_W.y)); g.rotate(DANCE_W.a);
     g.drawImage(f.img, f.x - mid - Math.round(DANCE_W.g), f.y - arm);
     g.restore();
+    const ca = Math.cos(DANCE_W.a), sa = Math.sin(DANCE_W.a), d = DANCE_W.d;
+    drawPaws(g, petId, equip, d > 2 ? [[DANCE_W.x - ca * d, DANCE_W.y - sa * d], [DANCE_W.x + ca * d, DANCE_W.y + sa * d]] : [[DANCE_W.x, DANCE_W.y]]);
     return;
   }
   if (mode === "lift") {                                     // arms going up and down: from across her belly to over her head
@@ -290,9 +303,11 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
     const q = LIFT[+/(\d+)$/.exec(img.key)[1]], f = weaponFlat(petId), top = grid.findIndex(r => /[^B]/.test(r));
     const hx = mid + (o ? o.dx : 0), hy = arm + 0.5 + (o ? o.dy : 0);
     const cx = hx + (w / 2 - hx) * q, cy = hy + (top + 1 - hy) * q;
-    g.save(); g.translate(Math.round(cx), Math.round(cy) + shift); g.rotate(DIAG[petId] * (1 - q));
+    const ang = DIAG[petId] * (1 - q);
+    g.save(); g.translate(Math.round(cx), Math.round(cy) + shift); g.rotate(ang);
     g.drawImage(f.img, f.x - mid, f.y - arm);
     g.restore();
+    drawPaws(g, petId, equip, [-8, 8].map(d => [cx + Math.cos(ang) * d, cy + shift + Math.sin(ang) * d]));   // both hands up on the handle
     return;
   }
   // in her hands: in front, or behind her (both long ends showing) while she faces away; swinging with what she does
