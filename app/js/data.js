@@ -36,11 +36,11 @@ const LEVEL = { normalMin: 60, burnMin: 50, burnFrom: 18, burnTo: 24, max: 10 };
 // the pet says one of her cheers this often while the timer runs (and a bit less often otherwise)
 const CHEER_EVERY_MS = 10 * 60 * 1000, IDLE_CHEER_EVERY_MS = 4 * 60 * 1000;
 
-// item names per character, unlocked at these levels (the pixel art is in items.js)
+// level-up items per character: [level, id, name, where it is worn] (the pixel art is in items.js)
 const ITEM_LIST = {
-  mochi: [[2, "tears", "ㅠㅠ 표정"], [4, "bearpin", "곰돌이 핀"], [6, "nightcap", "파자마 모자"], [8, "bag", "옆으로 메는 가방"], [10, "fork", "무기 (포크 창)"]],
-  sora:  [[2, "beanie", "고양이 모자"], [4, "guitar", "등에 멘 기타"], [6, "nightcap", "파자마 모자"], [8, "camera", "목에 건 카메라"], [10, "trident", "무기 (삼지창)"]],
-  nori:  [[2, "shades", "선글라스 + 목걸이"], [4, "pass", "이마에 붙인 합격증"], [6, "nightcap", "파자마 모자"], [8, "pudding", "손에 든 푸딩"], [10, "pencil", "무기 (연필)"]],
+  mochi: [[2, "tears", "눈물 방울", "표정"], [4, "bearpin", "곰돌이 핀", "머리"], [6, "nightcap", "파자마 모자", "머리"], [8, "bag", "크로스백", "몸"], [10, "fork", "포크 창", "무기"]],
+  sora:  [[2, "beanie", "고양이 비니", "머리"], [4, "guitar", "통기타", "등"], [6, "nightcap", "파자마 모자", "머리"], [8, "camera", "목걸이 카메라", "목"], [10, "trident", "삼지창", "무기"]],
+  nori:  [[2, "shades", "선글라스 세트", "얼굴"], [4, "pass", "합격증", "이마"], [6, "nightcap", "파자마 모자", "머리"], [8, "pudding", "푸딩", "손"], [10, "pencil", "왕연필", "무기"]],
 };
 
 const DEFAULT_SUBJECTS = [["국어", "#ffb3a7"], ["수학", "#a7c7ff"], ["영어", "#b5e6a3"]];

@@ -662,10 +662,12 @@ function renderInventory() {
   const lv = lvOf(curExp()), cs = charState(S.pet);
   $("#inventory-body").innerHTML = `
     <div class="inv-preview pxp"><canvas></canvas></div>
-    <div class="slots">${ITEM_LIST[S.pet].map(([need, id, name]) => {
-      const open = lv >= need;
-      return `<button class="slot pxb ${open && cs.equip[id] ? "on" : ""}" data-id="${id}" ${open ? "" : "disabled"}>
-        ${open ? "<canvas></canvas>" : '<span class="q f-num">?</span>'}<span class="f-sm">${open ? esc(name) : `Lv.${need}`}</span></button>`;
+    <div class="slots">${ITEM_LIST[S.pet].map(([need, id, name, part]) => {
+      const open = lv >= need, on = open && cs.equip[id];
+      return `<button class="slot pxb ${on ? "on" : ""}" data-id="${id}" ${open ? "" : "disabled"} aria-pressed="${!!on}">
+        ${open ? "<canvas></canvas>" : '<span class="q f-num">?</span>'}
+        <span class="nm">${open ? esc(name) : "???"}</span>
+        <span class="sub f-sm">${on ? "착용 중" : open ? `Lv.${need} · ${part}` : `Lv.${need}에 열려요`}</span></button>`;
     }).join("")}</div>
     <p class="hint t-low" style="text-align:center;margin-top:7px">누르면 붙였다 뗐다 할 수 있어요…</p>`;
   portrait($("#inventory-body .inv-preview canvas"), S.pet, true, 166, 64, miniWorld);

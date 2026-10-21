@@ -251,11 +251,14 @@ textarea.field { height: 38px; resize: none; display: block; padding: 1px 3px; }
 /* inventory */
 .inv-preview { padding: 1px; margin-bottom: 7px; --sh: transparent; }
 .inv-preview canvas { width: 166px; height: 64px; }
-.slots { display: grid; grid-template-columns: repeat(3, 52px); gap: 5px; justify-content: center; }
-.slot { min-height: 58px; flex-direction: column; justify-content: flex-start; gap: 1px; padding: 3px 1px 4px; white-space: normal; word-break: keep-all; text-align: center; }
+.slots { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; }
+.slot { width: 52px; min-height: 58px; flex-direction: column; justify-content: flex-start; gap: 1px; padding: 3px 1px 4px; white-space: normal; word-break: keep-all; text-align: center; }
 .slot canvas { width: 34px; height: 30px; flex: none; }
 .slot .q { width: 30px; height: 26px; margin: 2px 0; flex: none; background: #f2e6cc; border: 1px solid var(--line); display: grid; place-items: center; color: var(--muted); }
+.slot .nm { font-size: calc(13 * var(--px)); line-height: calc(16 * var(--px)); }
+.slot .sub { color: var(--muted); }
 .slot.on { --face: var(--accent-soft); --sh: var(--accent); }
+.slot.on .sub { color: var(--accent-deep); }
 
 /* modal: a little pixel window with a title bar */
 #modal { position: absolute; inset: 0; z-index: 40; background: rgba(44, 32, 50, .5); display: flex; align-items: center; justify-content: center; }
