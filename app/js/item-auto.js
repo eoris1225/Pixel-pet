@@ -264,9 +264,9 @@ function autoPajama(grid, pet) {
 const ITEM_AUTO = { tears: autoTears, teddy: autoTeddy, pajama: autoPajama };
 
 // the pixels of an auto item on one frame, with the studio's correction for that frame applied
-function autoItemPixels(item, grid, key) {
+function autoItemPixels(item, grid, key, pet) {
   const fix = (typeof ITEM_FIX !== "undefined" && ITEM_FIX[item] && ITEM_FIX[item][key]) || null;
   if (fix && fix.hide) return [];
-  const px = ITEM_AUTO[item](grid, key.split("-")[0]);           // the key starts with the pet ("mochi-wave:3")
+  const px = ITEM_AUTO[item](grid, pet || key.split("-")[0]);    // the key starts with the pet ("mochi-wave:3"); frames without a key pass it
   return fix ? px.map(([x, y, c]) => [x + (fix.dx || 0), y + (fix.dy || 0), c]) : px;
 }

@@ -228,10 +228,6 @@ function weaponSway() {
 }
 // her hands on a frame where they are drawn out from her body (하와's dance): on each side, the short run of rows where
 // the outline juts out past the rows a few above and below it, between her face and her feet
-// a held stick as a little physical thing: the grip is pulled toward the hands by a spring, and the stick turns toward
-// its pose by a softer, bouncier spring, pushed by the hands' own jolts (a sudden lift tips the far end down, then it
-// swings back past and settles), so it sways, lags and overshoots like something with weight
-const DANCE_W = { x: 0, y: 0, vx: 0, vy: 0, a: 0, va: 0, g: 0, d: 0, t: 0, t0: -1 };
 // her little paws on the handle wherever she is gripping it (the fork only), in her own colour or her onesie's
 function drawPaws(g, petId, equip, pts) {
   if (petId === "nori") return;
@@ -240,19 +236,6 @@ function drawPaws(g, petId, equip, pts) {
     if (ch === ".") return;
     g.fillStyle = ch === "K" ? OUT : paw; g.fillRect(Math.round(x) - 2 + i, Math.round(y) - 1 + j, 1, 1);
   }));
-}
-function stickStep(S, tx, ty, ta, tg, run) {
-  const now = performance.now();
-  if (!S.t || now - S.t > 250 || S.t0 !== run) Object.assign(S, { x: tx, y: ty, vx: 0, vy: 0, a: ta, va: 0, g: tg, t: now, t0: run });
-  let dt = Math.min(0.05, (now - S.t) / 1000); S.t = now;
-  const k = 260, c = 2 * Math.sqrt(k) * 0.6, ka = 70, ca = 2 * Math.sqrt(ka) * 0.3;
-  for (const h = dt / 3; dt > 1e-6; dt -= h) {                 // a few small steps keep it steady
-    const ax = k * (tx - S.x) - c * S.vx, ay = k * (ty - S.y) - c * S.vy;
-    S.vx += ax * h; S.vy += ay * h; S.x += S.vx * h; S.y += S.vy * h;
-    const aa = ka * (ta - S.a) - ca * S.va - ay * 0.006 + ax * 0.002;
-    S.va += aa * h; S.a += S.va * h;
-    S.g += (tg - S.g) * Math.min(1, h * 8);
-  }
 }
 function findHands(grid) {
   const h = grid.length, f = faceOf(grid), top = f ? Math.round(f.cy) : Math.round(h * 0.35), out = {};
@@ -277,25 +260,21 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
   if (!("wo" in cache)) cache.wo = weaponOffset(grid, petId);
   const o = cache.wo;
   if (mode === "away") return;                               // lying on the grass where she put it (drawn by pet.js)
-  if (!base && typeof pet !== "undefined" && pet.act === "dance") {   // dancing: a real held stick, swung by her hands
+  if (!base && typeof pet !== "undefined" && pet.act === "dance") {   // dancing: held across her belly, tipped to the beat
     if (layer !== "front") return;
+    // it stays in her arms (moving with her body) and only its tilt follows her hands on each step of the dance: the
+    // slant between her two hands, or tipped up toward the one hand she has out; kept small so it never flails
     const hd = cache.hands || (cache.hands = findHands(grid)), f = weaponFlat(petId);
-    // where her hands want it on this frame: both hands out, the handle runs through them (their slant, made a bit
-    // livelier); one hand out, she grips it near the end and swings it up on that side; none, across her belly
-    let tx = mid + (o ? o.dx : 0), ty = arm + (o ? o.dy : 0), ta = 0, tg = 0;
-    if (hd.l && hd.r) {
-      tx = (hd.l[0] + hd.r[0]) / 2; ty = (hd.l[1] + hd.r[1]) / 2;
-      ta = Math.max(-0.9, Math.min(0.9, 1.6 * Math.atan2(hd.r[1] - hd.l[1], hd.r[0] - hd.l[0])));
-    } else if (hd.r) { [tx, ty] = hd.r; ta = -0.75; tg = -12; }
-    else if (hd.l) { [tx, ty] = hd.l; ta = -0.25; tg = -12; }
-    stickStep(DANCE_W, tx, ty, ta, tg, pet.t0);
-    const td = hd.l && hd.r ? Math.hypot(hd.r[0] - hd.l[0], hd.r[1] - hd.l[1]) / 2 : 0;   // how far apart her two grips are
-    DANCE_W.d += (td - DANCE_W.d) * 0.3;
-    g.save(); g.translate(Math.round(DANCE_W.x), Math.round(DANCE_W.y)); g.rotate(DANCE_W.a);
-    g.drawImage(f.img, f.x - mid - Math.round(DANCE_W.g), f.y - arm);
+    let ang = DIAG[petId];
+    if (hd.l && hd.r) ang = Math.max(-0.35, Math.min(0.35, Math.atan2(hd.r[1] - hd.l[1], hd.r[0] - hd.l[0])));
+    else if (hd.r) ang = -0.3; else if (hd.l) ang = 0.3;
+    const cx = mid + (o ? o.dx : 0), cy = arm + 0.5 + (o ? o.dy : 0);
+    const off = cache.warm || (cache.warm = armOff(grid, Math.round(cy) - 4, Math.round(cy) + 2));
+    for (const [x, y, c] of off) { if (c === "clear") g.clearRect(x, y, 1, 1); else { g.fillStyle = OUT; g.fillRect(x, y, 1, 1); } }
+    g.save(); g.translate(Math.round(cx), Math.round(cy)); g.rotate(ang);
+    g.drawImage(f.img, f.x - mid, f.y - arm);
     g.restore();
-    const ca = Math.cos(DANCE_W.a), sa = Math.sin(DANCE_W.a), d = DANCE_W.d;
-    drawPaws(g, petId, equip, d > 2 ? [[DANCE_W.x - ca * d, DANCE_W.y - sa * d], [DANCE_W.x + ca * d, DANCE_W.y + sa * d]] : [[DANCE_W.x, DANCE_W.y]]);
+    drawPaws(g, petId, equip, [-7, 8].map(d => [cx + Math.cos(ang) * d, cy + Math.sin(ang) * d]));
     return;
   }
   if (mode === "lift") {                                     // arms going up and down: from across her belly to over her head
@@ -339,7 +318,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       // on the base pose the face is found on the plain sprite, so a blink does not make the item vanish
       const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base ? dy : 0;
       const cache = base ? (ITEM_CACHE["base:" + petId] || (ITEM_CACHE["base:" + petId] = {})) : (img._auto || (img._auto = {}));
-      const px = cache[a.auto] || (cache[a.auto] = autoItemPixels(a.auto, grid, base ? petId + "-base:0" : img.key || ""));
+      const px = cache[a.auto] || (cache[a.auto] = autoItemPixels(a.auto, grid, base ? petId + "-base:0" : img.key || "", petId));
       // breathing adds or drops a row low on her body: the pajama follows her pixel for pixel, while a solid thing (the bear
       // in her arms) moves as one piece with the part of her that holds it, so it never comes apart
       const dup = INFO[petId].dup, top = px.reduce((m, p) => Math.min(m, p[1]), 1e9), whole = top >= dup ? shift : 0;
