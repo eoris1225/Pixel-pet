@@ -62,7 +62,7 @@ function headHat(p, main, rib) {
 // towards the way she faces, her two little hands on the handle.
 const PRONG = [[0, 0], [1, -1], [2, -2], [3, -3], [4, -4], [5, -4], [6, -5], [7, -5], [8, -5], [9, -5], [10, -5], [11, -6], [12, -7]];
 const HAND = [".KK.", "KWWK", ".KK."];                   // a little paw over the handle
-function fork(p, main, light, flat = false) {
+function fork(p, main, light, flat = false, paw = "#fffaf0") {
   const y = ANCHOR[p].arm, x0 = -6, x1 = 26, y0 = flat ? y : y + 4, y1 = flat ? y : y - 3;
   const at = x => Math.round(y0 + (x - x0) * (y1 - y0) / (x1 - x0));
   return pixmap(d => {
@@ -86,7 +86,7 @@ function fork(p, main, light, flat = false) {
       const [x, y] = k.split(",").map(Number);
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!body.has((x + dx) + "," + (y + dy))) d.put(x + dx, y + dy, OUT);
     }
-    if (!flat) for (const hx2 of [7, 22]) d.grid(HAND, { K: OUT, W: "#fffaf0" }, hx2 - 1, at(hx2) - 1);   // where her own hands are
+    if (!flat) for (const hx2 of [7, 22]) d.grid(HAND, { K: OUT, W: paw }, hx2 - 1, at(hx2) - 1);   // where her own hands are
   }, false);
 }
 
@@ -172,6 +172,8 @@ function itemImg(pet, id) {
 // or waves.
 const WEAPON_OF = { mochi: "fork", sora: "trident", nori: "pencil" };
 const WEAPON_FLAT = { mochi: () => fork("mochi", "#f59ab6", "#ffd0de", true), sora: () => fork("sora", "#4f9fe0", "#a9d6f7", true), nori: () => staff("nori", true) };
+// in her onesie the paws on the handle are the onesie's colour
+const WEAPON_PJ = { mochi: () => fork("mochi", "#f59ab6", "#ffd0de", false, PAJAMA.mochi.main), sora: () => fork("sora", "#4f9fe0", "#a9d6f7", false, PAJAMA.sora.main) };
 const WEAPON_MID = { mochi: 10, sora: 10, nori: 14 };                       // the middle of the handle, where it turns
 function weaponFlat(pet) { const k = "flat:" + pet; return ITEM_CACHE[k] || (ITEM_CACHE[k] = WEAPON_FLAT[pet]()); }
 function weaponPixels(pet) {
@@ -224,7 +226,7 @@ function weaponSway() {
     default: return 0;
   }
 }
-function drawWeapon(g, petId, layer, dy, pose, img) {
+function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
   const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid;
   const w = grid[0].length, h = grid.length, arm = ANCHOR[petId].arm, mode = weaponMode(img), mid = WEAPON_MID[petId];
   // breathing (squash / stretch) adds or drops a row low on her body: what she holds above it bobs with her, the ground does not
@@ -254,7 +256,8 @@ function drawWeapon(g, petId, layer, dy, pose, img) {
     const off = cache.warm || (cache.warm = armOff(grid, arm + o.dy - 3, arm + o.dy + 1));
     for (const [x, y, c] of off) { if (c === "clear") g.clearRect(x, y + shift, 1, 1); else { g.fillStyle = OUT; g.fillRect(x, y + shift, 1, 1); } }
   }
-  const it = itemImg(petId, WEAPON_OF[petId]), sway = weaponSway();
+  const pj = equip.pajama && WEAPON_PJ[petId], sway = weaponSway();
+  const it = pj ? (ITEM_CACHE["pj:" + petId] || (ITEM_CACHE["pj:" + petId] = pj())) : itemImg(petId, WEAPON_OF[petId]);
   const ox = o ? o.dx : Math.round(w / 2 - 14), oy = (o ? o.dy : h - INFO[petId].h) + shift;
   if (!sway) { g.drawImage(it.img, it.x + ox, it.y + oy); return; }
   const cx = mid + ox, cy = arm + oy;
@@ -268,7 +271,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
   const order = ITEM_LIST[petId].slice().sort((p, q) => !!(art[q[1]] || {}).under - !!(art[p[1]] || {}).under);   // the onesie goes on first
   for (const [, id] of order) {
     const a = art[id];
-    if (equip[id] && a && a.auto === "weapon") { if (img && img.grid) drawWeapon(g, petId, layer, dy, pose, img); continue; }
+    if (equip[id] && a && a.auto === "weapon") { if (img && img.grid) drawWeapon(g, petId, layer, dy, pose, img, equip); continue; }
     if (!equip[id] || !a || a.layer !== layer) continue;
     if (a.auto) {
       if (!img || !img.grid) continue;
