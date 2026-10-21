@@ -228,7 +228,23 @@ function weaponSway() {
 }
 // her hands on a frame where they are drawn out from her body (하와's dance): on each side, the short run of rows where
 // the outline juts out past the rows a few above and below it, between her face and her feet
-const DANCE_W = { x: 0, y: 0, a: 0, t: 0, t0: -1 };
+// a held stick as a little physical thing: the grip is pulled toward the hands by a spring, and the stick turns toward
+// its pose by a softer, bouncier spring, pushed by the hands' own jolts (a sudden lift tips the far end down, then it
+// swings back past and settles), so it sways, lags and overshoots like something with weight
+const DANCE_W = { x: 0, y: 0, vx: 0, vy: 0, a: 0, va: 0, g: 0, t: 0, t0: -1 };
+function stickStep(S, tx, ty, ta, tg, run) {
+  const now = performance.now();
+  if (!S.t || now - S.t > 250 || S.t0 !== run) Object.assign(S, { x: tx, y: ty, vx: 0, vy: 0, a: ta, va: 0, g: tg, t: now, t0: run });
+  let dt = Math.min(0.05, (now - S.t) / 1000); S.t = now;
+  const k = 260, c = 2 * Math.sqrt(k) * 0.6, ka = 70, ca = 2 * Math.sqrt(ka) * 0.3;
+  for (const h = dt / 3; dt > 1e-6; dt -= h) {                 // a few small steps keep it steady
+    const ax = k * (tx - S.x) - c * S.vx, ay = k * (ty - S.y) - c * S.vy;
+    S.vx += ax * h; S.vy += ay * h; S.x += S.vx * h; S.y += S.vy * h;
+    const aa = ka * (ta - S.a) - ca * S.va - ay * 0.006 + ax * 0.002;
+    S.va += aa * h; S.a += S.va * h;
+    S.g += (tg - S.g) * Math.min(1, h * 8);
+  }
+}
 function findHands(grid) {
   const h = grid.length, f = faceOf(grid), top = f ? Math.round(f.cy) : Math.round(h * 0.35), out = {};
   for (const side of [-1, 1]) {
@@ -252,20 +268,20 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
   if (!("wo" in cache)) cache.wo = weaponOffset(grid, petId);
   const o = cache.wo;
   if (mode === "away") return;                               // lying on the grass where she put it (drawn by pet.js)
-  if (!base && typeof pet !== "undefined" && pet.act === "dance") {   // dancing, her hands are drawn out: the weapon goes with them
+  if (!base && typeof pet !== "undefined" && pet.act === "dance") {   // dancing: a real held stick, swung by her hands
     if (layer !== "front") return;
     const hd = cache.hands || (cache.hands = findHands(grid)), f = weaponFlat(petId);
-    // where it should be on this frame: through both hands, or level through the one hand that is out, or across her belly
-    let tx = mid + (o ? o.dx : 0), ty = arm + (o ? o.dy : 0), ta = 0;
-    if (hd.l && hd.r) { tx = (hd.l[0] + hd.r[0]) / 2; ty = (hd.l[1] + hd.r[1]) / 2; ta = Math.atan2(hd.r[1] - hd.l[1], hd.r[0] - hd.l[0]); }
-    else if (hd.l || hd.r) { const [x, y] = hd.l || hd.r; tx = x + (hd.l ? 10 : -10); ty = y; }
-    // and it glides there over a few frames, so it swings with the dance instead of jumping between poses
-    const now = performance.now();
-    if (!DANCE_W.t || now - DANCE_W.t > 200 || DANCE_W.t0 !== pet.t0) Object.assign(DANCE_W, { x: tx, y: ty, a: ta, t0: pet.t0 });
-    const k = Math.min(1, (now - (DANCE_W.t || now)) / 90);
-    DANCE_W.x += (tx - DANCE_W.x) * k; DANCE_W.y += (ty - DANCE_W.y) * k; DANCE_W.a += (ta - DANCE_W.a) * k; DANCE_W.t = now;
+    // where her hands want it on this frame: both hands out, the handle runs through them (their slant, made a bit
+    // livelier); one hand out, she grips it near the end and swings it up on that side; none, across her belly
+    let tx = mid + (o ? o.dx : 0), ty = arm + (o ? o.dy : 0), ta = 0, tg = 0;
+    if (hd.l && hd.r) {
+      tx = (hd.l[0] + hd.r[0]) / 2; ty = (hd.l[1] + hd.r[1]) / 2;
+      ta = Math.max(-0.9, Math.min(0.9, 1.6 * Math.atan2(hd.r[1] - hd.l[1], hd.r[0] - hd.l[0])));
+    } else if (hd.r) { [tx, ty] = hd.r; ta = -0.75; tg = -12; }
+    else if (hd.l) { [tx, ty] = hd.l; ta = -0.25; tg = -12; }
+    stickStep(DANCE_W, tx, ty, ta, tg, pet.t0);
     g.save(); g.translate(Math.round(DANCE_W.x), Math.round(DANCE_W.y)); g.rotate(DANCE_W.a);
-    g.drawImage(f.img, f.x - mid, f.y - arm);
+    g.drawImage(f.img, f.x - mid - Math.round(DANCE_W.g), f.y - arm);
     g.restore();
     return;
   }
