@@ -256,6 +256,18 @@ ITEM_AUTO.carry = (grid, pet) => {
   const sides = row(sy);
   if (!sides) return [];
   const front = f && f.rx > 7;                                  // two eyes: she faces us; one (or a cheek): a profile
+  // bowed down on a landing, or flat on the ground after a tumble: her face sits low (or she is long and flat), so the
+  // pouch has slid round to rest on the ground at her hip, and the strap comes to it from round her side
+  const wide = sides && (() => { let a = 1e9, b = -1; for (let y = top; y <= bottom; y++) { const r = row(y); if (r) { a = Math.min(a, r[0]); b = Math.max(b, r[1]); } } return b - a + 1; })();
+  if (f && (f.cy > top + (bottom - top) * 0.55 || wide > (bottom - top + 1) * 1.3)) {
+    const faceLeft = f.cx - 0.5 < (sides[0] + sides[1]) / 2 + 2;   // facing us or to the left: the pouch at her right
+    let hip = sides;                                            // her widest point low down: where her hip is
+    for (let y = bottom - 10; y <= bottom - 3; y++) { const r = row(y); if (r && r[1] - r[0] > hip[1] - hip[0]) hip = r; }
+    const bx = faceLeft ? hip[1] - 6 : hip[0] - 2, by = bottom - 6;
+    const bag = pixList("bagface", bagFace).map(([x, y, c]) => [x - 16 + bx, y - 20 + by, c]);
+    const ty = Math.max(top + 2, by - 5), side = row(ty) || hip, tx = faceLeft ? side[1] : side[0];   // her outline on that side
+    return strapLine(tx, ty, bx + 4, by + 1).concat(bag);
+  }
   if (front && o) {                                              // across her front: her left shoulder to the pouch at her right hip
     const bag = pixList("bagface", bagFace).map(([x, y, c]) => [x + o.dx, y + o.dy, c]);
     return strapLine(sides[0], sy, 17 + o.dx, 20 + o.dy).concat(bag);
