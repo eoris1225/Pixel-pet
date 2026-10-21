@@ -24,11 +24,11 @@
 @font-face { font-family: "GalmuriMono9"; src: url("../fonts/galmurimono9.woff2") format("woff2"); font-display: block; }
 @font-face { font-family: "Mulmaru"; src: url("../fonts/mulmaru.woff2") format("woff2"); font-display: block; }
 @font-face { font-family: "PF"; src: url("../fonts/pfb.woff2") format("woff2"); font-display: block; }
-@font-face { font-family: "PFS"; src: url("../fonts/pfsb.woff2") format("woff2"); font-display: block; }
-@font-face { font-family: "PFSX"; src: url("../fonts/pfseb.woff2") format("woff2"); font-display: block; }
+@font-face { font-family: "PFS"; src: url("../fonts/pfsb.woff2?v=2") format("woff2"); font-display: block; }
+@font-face { font-family: "PFSX"; src: url("../fonts/pfseb.woff2?v=2") format("woff2"); font-display: block; }
 @font-face { font-family: "Ramche"; src: url("../fonts/ramche.woff2") format("woff2"); font-display: block; }
 @font-face { font-family: "Silver"; src: url("../fonts/silver.woff2") format("woff2"); font-display: block; }
-@font-face { font-family: "Roborobo"; src: url("../fonts/pixelroborobo.woff2") format("woff2"); font-display: block; }
+@font-face { font-family: "Roborobo"; src: url("../fonts/pixelroborobo.woff2?v=2") format("woff2"); font-display: block; }
 
 :root {
   --ink: #3a2a1a;
