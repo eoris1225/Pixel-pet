@@ -597,17 +597,25 @@ function updateWeaponProp(now) {
     const side = (pet.x < W / 2 ? 1 : -1) * (teddyOn() && prop.state !== "hug" ? -1 : 1);   // the other side from her bear
     Object.assign(wprop, { state: "place", t0: now, fx: pet.x, fy: hands, tx: Math.max(16, Math.min(W - 16, pet.x + side * 24)), side, z: pet.z });
   }
-  if (!rest && wprop.state === "ground") Object.assign(wprop, { state: "lift", t0: now, fx: wprop.x, fy: wprop.y });
+  if (rest && wprop.state === "ground") wprop.ready = now + 900;          // she goes back for it once she is up (fetchWeapon)
   if (wprop.state === "place") {
     const q = Math.min(1, (now - wprop.t0) / 320);
     wprop.x = wprop.fx + (wprop.tx - wprop.fx) * q; wprop.y = wprop.fy + (FEET - 2 - wprop.fy) * q - Math.sin(q * Math.PI) * 6;
-    if (q >= 1) wprop.state = "ground";
+    if (q >= 1) { wprop.state = "ground"; wprop.ready = now + 900; }
   }
   if (wprop.state === "lift") {
     const q = Math.min(1, (now - wprop.t0) / 260);
     wprop.x = wprop.fx + (pet.x - wprop.fx) * q; wprop.y = wprop.fy + (hands - wprop.fy) * q - Math.sin(q * Math.PI) * 8;
     if (q >= 1) wprop.state = "held";
   }
+}
+// when she is free and her weapon is on the grass, she walks over and picks it up, like her bear
+function fetchWeapon(now) {
+  if (!weaponOn() || wprop.state !== "ground" || now < (wprop.ready || 0) || G.sleeping || G.wantSleep) return false;
+  const dx = wprop.x - pet.x;
+  if (Math.abs(dx) > 12 || Math.abs(wprop.z - pet.z) > 1.5) { pet.act = "walk"; pet.target = wprop.x - Math.sign(dx) * 10; pet.tz = wprop.z; return true; }
+  Object.assign(wprop, { state: "lift", t0: now, fx: wprop.x, fy: wprop.y });
+  pet.dir = Math.sign(dx) || pet.dir; startAct("pet", now); return true;
 }
 function drawWeaponProp(front) {
   if (!weaponOn() || wprop.state === "held" || (wprop.state === "ground") === front) return;   // on the ground behind her, moving in front
@@ -697,6 +705,7 @@ function petUpdate(now, dt) {
   updateWeaponProp(now);
   if (G.still) pet.nextThink = now + 1500;                               // the tutorial is talking: she stands and listens
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && now > prop.ready && fetchTeddy(now)) {}
+  else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && fetchWeapon(now)) {}
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && now > pet.nextThink) {
     pet.nextThink = now + 2500 + Math.random() * 3500;
     const r = Math.random(), calm = G.studying;          // fewer big moves while you study

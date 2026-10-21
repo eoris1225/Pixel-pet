@@ -228,6 +228,7 @@ function weaponSway() {
 }
 // her hands on a frame where they are drawn out from her body (하와's dance): on each side, the short run of rows where
 // the outline juts out past the rows a few above and below it, between her face and her feet
+const DANCE_W = { x: 0, y: 0, a: 0, t: 0, t0: -1 };
 function findHands(grid) {
   const h = grid.length, f = faceOf(grid), top = f ? Math.round(f.cy) : Math.round(h * 0.35), out = {};
   for (const side of [-1, 1]) {
@@ -254,15 +255,19 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
   if (!base && typeof pet !== "undefined" && pet.act === "dance") {   // dancing, her hands are drawn out: the weapon goes with them
     if (layer !== "front") return;
     const hd = cache.hands || (cache.hands = findHands(grid)), f = weaponFlat(petId);
-    if (hd.l || hd.r) {
-      let cx, cy, ang, flip = false;
-      if (hd.l && hd.r) { cx = (hd.l[0] + hd.r[0]) / 2; cy = (hd.l[1] + hd.r[1]) / 2; ang = Math.atan2(hd.r[1] - hd.l[1], hd.r[0] - hd.l[0]); }
-      else { const [x, y] = hd.r || hd.l; flip = !hd.r; cx = x; cy = y; ang = -1.2; }   // one hand out: raised up on that side, gripped low
-      g.save(); g.translate(Math.round(cx), Math.round(cy)); if (flip) g.scale(-1, 1); g.rotate(ang);
-      g.drawImage(f.img, f.x - (hd.l && hd.r ? mid : mid - 12), f.y - arm);
-      g.restore();
-      return;
-    }
+    // where it should be on this frame: through both hands, or level through the one hand that is out, or across her belly
+    let tx = mid + (o ? o.dx : 0), ty = arm + (o ? o.dy : 0), ta = 0;
+    if (hd.l && hd.r) { tx = (hd.l[0] + hd.r[0]) / 2; ty = (hd.l[1] + hd.r[1]) / 2; ta = Math.atan2(hd.r[1] - hd.l[1], hd.r[0] - hd.l[0]); }
+    else if (hd.l || hd.r) { const [x, y] = hd.l || hd.r; tx = x + (hd.l ? 10 : -10); ty = y; }
+    // and it glides there over a few frames, so it swings with the dance instead of jumping between poses
+    const now = performance.now();
+    if (!DANCE_W.t || now - DANCE_W.t > 200 || DANCE_W.t0 !== pet.t0) Object.assign(DANCE_W, { x: tx, y: ty, a: ta, t0: pet.t0 });
+    const k = Math.min(1, (now - (DANCE_W.t || now)) / 90);
+    DANCE_W.x += (tx - DANCE_W.x) * k; DANCE_W.y += (ty - DANCE_W.y) * k; DANCE_W.a += (ta - DANCE_W.a) * k; DANCE_W.t = now;
+    g.save(); g.translate(Math.round(DANCE_W.x), Math.round(DANCE_W.y)); g.rotate(DANCE_W.a);
+    g.drawImage(f.img, f.x - mid, f.y - arm);
+    g.restore();
+    return;
   }
   if (mode === "lift") {                                     // arms going up and down: from across her belly to over her head
     if (layer !== "front") return;
