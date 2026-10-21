@@ -285,10 +285,16 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       const dup = INFO[petId].dup, top = px.reduce((m, p) => Math.min(m, p[1]), 1e9), whole = top >= dup ? shift : 0;
       const each = a.auto === "pajama";
       const body = equip.pajama && typeof PAJAMA !== "undefined" ? PAJAMA[petId].main : PET[petId].pal[PET[petId].body];   // her paws: her own colour, or her onesie's
-      for (const [x, y, c] of px) {
+      // on the base pose the onesie is laid on the frame as it is drawn: ears flicked sideways, feet stepping, a row added
+      // or dropped by breathing; a pixel lands only where this frame has her body
+      const fg = base && each ? img.grid : null, ear = base && pose ? pose.ear || 0 : 0, tip = PET[petId].tip;
+      const on = (x, y) => !fg || (fg[y] && fg[y][x] && !"BK".includes(fg[y][x]));
+      for (const [x0, y, c] of px) {
+        const x = x0 + (each && y < tip ? ear : 0);
         // a stretch doubles the row at dup: the onesie covers both copies
-        if (each && y === dup && shift > 0 && c !== "clear") { g.fillStyle = c === "body" ? body : c === "outline" ? OUT : c; g.fillRect(x, y, 1, 1); }
+        if (each && y === dup && shift > 0 && c !== "clear" && on(x, y)) { g.fillStyle = c === "body" ? body : c === "outline" ? OUT : c; g.fillRect(x, y, 1, 1); }
         const yy = y + (each ? (y >= dup ? shift : 0) : whole);
+        if (each && !on(x, yy)) continue;
         if (c === "clear") { g.clearRect(x, yy, 1, 1); continue; }   // her arm, now round the bear
         g.fillStyle = c === "body" ? body : c === "outline" ? OUT : c; g.fillRect(x, yy, 1, 1);
       }
