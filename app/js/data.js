@@ -1,0 +1,58 @@
+/* Text and tuning that the plan defines. Edit freely: the app reads everything from here. */
+"use strict";
+
+// 치카 = mochi, 하와 = sora, 욱 = nori (the sprite ids stay as they are)
+const CHARS = {
+  mochi: {
+    name: "치카", color: "#ffb3c7", soft: "#ffe3ea", deep: "#e88fa8", trait: "공부 계획이 흐트러지면 슬퍼해요…",
+    intro: "저, 저기…! 나랑 같이 공부하지 않을래…? 나도 열심히 응원할게…! 혹시 공부가 잘 안되는 날에도… 내가 옆에 있어 줄게…! 우리 같이 조금씩 해보자…!",
+    cheers: ["힘…내!", "공부는..?", "와아…! 대단해…!", "으아아…! (집중 집중…!)", "할수..있어..!"],
+    start: "가, 같이 시작하자…!", rest: "조, 조금만 쉬자…", end: "수고했어…! 정말로…!", levelup: "레, 레벨 업…! 고마워…!",
+    todo: "오늘 할 일… 같이 적어볼래…?", todoDone: "다, 다 했어…! 대단해…!",
+    note: "오늘 뭐 했는지… 알려줄래…?",
+  },
+  sora: {
+    name: "하와", color: "#9fd3f5", soft: "#e0f2fd", deep: "#6cb8e6", trait: "밝고 다정하게 응원해 줘요",
+    intro: "안녕! 나랑 같이 공부하자! 오늘 계획을 다 못 끝내도 괜찮아. 하나씩 해내면 되는 거니까! 헤헤, 레벨 업 하는 순간도 내가 제일 먼저 축하해 줄게!",
+    cheers: ["오늘도 파이팅!", "천천히 해보자!", "대단하다~!", "굉장해!!", "괜찮아!"],
+    start: "좋아, 시작하자!", rest: "잠깐 쉬어 가자~", end: "오늘도 수고했어!", levelup: "레벨 업! 내가 제일 먼저 축하해!",
+    todo: "오늘 할 일 적어볼까? 천천히 해도 괜찮아!", todoDone: "다 해냈네! 굉장해!!",
+    note: "오늘 뭐 했는지 적어줘!",
+  },
+  nori: {
+    name: "욱", color: "#ffd96b", soft: "#fff3c4", deep: "#f2b93b", trait: "발랄! 열혈! 돌격!",
+    intro: "우라아아!! 나랑 공부하자!! 오늘 목표? 싹 다 정복하는 거다!! 야하하! 레벨 업까지 돌격이다아!!",
+    cheers: ["우라아아! 공부하러 가자아!!", "야하! 오늘도 레벨 업이다!", "우리리링! 오늘도 제대로 달려보자!!", "우랏! 미루기는 없다아!!!", "우라아! 오늘 목표 전부 클리어다!!"],
+    start: "돌격이다아!!", rest: "숨 고르기다아!", end: "클리어다!! 야하하!", levelup: "레벨 업이다아아!!",
+    todo: "오늘 할 일 적어라아!! 싹 다 해치우자!!", todoDone: "전부 클리어다!! 우라아!!",
+    note: "뭘 정복했는지 적어라아!!",
+  },
+};
+const CHAR_ORDER = ["mochi", "sora", "nori"];
+
+// levelling: 1 level per hour of study, per 50 minutes during the burning time (18:00 - 24:00, the user's local time)
+const LEVEL = { normalMin: 60, burnMin: 50, burnFrom: 18, burnTo: 24, max: 10 };
+
+// the pet says one of her cheers this often while the timer runs (and a bit less often otherwise)
+const CHEER_EVERY_MS = 10 * 60 * 1000, IDLE_CHEER_EVERY_MS = 4 * 60 * 1000;
+
+// item names per character, unlocked at these levels (the pixel art is in items.js)
+const ITEM_LIST = {
+  mochi: [[2, "tears", "ㅠㅠ 표정"], [4, "bearpin", "곰돌이 핀"], [6, "nightcap", "파자마 모자"], [8, "bag", "옆으로 메는 가방"], [10, "fork", "무기 (포크 창)"]],
+  sora:  [[2, "beanie", "고양이 모자"], [4, "guitar", "등에 멘 기타"], [6, "nightcap", "파자마 모자"], [8, "camera", "목에 건 카메라"], [10, "trident", "무기 (삼지창)"]],
+  nori:  [[2, "shades", "선글라스 + 목걸이"], [4, "pass", "이마에 붙인 합격증"], [6, "nightcap", "파자마 모자"], [8, "pudding", "손에 든 푸딩"], [10, "pencil", "무기 (연필)"]],
+};
+
+const DEFAULT_SUBJECTS = [["국어", "#ffb3a7"], ["수학", "#a7c7ff"], ["영어", "#b5e6a3"]];
+const SUBJECT_COLORS = ["#ffb3a7", "#a7c7ff", "#b5e6a3", "#ffd98a", "#d4b5ff", "#ffb3d9", "#9fe0d8", "#f5c4a1", "#c9d1a7", "#b8c4e8"];
+
+const TUTORIAL = [
+  { target: null,       text: "톡톡? 처음이지? 사용법을 알려줄게! 화면을 눌러 줘." },
+  { target: "#hud",     text: "① 1시간 공부하면 레벨이 하나 올라! 캐릭터마다 최대 10레벨이야." },
+  { target: "#hud",     text: "② 버닝 시간은 18시~0시! 이때는 50분마다 레벨 업이라 더 빨라." },
+  { target: "#controls", text: "③ [시작]을 누르면 타이머가 돌아가고, [끝]을 누르면 멈춰. 그때 뭘 했는지 적어 줘!" },
+  { target: "#controls", text: "[휴식]을 누르면 타이머가 잠깐 멈춰. 다시 누르면 이어서 공부해." },
+  { target: "#sidetab", text: "여기를 누르면 공부 시간, 공부 계획표, 설정이 있어!" },
+  { target: "#sidetab", text: "④ 레벨 업 하면 아이템이 생겨. 설정 > 인벤토리에서 뗐다 붙였다 할 수 있어!" },
+  { target: "#sidetab", text: "튜토리얼은 설정에서 언제든 다시 볼 수 있어. 그럼 시작해 볼까?", fly: true },
+];
