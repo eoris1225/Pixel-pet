@@ -307,7 +307,10 @@ header { grid-area: head; display: flex; flex-wrap: wrap; align-items: center; g
   }
   function drawItemPx(g, i, s, ox = 0, oy = 0) {
     const body = pal().W || "#fffaf0";                    // the bear-hug paws take her own colour
-    for (const [x, y, c] of itemPixels(i)) { g.fillStyle = c === "body" ? body : c; g.fillRect(ox + x * s, oy + y * s, s, s); }
+    for (const [x, y, c] of itemPixels(i)) {
+      if (c === "clear") { g.clearRect(ox + x * s, oy + y * s, s, s); continue; }
+      g.fillStyle = c === "body" ? body : c === "outline" ? (pal().K || "#3a2a1a") : c; g.fillRect(ox + x * s, oy + y * s, s, s);
+    }
   }
 
   /* ---------- data ---------- */
