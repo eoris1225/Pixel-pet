@@ -105,6 +105,15 @@ function staff(p, flat = false) {
   });
 }
 
+const POCHETTE = [
+  ".PP...PP.",
+  "PPPPPPPPP",
+  "PPDPPPDPP",
+  "PPPWWWPPP",
+  "PPWWDWWPP",
+  ".pPWWWPp.",
+  "..ppppp..",
+];
 const ITEM_ART = {
   mochi: {
     tears: { layer: "front", auto: "tears", build: () => pixmap(d => {          // build = the inventory icon; in play it is placed per frame
@@ -113,9 +122,10 @@ const ITEM_ART = {
     }, false) },
     teddy: { layer: "front", auto: "teddy", build: () => pixmap(d => d.grid(TEDDY, TEDDY_PAL, 0, 0), false) },
     pajama: { layer: "front", auto: "pajama", under: true, build: () => onesieIcon("mochi") },
-    bag: { layer: "front", build: () => pixmap(d => {
-      d.line(6, 18, 18, 24, "#a8714a");
-      d.rect(17, 23, 7, 5, "#ffc4a8"); d.rect(17, 23, 7, 2, "#f29b8a"); d.put(20, 25, "#fff4dc");
+    // 치카's pochette: a round pink bear face (little ears, white muzzle) on a long thin cream strap, worn across her body
+    bag: { layer: "front", auto: "carry", build: () => pixmap(d => {
+      d.line(4, 17, 17, 21, "#fff7ea");                                     // the strap, from her shoulder to her hip
+      d.grid(POCHETTE, { P: "#f7a8bd", p: "#ec8fab", W: "#fffaf0", D: "#5a4636" }, 16, 20);
     }) },
     fork: { layer: "front", auto: "weapon", build: () => fork("mochi", "#f59ab6", "#ffd0de") },
   },
@@ -176,9 +186,9 @@ const WEAPON_FLAT = { mochi: () => fork("mochi", "#f59ab6", "#ffd0de", true), so
 const WEAPON_PJ = { mochi: () => fork("mochi", "#f59ab6", "#ffd0de", false, PAJAMA.mochi.main), sora: () => fork("sora", "#4f9fe0", "#a9d6f7", false, PAJAMA.sora.main) };
 const WEAPON_MID = { mochi: 10, sora: 10, nori: 14 };                       // the middle of the handle, where it turns
 function weaponFlat(pet) { const k = "flat:" + pet; return ITEM_CACHE[k] || (ITEM_CACHE[k] = WEAPON_FLAT[pet]()); }
-function weaponPixels(pet) {
-  const k = "px:" + pet; if (ITEM_CACHE[k]) return ITEM_CACHE[k];
-  const it = itemImg(pet, WEAPON_OF[pet]), g = it.img.getContext("2d"), d = g.getImageData(0, 0, it.img.width, it.img.height).data, out = [];
+function weaponPixels(pet, id = WEAPON_OF[pet]) {
+  const k = "px:" + pet + ":" + id; if (ITEM_CACHE[k]) return ITEM_CACHE[k];
+  const it = itemImg(pet, id), g = it.img.getContext("2d"), d = g.getImageData(0, 0, it.img.width, it.img.height).data, out = [];
   for (let y = 0; y < it.img.height; y++) for (let x = 0; x < it.img.width; x++) {
     const i = (y * it.img.width + x) * 4; if (d[i + 3] < 128) continue;
     out.push([it.x + x, it.y + y, "#" + [d[i], d[i + 1], d[i + 2]].map(v => v.toString(16).padStart(2, "0")).join("")]);
@@ -206,6 +216,12 @@ ITEM_AUTO.weapon = (grid, pet) => {
 // so the weapon rises and comes back down with her arms instead of jumping
 const LIFT = { 10: 0.45, 11: 0.75, 12: 1, 13: 1, 14: 1, 15: 1, 16: 0.8, 17: 0.6, 18: 0.4, 19: 0.2 };
 const DIAG = { mochi: Math.atan2(-7, 32), sora: Math.atan2(-7, 32), nori: Math.atan2(-6, 44) };   // the slant she holds it at
+// things she wears on her body (치카's pochette) go with her the same way as what she holds, hidden when she faces away
+ITEM_AUTO.carry = (grid, pet) => {
+  if (grid[0].length > 60) return [];
+  const o = weaponOffset(grid, pet);
+  return o ? weaponPixels(pet, "bag").map(([x, y, c]) => [x + o.dx, y + o.dy, c]) : [];
+};
 function weaponMode(img) {
   const act = typeof pet !== "undefined" ? pet.act : "idle";
   if (typeof wprop !== "undefined" && wprop.state !== "held" && typeof G !== "undefined" && WEAPON_OF[G.pet]) return "away";   // set down in the world (pet.js)
