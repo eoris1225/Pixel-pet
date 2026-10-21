@@ -195,9 +195,13 @@ function autoPajama(grid, pet) {
     const top = Object.keys(n).sort((a, b) => n[b] - n[a])[0];
     if (top && n[top] >= 12) gloom = GLOOM[top];
   }
+  const inner = (x, y) => { for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const r = grid[y + j]; if (!r || !r[x + i] || r[x + i] === "B") return false; } return true; };
   const out = [];
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const c = grid[y][x];
+    let c = grid[y][x];
+    // 하와's hair lines (the bang edge, the parting) belong under the hood, not drawn across it: inner outline above the face
+    // (no empty pixel around it, so not the silhouette) outside the opening becomes suit
+    if (c === "K" && pal.bangs && face && y < face.cy && !ell(x, y, 0) && inner(x, y)) c = "S";
     if (c === "B" || c === "K" || (pal.keep && pal.keep.includes(c))) continue;
     if (ell(x, y, 0)) {
       if (pal.bangs && pal.bangs.includes(c)) out.push([x, y, pal.bang]);
