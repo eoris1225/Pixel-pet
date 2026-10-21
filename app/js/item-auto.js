@@ -161,8 +161,14 @@ function findFace(grid) {
 const PAJAMA = {
   mochi: { main: "#ffbdd0", shade: "#f29ab5", rim: "#ffdbe6", up: 2.5 },
   sora:  { main: "#acdaf8", shade: "#84bfeb", rim: "#d6eefd", up: 4, bangs: "S", bang: "#5eaee6" },
-  nori:  { main: "#ffd766", shade: "#efb53a", rim: "#ffe07e", keep: "W", up: 4 },   // her rim must not match her own face colour
+  nori:  { main: "#ffd766", shade: "#efb53a", rim: "#ffe07e", keep: "W", up: 3 },   // her rim must not match her own face colour
 };
+// 치카's gloom shadow, in three strengths, as her own white body (#fffaf0) looks under it; the suit is dimmed by the same amount
+const GLOOM = { L: "#e2e9eb", N: "#ccd6dc", Q: "#b8c8d0" };
+function dim(col, shadow) {
+  const a = [1, 3, 5].map(i => parseInt(col.substr(i, 2), 16)), b = [1, 3, 5].map(i => parseInt(shadow.substr(i, 2), 16)), w = [255, 250, 240];
+  return "#" + a.map((v, i) => Math.round(Math.min(255, v * b[i] / w[i])).toString(16).padStart(2, "0")).join("");
+}
 function autoPajama(grid, pet) {
   const h = grid.length, w = grid[0].length, pal = PAJAMA[pet];
   if (!pal || w > 60) return [];
@@ -173,7 +179,7 @@ function autoPajama(grid, pet) {
   else face = findFace(grid);
   if (face) {                                              // the opening ends just under the mouth, so a low face (a bow) leaves the body to the suit
     const main = mainOutline(grid); let low = -1;
-    for (let y = Math.ceil(face.cy); y <= face.cy + face.ry; y++) for (let x = Math.floor(face.cx - 3); x <= face.cx + 3; x++)
+    for (let y = Math.ceil(face.cy); y <= face.cy + 3; y++) for (let x = Math.floor(face.cx - 3); x <= face.cx + 3; x++)   // the mouth, not hands held under it
       if (grid[y] && grid[y][x] === "K" && !main.has(x + "," + y)) low = Math.max(low, y);
     face.down = Math.min(face.down || face.ry, low < 0 ? face.ry : Math.max(2.5, low + 1.5 - face.cy));
   }
@@ -182,13 +188,24 @@ function autoPajama(grid, pet) {
     const dy = y + 0.5 - face.cy, ry = dy < 0 ? face.ry + (pal.up || 0) : face.down, ex = dy < 0 && pal.up ? 4 : 2;   // 하와's top is squarer, to show her bangs
     return Math.abs((x + 0.5 - face.cx) / (face.rx + grow)) ** ex + Math.abs(dy / (ry + grow)) ** ex <= 1;
   };
+  // under a gloomy shadow the bare top of her head (still white) now shows inside the opening: shade it like the rest of the face
+  let gloom = null; {
+    const n = {};
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (GLOOM[grid[y][x]] && ell(x, y, 0)) n[grid[y][x]] = (n[grid[y][x]] || 0) + 1;
+    const top = Object.keys(n).sort((a, b) => n[b] - n[a])[0];
+    if (top && n[top] >= 12) gloom = GLOOM[top];
+  }
   const out = [];
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const c = grid[y][x];
     if (c === "B" || c === "K" || (pal.keep && pal.keep.includes(c))) continue;
-    if (ell(x, y, 0)) { if (pal.bangs && pal.bangs.includes(c)) out.push([x, y, pal.bang]); continue; }
-    // a gloomy shadow (Q) stays on the face only: the suit itself is plain
-    out.push([x, y, ell(x, y, 1.3) ? pal.rim : "LNM".includes(c) ? pal.shade : pal.main]);
+    if (ell(x, y, 0)) {
+      if (pal.bangs && pal.bangs.includes(c)) out.push([x, y, pal.bang]);
+      else if (gloom && c === "W") out.push([x, y, gloom]);
+      continue;
+    }
+    const col = ell(x, y, 1.3) ? pal.rim : c === "M" ? pal.shade : pal.main;
+    out.push([x, y, GLOOM[c] ? dim(col, GLOOM[c]) : col]);              // 치카's gloomy shadow falls on the suit as well
   }
   if (face) {                                              // two buttons down the front, as far as the body has room
     const bx = Math.floor(face.cx), top = Math.ceil(face.cy + face.down) + 1;
