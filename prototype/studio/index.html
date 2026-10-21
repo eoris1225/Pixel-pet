@@ -1,0 +1,637 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Pixel Pet Studio</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DotGothic16&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: a workbench — tool rail | canvas | side panel, frame strip under the canvas; stacks on phones */
+:root {
+  --bg: #efe6d8;          /* workbench paper */
+  --panel: #fbf6ee;
+  --line: #d9cbb6;
+  --ink: #3a2a1a;         /* the pets' outline brown */
+  --muted: #8a7660;
+  --accent: #e2504a;      /* game red */
+  --accent-ink: #ffffff;
+  --sel: #3a2a1a;
+  --check-a: #f4ede2; --check-b: #e4d8c6;
+  --wood: #d9a066;
+  --ok: #4f9a45;
+  --font-ui: "IBM Plex Sans KR", system-ui, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  --font-pixel: "DotGothic16", "IBM Plex Sans KR", monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #1d1712; --panel: #29211a; --line: #45382b; --ink: #f1e4d1; --muted: #a8957d;
+  --accent: #ff7466; --accent-ink: #1d1712; --sel: #f1e4d1;
+  --check-a: #3a3027; --check-b: #2f261e; --wood: #8c623a; --ok: #7cc56e; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #1d1712; --panel: #29211a; --line: #45382b; --ink: #f1e4d1; --muted: #a8957d;
+  --accent: #ff7466; --accent-ink: #1d1712; --sel: #f1e4d1;
+  --check-a: #3a3027; --check-b: #2f261e; --wood: #8c623a; --ok: #7cc56e; color-scheme: dark }
+
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 12px; box-sizing: border-box; }
+* { box-sizing: border-box; }
+button, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { display: grid; gap: 12px; grid-template-columns: 56px minmax(0, 1fr) 280px; grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: "head head head" "tools stage side" "tools strip side"; height: 100%; max-width: 1400px; margin: 0 auto; }
+header { grid-area: head; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.brand { font-family: var(--font-pixel); font-size: 22px; letter-spacing: 0.02em; margin: 0; line-height: 1; }
+.brand small { font-family: var(--font-ui); font-size: 12px; color: var(--muted); margin-left: 8px; letter-spacing: 0; }
+.pets { display: flex; gap: 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+.pets button { border: 0; background: transparent; padding: 6px 12px; border-radius: 7px; font-weight: 500; }
+.pets button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+#setSel { padding: 7px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); min-width: 0; max-width: 100%; }
+.grow { flex: 1 1 auto; }
+.save { display: flex; align-items: center; gap: 10px; }
+#status { font-size: 12px; color: var(--muted); }
+#status.dirty { color: var(--accent); }
+#status.ok { color: var(--ok); }
+.btn { border: 1px solid var(--line); background: var(--panel); padding: 7px 12px; border-radius: 8px; }
+.btn:hover { border-color: var(--ink); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+.btn:disabled { opacity: 0.45; cursor: default; }
+
+.tools { grid-area: tools; display: flex; flex-direction: column; gap: 6px; }
+.tool { width: 56px; height: 52px; border: 1px solid var(--line); background: var(--panel); border-radius: 10px;
+  display: grid; place-items: center; gap: 0; font-size: 11px; padding: 4px 0; }
+.tool svg { width: 20px; height: 20px; }
+.tool[aria-pressed="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.tool .k { font-size: 10px; opacity: 0.6; }
+.sep { height: 1px; background: var(--line); margin: 4px 6px; }
+
+.stage { grid-area: stage; position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; min-height: 300px; }
+.stagebar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 12px; }
+.stagebar .lbl { color: var(--muted); }
+.zoom { display: flex; align-items: center; gap: 4px; }
+.zoom button { width: 30px; height: 28px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); }
+#zoomVal { min-width: 40px; text-align: center; font-variant-numeric: tabular-nums; }
+.chk { display: inline-flex; align-items: center; gap: 5px; }
+#scroller { flex: 1 1 auto; overflow: auto; position: relative; touch-action: none; }
+#scroller.can-pan { cursor: grab; }
+#cv { display: block; margin: 24px; image-rendering: pixelated; touch-action: none; }
+#cursorInfo { position: absolute; right: 10px; bottom: 8px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; pointer-events: none; background: var(--panel); padding: 2px 6px; border-radius: 6px; }
+
+.strip { grid-area: strip; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.striphead { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; }
+.striphead b { font-variant-numeric: tabular-nums; }
+.frames { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.fr { flex: 0 0 auto; position: relative; border: 2px solid transparent; border-radius: 8px; padding: 3px; background: var(--bg); }
+.fr canvas { display: block; image-rendering: pixelated; }
+.fr span { position: absolute; left: 4px; top: 2px; font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.fr[aria-current="true"] { border-color: var(--ink); }
+.fr.edited::after { content: ""; position: absolute; right: 4px; top: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.fr.saved::after { content: ""; position: absolute; right: 4px; top: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+
+.side { grid-area: side; display: flex; flex-direction: column; gap: 12px; min-width: 0; overflow-y: auto; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+.card h2 { margin: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+.swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.sw { border: 1px solid var(--line); border-radius: 8px; padding: 5px 4px 4px; background: var(--bg); display: grid; justify-items: center; gap: 3px; font-size: 10px; line-height: 1.2; text-align: center; }
+.sw i { width: 28px; height: 22px; border-radius: 4px; border: 1px solid rgba(0,0,0,.25); display: block; }
+.sw i.clear { background: repeating-conic-gradient(var(--check-a) 0 25%, var(--check-b) 0 50%) 0 0/10px 10px; }
+.sw[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 1px; }
+.sw .key { font-family: var(--font-pixel); font-size: 11px; }
+.prevbox { background: var(--wood); border-radius: 8px; display: grid; place-items: center; padding: 10px; min-height: 140px; overflow: hidden; }
+#pv { image-rendering: pixelated; max-width: 100%; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; }
+.row .btn { padding: 6px 9px; font-size: 12px; }
+.bgctl { display: inline-flex; align-items: center; gap: 6px; }
+#bgSel { padding: 4px 6px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); }
+#bgPick { width: 32px; height: 26px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; }
+.refctl { display: inline-flex; align-items: center; gap: 6px; }
+#refOp { width: 90px; accent-color: var(--accent); }
+.minipal { display: none; gap: 6px; flex-wrap: wrap; width: 100%; }
+.minipal button { width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--line); padding: 3px; background: var(--bg); }
+.minipal button i { display: block; width: 100%; height: 100%; border-radius: 5px; }
+.minipal button i.clear { background: repeating-conic-gradient(var(--check-a) 0 25%, var(--check-b) 0 50%) 0 0/10px 10px; }
+.minipal button[aria-pressed="true"] { outline: 2px solid var(--ink); outline-offset: 1px; }
+.hint { font-size: 12px; color: var(--muted); line-height: 1.5; margin: 0; }
+.kbd { font-family: var(--font-pixel); font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+#notice { font-size: 12px; line-height: 1.5; color: var(--accent); margin: 0; }
+
+@media (max-width: 900px) {
+  body { height: auto; }
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto; height: auto;
+    grid-template-areas: "head" "tools" "stage" "strip" "side"; }
+  .tools { flex-direction: row; flex-wrap: wrap; }
+  .sep { width: 1px; height: auto; margin: 4px 2px; }
+  .stage { height: 62vh; }
+  .side { overflow: visible; }
+  .minipal { display: flex; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="app">
+  <header>
+    <h1 class="brand">Pixel Pet Studio<small>게임 속 도트를 직접 고치는 곳</small></h1>
+    <div class="pets" role="group" aria-label="펫">
+      <button id="pet-nori" data-pet="nori">노리</button>
+      <button id="pet-sora" data-pet="sora">소라</button>
+      <button id="pet-mochi" data-pet="mochi">모치</button>
+    </div>
+    <select id="setSel" aria-label="모션"></select>
+    <span class="grow"></span>
+    <div class="save">
+      <span id="status">불러오는 중…</span>
+      <button class="btn primary" id="saveBtn" disabled>저장</button>
+    </div>
+  </header>
+
+  <nav class="tools" aria-label="도구">
+    <button class="tool" id="t-pen" data-tool="pen" title="연필 (B)"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M3 15v2h2l9-9-2-2-9 9zm11.7-9.3 1-1a1 1 0 0 0 0-1.4l-.6-.6a1 1 0 0 0-1.4 0l-1 1 2 2z"/></svg><span>연필 <span class="k">B</span></span></button>
+    <button class="tool" id="t-erase" data-tool="erase" title="지우개 (E)"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M11 3 3 11l4 4h9v-2h-5.2L17 6.8 13.2 3H11zM7 14.2 4.8 12l3-3 3.2 3.2-2 2H7z"/></svg><span>지우개 <span class="k">E</span></span></button>
+    <button class="tool" id="t-fill" data-tool="fill" title="채우기 (G)"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M8 2 2 8l6 6 6-6-6-6zm0 2.8L11.2 8H4.8L8 4.8zM16 11s-2 2.3-2 3.6a2 2 0 0 0 4 0C18 13.3 16 11 16 11z"/></svg><span>채우기 <span class="k">G</span></span></button>
+    <button class="tool" id="t-pick" data-tool="pick" title="스포이드 (I)"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M15.5 2.5a2 2 0 0 0-2.8 0L10.6 4.6 9.9 4 8.5 5.4l1 1-6 6V16h3.6l6-6 1 1 1.4-1.4-.7-.7 2.1-2.1a2 2 0 0 0 0-2.8l-1.4-1.5zM6.3 14H5v-1.3l5.9-5.9 1.3 1.3L6.3 14z"/></svg><span>스포이드 <span class="k">I</span></span></button>
+    <button class="tool" id="t-pan" data-tool="pan" title="이동 (H)"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 1 7 4h2v5H4V7l-3 3 3 3v-2h5v5H7l3 3 3-3h-2v-5h5v2l3-3-3-3v2h-5V4h2l-3-3z"/></svg><span>이동 <span class="k">H</span></span></button>
+    <div class="sep"></div>
+    <button class="tool" id="t-undo" title="되돌리기 (Ctrl+Z)"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M8 5V2L3 7l5 5V9h4a3 3 0 0 1 0 6H8v2h4a5 5 0 0 0 0-10H8z"/></svg><span>되돌리기</span></button>
+    <button class="tool" id="t-redo" title="다시 (Ctrl+Shift+Z)"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M12 5V2l5 5-5 5V9H8a3 3 0 0 0 0 6h4v2H8A5 5 0 0 1 8 7h4z"/></svg><span>다시</span></button>
+  </nav>
+
+  <section class="stage" aria-label="편집 화면">
+    <div class="stagebar">
+      <div class="zoom"><button id="zOut" aria-label="축소">−</button><span id="zoomVal">12×</span><button id="zIn" aria-label="확대">+</button><button id="zFit" style="width:auto;padding:0 8px">맞춤</button></div>
+      <label class="chk"><input type="checkbox" id="onion" checked> 앞 프레임 겹쳐보기</label>
+      <label class="chk"><input type="checkbox" id="gridOn" checked> 격자</label>
+      <span class="refctl"><label class="chk"><input type="checkbox" id="refOn"> 원본 이미지 겹치기</label>
+        <input type="range" id="refOp" min="10" max="90" value="45" aria-label="원본 이미지 진하기"><span id="refNote" class="lbl"></span></span>
+      <span class="bgctl"><label for="bgSel" class="lbl">배경</label>
+        <select id="bgSel">
+          <option value="check">체크무늬</option>
+          <option value="#d9a066">게임 바닥 (나무)</option>
+          <option value="#f3e2bd">게임 벽</option>
+          <option value="#f6b8c6">게임 러그</option>
+          <option value="#ffffff">흰색</option>
+          <option value="#9aa3ad">회색</option>
+          <option value="#1f1a16">검정</option>
+          <option value="custom">직접 고르기…</option>
+        </select>
+        <input type="color" id="bgPick" value="#7cc6e8" aria-label="배경색 고르기" hidden></span>
+      <span class="grow"></span>
+      <span class="lbl" id="sizeInfo"></span>
+      <div class="minipal" id="miniPal" aria-label="색"></div>
+    </div>
+    <div id="scroller"><canvas id="cv"></canvas></div>
+    <div id="cursorInfo"></div>
+  </section>
+
+  <section class="strip" aria-label="프레임">
+    <div class="striphead">
+      <button class="btn" id="prevF" aria-label="이전 프레임">◀</button>
+      <b id="fInfo">1 / 1</b>
+      <button class="btn" id="nextF" aria-label="다음 프레임">▶</button>
+      <span class="hint">빨간 점: 아직 저장 안 함 · 초록 점: 저장된 수정</span>
+    </div>
+    <div class="frames" id="frames"></div>
+  </section>
+
+  <aside class="side">
+    <div class="card">
+      <h2>색</h2>
+      <div class="swatches" id="swatches"></div>
+    </div>
+    <div class="card">
+      <h2>미리보기</h2>
+      <div class="prevbox"><canvas id="pv"></canvas></div>
+      <div class="row">
+        <button class="btn" id="playBtn">일시정지</button>
+        <label class="chk"><input type="checkbox" id="pvBig" checked> 크게</label>
+        <span class="hint" id="pvInfo"></span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>이 프레임</h2>
+      <div class="row">
+        <button class="btn" id="copyPrev">앞 프레임 그대로 복사</button>
+        <button class="btn" id="copyFr">복사</button>
+        <button class="btn" id="pasteFr" disabled>붙여넣기</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="shL" aria-label="왼쪽으로 1칸">← 1칸</button>
+        <button class="btn" id="shR" aria-label="오른쪽으로 1칸">1칸 →</button>
+        <button class="btn" id="shU" aria-label="위로 1칸">↑ 1칸</button>
+        <button class="btn" id="shD" aria-label="아래로 1칸">↓ 1칸</button>
+        <button class="btn" id="flipH">좌우 뒤집기</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="revert">게임 원본으로 되돌리기</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>사용법</h2>
+      <p class="hint">칸을 누르거나 끌어서 칠해요. 고친 다음 <b>저장</b>을 누르면 Claude가 그 프레임을 읽어서 게임에 넣을 수 있어요.</p>
+      <p class="hint">단축키: <span class="kbd">B</span> 연필 <span class="kbd">E</span> 지우개 <span class="kbd">G</span> 채우기 <span class="kbd">I</span> 스포이드 <span class="kbd">,</span> <span class="kbd">.</span> 프레임 이동 <span class="kbd">Space</span> 미리보기 재생 <span class="kbd">1</span>–<span class="kbd">8</span> 색 고르기. 두 손가락으로 끌면 화면이 움직여요.</p>
+      <p id="notice" hidden></p>
+    </div>
+  </aside>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+                  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} } };
+  let DATA = null, SET = null, frames = [], orig = [], saved = {}, F = 0, tool = "pen", color = "K";
+  const work = {};                    // per set: {frames, dirty:Set} kept while switching sets
+  const hist = {};                    // undo stacks per set/frame
+  let zoom = 12, onion = true, gridOn = true, clip = null;
+  let db = null, unsub = null;
+  let REFS = {}, refOn = false, refOp = 0.45; const refImg = {};
+  let bgMode = "check";                // "check" or a colour for the empty (transparent) cells
+  try { bgMode = store.get("pps.bg") || "check"; } catch (e) {}
+  const cv = $("cv"), ctx = cv.getContext("2d"), scroller = $("scroller");
+
+  /* ---------- data ---------- */
+  fetch("refs.json").then(r => r.json()).then(d => { REFS = d; if (SET) { refUI(); drawEditor(); } }).catch(() => {});
+  try { refOn = store.get("pps.refOn") === "1"; refOp = +(store.get("pps.refOp") || 45) / 100; } catch (e) {}
+  fetch("anims.json").then(r => r.json()).then(d => { DATA = d; boot(); })
+    .catch(() => { $("status").textContent = "모션 데이터를 불러오지 못했어요. 새로고침해 주세요."; });
+
+  function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  const pal = () => DATA.pals[SET.pet];
+
+  function boot() {
+    document.querySelectorAll(".pets button").forEach(b => b.onclick = () => pickPet(b.dataset.pet));
+    $("setSel").onchange = () => openSet($("setSel").value);
+    const last = store.get("pps.set");
+    const s = DATA.sets.find(x => x.key === last) || DATA.sets.find(x => x.key === "mochi-dash");
+    pickPet(s.pet, s.key);
+    window.claude?.use?.("db").then(d => { db = d; if (!db) noDb(); else subscribe(); }).catch(noDb);
+  }
+  function noDb() {
+    db = null;
+    const n = $("notice"); n.hidden = false;
+    n.textContent = "이 화면에서는 저장이 안 돼요. 로그인한 상태로 Claude 앱이나 claude.ai에서 열면 저장할 수 있어요. 지금 고친 내용은 이 브라우저에만 임시로 남아요.";
+    setStatus();
+  }
+
+  function pickPet(pet, key) {
+    document.querySelectorAll(".pets button").forEach(b => b.setAttribute("aria-pressed", b.dataset.pet === pet));
+    const sel = $("setSel"); sel.innerHTML = "";
+    DATA.sets.filter(s => s.pet === pet).forEach(s => {
+      const o = document.createElement("option"); o.value = s.key;
+      o.textContent = `${s.name} · ${s.frames.length}프레임`; sel.appendChild(o);
+    });
+    const k = key || DATA.sets.find(s => s.pet === pet && s.frames.length > 1).key;
+    sel.value = k; openSet(k);
+  }
+
+  function openSet(key) {
+    SET = DATA.sets.find(s => s.key === key); store.set("pps.set", key);
+    orig = SET.frames.map(g => g.map(r => r.split("")));
+    if (!work[key]) {
+      let draft = null; try { draft = JSON.parse(store.get("pps.draft." + key) || "null"); } catch (e) {}
+      const fr = orig.map(g => g.map(r => r.slice()));
+      const dirty = new Set();
+      if (draft) for (const i in draft) { if (fr[i]) { fr[i] = draft[i].map(r => r.split("")); dirty.add(+i); } }
+      work[key] = { frames: fr, dirty };
+    }
+    frames = work[key].frames; saved = {};
+    F = Math.min(F, frames.length - 1); if (F < 0) F = 0;
+    const H = frames[0].length, W = frames[0][0].length;
+    $("sizeInfo").textContent = `${W} × ${H} 칸`;
+    buildSwatches(); fitZoom(); buildStrip(); refUI(); drawAll(); subscribe(); setStatus(); restartPreview();
+  }
+
+  /* ---------- saved edits from the shared store ---------- */
+  function subscribe() {
+    if (unsub) { unsub(); unsub = null; }
+    if (!db || !SET) return;
+    const key = SET.key;
+    unsub = db.collection("anims/" + key + "/frames").onSnapshot(snap => {
+      if (!SET || SET.key !== key) return;
+      const w = work[key]; saved = {};
+      snap.docs.forEach(d => {
+        const b = d.data(); const i = +d.id;
+        if (!b || !Array.isArray(b.rows) || !frames[i]) return;
+        saved[i] = b.rows;
+        if (!w.dirty.has(i)) w.frames[i] = b.rows.map(r => r.split(""));
+      });
+      buildStrip(); drawAll(); setStatus();
+    }, () => { $("status").textContent = "저장된 수정을 불러오지 못했어요"; });
+  }
+
+  /* ---------- palette ---------- */
+  function buildSwatches() {
+    const el = $("swatches"); el.innerHTML = "";
+    const keys = Object.keys(pal()).concat("B");
+    if (!keys.includes(color)) color = "K";
+    keys.forEach((k, n) => {
+      const b = document.createElement("button"); b.className = "sw"; b.id = "sw-" + k;
+      const name = k === "B" ? "투명" : (DATA.names[k] || k);
+      b.innerHTML = `<i class="${k === "B" ? "clear" : ""}" style="${k === "B" ? "" : "background:" + pal()[k]}"></i><span class="key">${n + 1}</span><span>${name}</span>`;
+      b.title = `${name} (${n + 1})`;
+      b.setAttribute("aria-pressed", k === color);
+      b.onclick = () => setColor(k);
+      el.appendChild(b);
+    });
+    const mp = $("miniPal"); mp.innerHTML = "";
+    keys.forEach(k => {
+      const b = document.createElement("button"); b.id = "mp-" + k; b.title = k === "B" ? "투명" : (DATA.names[k] || k);
+      b.setAttribute("aria-label", b.title); b.setAttribute("aria-pressed", k === color);
+      b.innerHTML = `<i class="${k === "B" ? "clear" : ""}" style="${k === "B" ? "" : "background:" + pal()[k]}"></i>`;
+      b.onclick = () => setColor(k); mp.appendChild(b);
+    });
+  }
+  function setColor(k) {
+    color = k; if (tool === "erase" || tool === "pick" || tool === "pan") setTool("pen");
+    document.querySelectorAll(".sw").forEach(b => b.setAttribute("aria-pressed", b.id === "sw-" + k));
+    document.querySelectorAll(".minipal button").forEach(b => b.setAttribute("aria-pressed", b.id === "mp-" + k));
+  }
+  function setTool(t) {
+    tool = t; document.querySelectorAll(".tool[data-tool]").forEach(b => b.setAttribute("aria-pressed", b.dataset.tool === t));
+    scroller.classList.toggle("can-pan", t === "pan");
+  }
+  document.querySelectorAll(".tool[data-tool]").forEach(b => b.onclick = () => setTool(b.dataset.tool));
+  setTool("pen");
+
+  /* ---------- drawing the editor ---------- */
+  function fitZoom() {
+    const H = frames[0].length, W = frames[0][0].length;
+    const aw = scroller.clientWidth - 48, ah = scroller.clientHeight - 48;
+    zoom = Math.max(2, Math.min(24, Math.floor(Math.min(aw / W, ah / H)) || 8));
+    $("zoomVal").textContent = zoom + "×";
+  }
+  function drawAll() { drawEditor(); drawThumb(F); }
+  function drawEditor() {
+    if (!frames.length) return;
+    const g = frames[F], H = g.length, W = g[0].length, z = zoom, dpr = window.devicePixelRatio || 1;
+    cv.width = W * z * dpr; cv.height = H * z * dpr; cv.style.width = W * z + "px"; cv.style.height = H * z + "px";
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.imageSmoothingEnabled = false;
+    const ca = cssVar("--check-a"), cb = cssVar("--check-b"), P = pal();
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const c = g[y][x];
+      ctx.fillStyle = c === "B" || !P[c] ? (bgMode === "check" ? ((x + y) % 2 ? ca : cb) : bgMode) : P[c];
+      ctx.fillRect(x * z, y * z, z, z);
+    }
+    const R = REFS[SET.key];
+    if (refOn && R && R.tr[F]) {                   // the source image this frame was drawn from, on top at the chosen strength
+      const im = refImg[SET.key];
+      if (im && im.complete && im.naturalWidth) {
+        const [x0, y0, cw, ch] = R.crop, [ox, oy, flip] = R.tr[F], S = R.S;
+        const sx = (F % R.cols) * cw, sy = Math.floor(F / R.cols) * ch;
+        const dx = (x0 / S + ox) * z, dy = (y0 / S + oy) * z, dw = cw / S * z, dh = ch / S * z;
+        ctx.save(); ctx.globalAlpha = refOp; ctx.imageSmoothingEnabled = true;
+        if (flip) { ctx.translate((R.srcW / S + 2 * ox) * z, 0); ctx.scale(-1, 1); }
+        ctx.drawImage(im, sx, sy, cw, ch, dx, dy, dw, dh); ctx.restore();
+      }
+    }
+    if (onion && F > 0) {                          // the previous frame, faint, where this one is empty
+      const pg = frames[F - 1]; ctx.globalAlpha = 0.28;
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const c = pg[y] && pg[y][x];
+        if (c && c !== "B" && g[y][x] === "B") { ctx.fillStyle = P[c] || "#000"; ctx.fillRect(x * z, y * z, z, z); }
+      }
+      ctx.globalAlpha = 1;
+    }
+    if (gridOn && z >= 6) {
+      ctx.strokeStyle = "rgba(58,42,26,0.12)"; ctx.lineWidth = 1; ctx.beginPath();
+      for (let x = 0; x <= W; x++) { ctx.moveTo(x * z + 0.5, 0); ctx.lineTo(x * z + 0.5, H * z); }
+      for (let y = 0; y <= H; y++) { ctx.moveTo(0, y * z + 0.5); ctx.lineTo(W * z, y * z + 0.5); }
+      ctx.stroke();
+    }
+    $("fInfo").textContent = `${F + 1} / ${frames.length}`;
+  }
+
+  /* ---------- background colour behind the empty cells ---------- */
+  function applyBg() {
+    const sel = $("bgSel"), pick = $("bgPick");
+    const preset = [...sel.options].some(o => o.value === bgMode);
+    sel.value = preset ? bgMode : "custom";
+    pick.hidden = sel.value !== "custom";
+    if (!preset && bgMode !== "check") pick.value = bgMode;
+    document.querySelector(".prevbox").style.background = bgMode === "check" ? "" : bgMode;
+  }
+  $("bgSel").onchange = e => {
+    const v = e.target.value;
+    bgMode = v === "custom" ? $("bgPick").value : v;
+    store.set("pps.bg", bgMode); applyBg(); drawEditor();
+  };
+  $("bgPick").oninput = e => { bgMode = e.target.value; store.set("pps.bg", bgMode); applyBg(); drawEditor(); };
+  applyBg();
+
+  /* ---------- source image overlay ---------- */
+  function refUI() {
+    const R = SET && REFS[SET.key], cb = $("refOn");
+    cb.checked = refOn; cb.disabled = !R; $("refOp").disabled = !R || !refOn; $("refOp").value = Math.round(refOp * 100);
+    $("refNote").textContent = R ? "" : "(이 모션은 원본 이미지가 없어요)";
+    if (R && !refImg[SET.key]) { const im = new Image(); im.onload = () => drawEditor(); im.src = R.file; refImg[SET.key] = im; }
+  }
+  $("refOn").onchange = e => { refOn = e.target.checked; store.set("pps.refOn", refOn ? "1" : "0"); refUI(); drawEditor(); };
+  $("refOp").oninput = e => { refOp = e.target.value / 100; store.set("pps.refOp", e.target.value); drawEditor(); };
+
+  /* ---------- frame strip ---------- */
+  function buildStrip() {
+    const el = $("frames"); el.innerHTML = "";
+    const H = frames[0].length, W = frames[0][0].length, s = Math.max(1, Math.min(3, Math.floor(64 / Math.max(W, H))));
+    frames.forEach((g, i) => {
+      const b = document.createElement("button"); b.className = "fr"; b.id = "fr-" + i;
+      b.setAttribute("aria-label", `프레임 ${i + 1}`);
+      const c = document.createElement("canvas"); c.width = W * s; c.height = H * s; c.style.width = W * s + "px";
+      b.appendChild(c); const n = document.createElement("span"); n.textContent = i + 1; b.appendChild(n);
+      b.onclick = () => goFrame(i); el.appendChild(b);
+    });
+    frames.forEach((_, i) => drawThumb(i)); markStrip();
+  }
+  function drawThumb(i) {
+    const b = $("fr-" + i); if (!b) return;
+    const c = b.querySelector("canvas"), x = c.getContext("2d"), g = frames[i], P = pal();
+    const s = c.width / g[0].length; x.clearRect(0, 0, c.width, c.height);
+    for (let yy = 0; yy < g.length; yy++) for (let xx = 0; xx < g[0].length; xx++) {
+      const k = g[yy][xx]; if (k !== "B" && P[k]) { x.fillStyle = P[k]; x.fillRect(xx * s, yy * s, s, s); }
+    }
+    markStrip();
+  }
+  function markStrip() {
+    const w = work[SET.key];
+    frames.forEach((_, i) => {
+      const b = $("fr-" + i); if (!b) return;
+      b.setAttribute("aria-current", i === F);
+      b.classList.toggle("edited", w.dirty.has(i));
+      b.classList.toggle("saved", !w.dirty.has(i) && saved[i] !== undefined);
+    });
+  }
+  function goFrame(i) {
+    F = (i + frames.length) % frames.length; drawEditor(); markStrip();
+    const b = $("fr-" + F); b && b.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+  $("prevF").onclick = () => goFrame(F - 1);
+  $("nextF").onclick = () => goFrame(F + 1);
+
+  /* ---------- editing ---------- */
+  const hkey = () => SET.key + ":" + F;
+  function snapshot() {
+    const h = hist[hkey()] || (hist[hkey()] = { u: [], r: [] });
+    h.u.push(frames[F].map(r => r.join(""))); if (h.u.length > 80) h.u.shift(); h.r.length = 0;
+  }
+  function restore(from, to) {
+    const h = hist[hkey()]; if (!h || !h[from].length) return;
+    h[to].push(frames[F].map(r => r.join("")));
+    frames[F] = h[from].pop().map(r => r.split("")); changed();
+  }
+  $("t-undo").onclick = () => restore("u", "r");
+  $("t-redo").onclick = () => restore("r", "u");
+
+  let draftTimer = null;
+  function changed() {
+    const w = work[SET.key], cur = frames[F].map(r => r.join(""));
+    const base = saved[F] || orig[F].map(r => r.join(""));
+    if (cur.join("\n") === base.join("\n")) w.dirty.delete(F); else w.dirty.add(F);
+    drawAll(); setStatus();
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(() => {                 // unsaved work survives a reload in this browser
+      const d = {}; w.dirty.forEach(i => d[i] = frames[i].map(r => r.join("")));
+      store.set("pps.draft." + SET.key, JSON.stringify(d));
+    }, 400);
+  }
+  function cellAt(e) {
+    const r = cv.getBoundingClientRect();
+    return [Math.floor((e.clientX - r.left) / zoom), Math.floor((e.clientY - r.top) / zoom)];
+  }
+  function inside(x, y) { return y >= 0 && y < frames[F].length && x >= 0 && x < frames[F][0].length; }
+  function plot(x, y) {
+    if (!inside(x, y)) return;
+    frames[F][y][x] = tool === "erase" ? "B" : color;
+  }
+  function line(x0, y0, x1, y1) {
+    const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0), sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1; let err = dx + dy;
+    for (;;) { plot(x0, y0); if (x0 === x1 && y0 === y1) break; const e2 = 2 * err; if (e2 >= dy) { err += dy; x0 += sx; } if (e2 <= dx) { err += dx; y0 += sy; } }
+  }
+  function fill(x, y) {
+    const g = frames[F], from = g[y][x], to = color; if (from === to) return;
+    const st = [[x, y]];
+    while (st.length) { const [a, b] = st.pop(); if (!inside(a, b) || g[b][a] !== from) continue; g[b][a] = to; st.push([a + 1, b], [a - 1, b], [a, b + 1], [a, b - 1]); }
+  }
+
+  let drawing = null; const pointers = new Map(); let panStart = null;
+  cv.addEventListener("pointerdown", e => {
+    pointers.set(e.pointerId, e);
+    if (pointers.size === 2 || tool === "pan") { startPan(e); return; }
+    const [x, y] = cellAt(e); if (!inside(x, y)) return;
+    cv.setPointerCapture(e.pointerId);
+    if (tool === "pick") { const c = frames[F][y][x]; setColor(c); return; }
+    snapshot();
+    if (tool === "fill") { fill(x, y); changed(); return; }
+    drawing = { x, y, id: e.pointerId }; plot(x, y); drawEditor();
+  });
+  cv.addEventListener("pointermove", e => {
+    const [x, y] = cellAt(e);
+    $("cursorInfo").textContent = inside(x, y) ? `x ${x}  y ${y}` : "";
+    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, e);
+    if (panStart) { doPan(); return; }
+    if (!drawing || drawing.id !== e.pointerId) return;
+    line(drawing.x, drawing.y, x, y); drawing.x = x; drawing.y = y; drawEditor();
+  });
+  const endPtr = e => {
+    pointers.delete(e.pointerId);
+    if (panStart && pointers.size === 0) panStart = null;
+    if (drawing && drawing.id === e.pointerId) { drawing = null; changed(); }
+  };
+  cv.addEventListener("pointerup", endPtr); cv.addEventListener("pointercancel", endPtr);
+  scroller.addEventListener("pointerdown", e => { if (e.target === scroller && tool === "pan") { pointers.set(e.pointerId, e); startPan(e); } });
+  scroller.addEventListener("pointermove", e => { if (e.target === scroller && pointers.has(e.pointerId)) { pointers.set(e.pointerId, e); if (panStart) doPan(); } });
+  scroller.addEventListener("pointerup", endPtr); scroller.addEventListener("pointercancel", endPtr);
+  function centroid() { let x = 0, y = 0; pointers.forEach(p => { x += p.clientX; y += p.clientY; }); return [x / pointers.size, y / pointers.size]; }
+  function startPan() {
+    if (drawing) { restore("u", "r"); hist[hkey()].r.pop(); drawing = null; }   // a second finger cancels the stroke
+    const [x, y] = centroid(); panStart = { x, y, sl: scroller.scrollLeft, st: scroller.scrollTop };
+  }
+  function doPan() { const [x, y] = centroid(); scroller.scrollLeft = panStart.sl - (x - panStart.x); scroller.scrollTop = panStart.st - (y - panStart.y); }
+
+  /* ---------- frame actions ---------- */
+  function edit(fn) { snapshot(); fn(frames[F]); changed(); }
+  const blank = (H, W) => Array.from({ length: H }, () => Array(W).fill("B"));
+  $("copyPrev").onclick = () => { if (F > 0) edit(g => { const p = frames[F - 1]; for (let y = 0; y < g.length; y++) g[y] = p[y].slice(); }); };
+  $("copyFr").onclick = () => { clip = frames[F].map(r => r.slice()); $("pasteFr").disabled = false; };
+  $("pasteFr").onclick = () => { if (clip && clip.length === frames[F].length && clip[0].length === frames[F][0].length) edit(g => { for (let y = 0; y < g.length; y++) g[y] = clip[y].slice(); }); };
+  function shift(dx, dy) { edit(g => { const H = g.length, W = g[0].length, n = blank(H, W);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const ty = y + dy, tx = x + dx; if (ty >= 0 && ty < H && tx >= 0 && tx < W) n[ty][tx] = g[y][x]; }
+    for (let y = 0; y < H; y++) g[y] = n[y]; }); }
+  $("shL").onclick = () => shift(-1, 0); $("shR").onclick = () => shift(1, 0);
+  $("shU").onclick = () => shift(0, -1); $("shD").onclick = () => shift(0, 1);
+  $("flipH").onclick = () => edit(g => g.forEach(r => r.reverse()));
+  $("revert").onclick = () => edit(g => { const o = orig[F]; for (let y = 0; y < g.length; y++) g[y] = o[y].slice(); });
+
+  /* ---------- zoom / toggles ---------- */
+  $("zIn").onclick = () => { zoom = Math.min(40, zoom + 2); $("zoomVal").textContent = zoom + "×"; drawEditor(); };
+  $("zOut").onclick = () => { zoom = Math.max(2, zoom - 2); $("zoomVal").textContent = zoom + "×"; drawEditor(); };
+  $("zFit").onclick = () => { fitZoom(); drawEditor(); };
+  $("onion").onchange = e => { onion = e.target.checked; drawEditor(); };
+  $("gridOn").onchange = e => { gridOn = e.target.checked; drawEditor(); };
+
+  /* ---------- preview ---------- */
+  const pv = $("pv"), pctx = pv.getContext("2d"); let playing = true, pf = 0, ptimer = null;
+  function restartPreview() { pf = 0; clearTimeout(ptimer); tick(); }
+  function tick() {
+    if (!SET) return;
+    drawPreview(playing ? pf : F);
+    $("pvInfo").textContent = `${(playing ? pf : F) + 1}/${frames.length} · ${SET.ms[playing ? pf : F]}ms`;
+    if (playing) { const ms = SET.ms[pf] || 100; pf = (pf + 1) % frames.length; ptimer = setTimeout(tick, ms); }
+  }
+  function drawPreview(i) {
+    const g = frames[i], H = g.length, W = g[0].length, P = pal();
+    const big = $("pvBig").checked, s = big ? Math.max(1, Math.floor(240 / Math.max(W, H))) : 1;
+    if (pv.width !== W * s || pv.height !== H * s) { pv.width = W * s; pv.height = H * s; }
+    pv.style.width = W * s + "px";
+    pctx.clearRect(0, 0, pv.width, pv.height);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const k = g[y][x]; if (k !== "B" && P[k]) { pctx.fillStyle = P[k]; pctx.fillRect(x * s, y * s, s, s); } }
+  }
+  $("playBtn").onclick = () => { playing = !playing; $("playBtn").textContent = playing ? "일시정지" : "재생"; clearTimeout(ptimer); tick(); };
+  $("pvBig").onchange = () => { clearTimeout(ptimer); tick(); };
+
+  /* ---------- save ---------- */
+  function setStatus() {
+    if (!SET) return;
+    const w = work[SET.key], n = w.dirty.size, s = Object.keys(saved).length, st = $("status");
+    $("saveBtn").disabled = !db || n === 0;
+    st.className = n ? "dirty" : (s ? "ok" : "");
+    st.textContent = n ? `저장 안 한 프레임 ${n}개` : s ? `저장된 수정 ${s}프레임` : (db ? "게임 원본 그대로" : "저장 불가 · 임시 보관 중");
+  }
+  $("saveBtn").onclick = async () => {
+    if (!db) return;
+    const key = SET.key, w = work[key], list = [...w.dirty].sort((a, b) => a - b);
+    $("saveBtn").disabled = true; $("status").textContent = "저장 중…";
+    try {
+      for (const i of list) {
+        const rows = w.frames[i].map(r => r.join(""));
+        const ref = db.collection("anims/" + key + "/frames").doc(String(i).padStart(3, "0"));
+        if (rows.join("\n") === orig[i].map(r => r.join("")).join("\n")) await ref.delete();   // back to the original: drop the edit
+        else await ref.set({ rows, set: key, frame: i, w: rows[0].length, h: rows.length, at: Date.now() });
+        w.dirty.delete(i);
+      }
+      store.set("pps.draft." + key, "{}");
+      setStatus(); markStrip();
+      $("status").className = "ok"; $("status").textContent = `저장했어요 · ${list.length}프레임`;
+    } catch (e) {
+      $("status").className = "dirty";
+      $("status").textContent = e && e.code === "quota_exceeded" ? "저장 공간이 가득 찼어요" : "저장하지 못했어요. 다시 눌러 주세요.";
+      $("saveBtn").disabled = false;
+    }
+  };
+
+  /* ---------- keys ---------- */
+  addEventListener("keydown", e => {
+    if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
+    const k = e.key.toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); e.shiftKey ? restore("r", "u") : restore("u", "r"); return; }
+    if ((e.ctrlKey || e.metaKey) && k === "s") { e.preventDefault(); $("saveBtn").click(); return; }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (k === "b") setTool("pen"); else if (k === "e") setTool("erase"); else if (k === "g") setTool("fill");
+    else if (k === "i") setTool("pick"); else if (k === "h") setTool("pan");
+    else if (k === ",") goFrame(F - 1); else if (k === ".") goFrame(F + 1);
+    else if (k === " ") { e.preventDefault(); $("playBtn").click(); }
+    else if (/^[1-9]$/.test(k)) { const keys = Object.keys(pal()).concat("B"); const c = keys[+k - 1]; if (c) setColor(c); }
+  });
+  addEventListener("resize", () => { if (SET) drawEditor(); });
+  matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => SET && drawEditor());
+})();
+</script>
+
+</body></html>
