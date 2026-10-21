@@ -265,6 +265,21 @@ function handsOff(grid, hd) {
   }
   return out;
 }
+// her hands drawn over her own body (the dance has them on her chest and belly): the inner lines below her face and
+// above her feet are painted over in her colour (or her onesie's), leaving her face and outline alone
+function innerHandsOff(grid) {
+  const h = grid.length, f = faceOf(grid), out = [], at = (x, y) => (grid[y] && grid[y][x]) || "B";
+  const top = f ? Math.ceil(f.cy) : Math.round(h * 0.5), cx = f ? f.cx - 0.5 : grid[0].length / 2;
+  for (let y = top; y < h - 4; y++) for (let x = 1; x < grid[0].length - 1; x++) {
+    if (at(x, y) !== "K") continue;
+    if (f && Math.abs(x - cx) <= 4 && y <= f.cy + 4) continue;                    // her mouth
+    if (at(x - 1, y) === "P" && at(x + 1, y) === "P") continue;                    // the stripes of her blush
+    let inside = true;
+    for (let j = -1; j <= 1 && inside; j++) for (let i = -1; i <= 1; i++) if (at(x + i, y + j) === "B") { inside = false; break; }
+    if (inside) out.push([x, y, "body"]);
+  }
+  return out;
+}
 function findHands(grid) {
   const h = grid.length, f = faceOf(grid), top = f ? Math.round(f.cy) : Math.round(h * 0.35), out = {};
   for (const side of [-1, 1]) {
@@ -299,8 +314,9 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
     const sm = smoothHold("dance" + pet.t0 + petId, o ? mid + o.dx : null, o ? arm + 0.5 + o.dy : null, ang)
       || { x: mid, y: arm + 0.5, a: ang };
     const cx = sm.x, cy = sm.y; ang = sm.a;
-    const off = cache.warm || (cache.warm = handsOff(grid, hd).concat(armOff(grid, Math.round(cy) - 4, Math.round(cy) + 2)));
-    for (const [x, y, c] of off) { if (c === "clear") g.clearRect(x, y, 1, 1); else { g.fillStyle = OUT; g.fillRect(x, y, 1, 1); } }
+    const off = cache.warm || (cache.warm = handsOff(grid, hd).concat(armOff(grid, Math.round(cy) - 4, Math.round(cy) + 2), innerHandsOff(grid)));
+    const skin = equip.pajama && typeof PAJAMA !== "undefined" ? PAJAMA[petId].main : PET[petId].pal[PET[petId].body];
+    for (const [x, y, c] of off) { if (c === "clear") g.clearRect(x, y, 1, 1); else { g.fillStyle = c === "body" ? skin : OUT; g.fillRect(x, y, 1, 1); } }
     g.save(); g.translate(Math.round(cx), Math.round(cy)); g.rotate(ang);
     g.drawImage(f.img, f.x - mid, f.y - arm);
     g.restore();
