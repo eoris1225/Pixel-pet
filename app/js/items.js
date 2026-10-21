@@ -283,6 +283,8 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       const each = a.auto === "pajama";
       const body = equip.pajama && typeof PAJAMA !== "undefined" ? PAJAMA[petId].main : PET[petId].pal[PET[petId].body];   // her paws: her own colour, or her onesie's
       for (const [x, y, c] of px) {
+        // a stretch doubles the row at dup: the onesie covers both copies
+        if (each && y === dup && shift > 0 && c !== "clear") { g.fillStyle = c === "body" ? body : c === "outline" ? OUT : c; g.fillRect(x, y, 1, 1); }
         const yy = y + (each ? (y >= dup ? shift : 0) : whole);
         if (c === "clear") { g.clearRect(x, yy, 1, 1); continue; }   // her arm, now round the bear
         g.fillStyle = c === "body" ? body : c === "outline" ? OUT : c; g.fillRect(x, yy, 1, 1);
