@@ -56,19 +56,41 @@ function headHat(p, main, rib) {
     for (let x = 0; x < g[bottom].length; x++) if (g[bottom][x] !== "B") d.put(x, bottom + 1, OUT);
   }, false);
 }
-function heldPole(p, main, light, kind) {
-  const a = ANCHOR[p], hx = 24, top = a.arm - 13;
+// Lv10 weapons, held in both hands across the belly like the plush toys.
+// 치카 and 하와: a long-handled trident (a weeding fork): two curved outer prongs with little white teeth on the inside
+// and a middle prong, pointing the way she faces.
+const TRIDENT_HEAD = [
+  ".MMMMMMMMM",
+  "MLTMTMTMT.",
+  "M.........",
+  "M.........",
+  "M.........",
+  "MLMMMMMMMM",
+  "M.........",
+  "M.........",
+  "M.........",
+  "MLTMTMTMT.",
+  ".MMMMMMMMM",
+];
+function trident(p, main, light) {
+  const y = ANCHOR[p].arm, x1 = 25;
   return pixmap(d => {
-    if (kind === "pencil") {
-      d.put(hx + 1, top - 1, OUT);
-      d.rect(hx, top, 3, 2, "#f6d7a7"); d.put(hx + 1, top, "#5a4636");
-      d.rect(hx, top + 2, 3, 12, "#ffd25e"); d.rect(hx + 2, top + 2, 1, 12, "#f2b93b");
-      d.rect(hx, top + 14, 3, 1, "#c9ccd6"); d.rect(hx, top + 15, 3, 2, "#ff9db4");
-    } else {
-      for (const k of [0, 2, 4]) d.rect(hx - 1 + k, top - 1, 1, 4, k === 4 ? light : main);
-      d.rect(hx - 1, top + 3, 5, 1, main); d.rect(hx, top + 4, 3, 1, main);
-      d.rect(hx + 1, top + 5, 1, 13, main); d.put(hx + 1, top + 5, light);
+    d.rect(-5, y, x1 + 5, 2, main); d.rect(-5, y, x1 + 5, 1, light);       // the handle, lit along its top
+    d.grid(TRIDENT_HEAD, { M: main, L: light, T: "#ffffff" }, x1, y - 5);
+  });
+}
+// 욱: a long yellow staff with white caps at both ends, tilted a little, with the rabbit she doodled on it (a dark speck)
+function staff(p) {
+  const y = ANCHOR[p].arm + 1, x0 = -8, x1 = 36, rise = 6;
+  return pixmap(d => {
+    for (let x = x0; x <= x1; x++) {
+      const yy = y + Math.round(rise / 2 - (x - x0) * rise / (x1 - x0)), cap = x - x0 < 4 || x1 - x < 4;
+      d.put(x, yy, cap ? "#ffffff" : "#fff1b8");
+      d.put(x, yy + 1, cap ? "#f4efe4" : "#ffd25e");
+      d.put(x, yy + 2, cap ? "#d9d2c4" : "#e8a93a");
     }
+    const dx = x0 + 9, dy = y + Math.round(rise / 2 - 9 * rise / (x1 - x0)) + 1;
+    d.put(dx, dy, "#5a4636"); d.put(dx + 1, dy, "#9a7a3e");                 // the doodle
   });
 }
 
@@ -84,7 +106,7 @@ const ITEM_ART = {
       d.line(6, 18, 18, 24, "#a8714a");
       d.rect(17, 23, 7, 5, "#ffc4a8"); d.rect(17, 23, 7, 2, "#f29b8a"); d.put(20, 25, "#fff4dc");
     }) },
-    fork: { layer: "front", build: () => heldPole("mochi", "#f7a8bd", "#ffd6e0") },
+    fork: { layer: "front", build: () => trident("mochi", "#f59ab6", "#ffd0de") },
   },
   sora: {
     beanie: { layer: "front", build: () => headHat("sora", "#9fd3f5", "#d6eefc") },
@@ -99,7 +121,7 @@ const ITEM_ART = {
       d.rect(10, 21, 9, 6, "#f4f1ea"); d.rect(10, 21, 9, 1, "#4a4f6e"); d.rect(11, 20, 3, 1, "#4a4f6e");
       d.disc(14.5, 24, 1.9, "#4a4f6e"); d.put(14, 23, "#a6d6f2"); d.put(17, 22, "#ffd84d");
     }) },
-    trident: { layer: "front", build: () => heldPole("sora", "#6cb8e6", "#bfe5fb") },
+    trident: { layer: "front", build: () => trident("sora", "#4f9fe0", "#a9d6f7") },
   },
   nori: {
     shades: { layer: "front", build: () => pixmap(d => {
@@ -119,13 +141,13 @@ const ITEM_ART = {
       d.rect(16, 14, 2, 2, "#e2504a"); d.put(13, 10, "#7cc46b"); d.put(14, 10, "#7cc46b"); d.put(15, 10, "#7cc46b");
     }) },
     pajama: { layer: "front", auto: "pajama", under: true, build: () => onesieIcon("nori") },
-    pudding: { layer: "front", build: () => pixmap(d => {          // in the other hand, so the pencil still fits
+    pudding: { layer: "front", build: () => pixmap(d => {          // in her other hand
       const y = ANCHOR.nori.arm;
       d.rect(-2, y + 2, 9, 1, "#ffffff");
       d.rect(-1, y - 2, 7, 4, "#ffe08a"); d.rect(0, y - 3, 5, 1, "#ffe08a");
       d.rect(0, y - 4, 5, 2, "#a8642e"); d.put(1, y - 4, "#d48a4a");
     }) },
-    pencil: { layer: "front", build: () => heldPole("nori", "#ffd25e", "#fff3c4", "pencil") },
+    pencil: { layer: "front", build: () => staff("nori") },
   },
 };
 const ITEM_CACHE = {};
