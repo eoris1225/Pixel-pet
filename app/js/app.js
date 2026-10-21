@@ -516,7 +516,7 @@ function renderStats() {
         ${donutBox("dn-subj", "하루 과목", study ? hm(study) : "-", study ? "순공" : "")}
         ${donutBox("dn-day", "공부 & 휴식", ratio(study, rest), study + rest ? "공부" : "")}
       </div>
-      <ul class="legend f-sm">${parts.map(p => `<li><span class="sw" style="--c:${p.c}"></span>${esc(p.n)}<b>${fmtDur(p.v)}</b></li>`).join("") || '<li class="muted t-low">이 날은 기록이 없어요… 옆으로 밀면 다른 날</li>'}
+      <ul class="legend f-sm">${parts.map(p => `<li><span class="sw" style="--c:${p.c}"></span>${esc(p.n)}<b>${fmtDur(p.v)}</b></li>`).join("") || '<li class="muted t-low">이 날은 기록이 없어요…</li><li class="muted f-sm">옆으로 밀면 다른 날을 볼 수 있어요</li>'}
         ${rest ? `<li><span class="sw" style="--c:#b9b4c9"></span>휴식<b>${fmtDur(rest)}</b></li>` : ""}</ul>
     </div>
     ${goal ? `<div class="card pxp"><div class="card-t">목표 순공<span class="f-amb muted">임시</span></div>

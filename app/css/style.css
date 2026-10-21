@@ -48,6 +48,7 @@ body { background: #4a3550; overflow: hidden; -webkit-tap-highlight-color: trans
   color: var(--ink); image-rendering: pixelated;
   -webkit-font-smoothing: none; font-smooth: never;
   user-select: none; -webkit-user-select: none;
+  word-break: keep-all; overflow-wrap: anywhere; text-wrap: pretty;   /* Korean wraps between words, never inside one */
 }
 button, input, textarea { font: inherit; color: inherit; border: 0; margin: 0; border-radius: 0; background: none; padding: 0; -webkit-appearance: none; appearance: none; outline: none; }
 button { cursor: pointer; }
@@ -211,18 +212,18 @@ textarea.field { height: 38px; resize: none; display: block; padding: 1px 3px; }
 .sess { list-style: none; }
 .sess li { padding: 3px 0; border-top: 1px solid var(--line); }
 .sess li:first-child { border-top: 0; }
-.sess .note { color: #6d6252; white-space: pre-wrap; word-break: break-all; }
+.sess .note { color: #6d6252; white-space: pre-wrap; }
 
 /* to-do */
 .todo-hero { display: flex; gap: 5px; align-items: center; }
-.todo-hero canvas { width: 44px; height: 44px; background: var(--accent-soft); border: 1px solid var(--ink); flex: none; }
+.todo-hero > canvas { width: 44px; height: 44px; background: var(--accent-soft); border: 1px solid var(--ink); flex: none; }
 .todo-tools { display: flex; justify-content: space-between; align-items: center; margin: 0 1px 5px; color: var(--muted); }
 .todo-list { list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
 .todo-list li { display: flex; align-items: center; gap: 4px; padding: 2px 3px 3px 4px; min-height: 19px; touch-action: pan-y; --face: #effae8; --sh: #d5eccb; }
 .todo-list li.done { --face: #f4f1ea; --sh: #e4ddcd; }
 .todo-list li.done .t { color: var(--muted); text-decoration: line-through; text-decoration-color: #7a87d6; }
 .todo-list li.dragging { --face: var(--accent-soft); }
-.todo-list .t { flex: 1; min-width: 0; word-break: break-all; }
+.todo-list .t { flex: 1; min-width: 0; }
 .todo-list input.t { height: 12px; border-bottom: 1px solid var(--ink); user-select: text; }
 .chk { width: 9px; height: 9px; background: #fff; border: 1px solid var(--ink); flex: none; position: relative; }
 .chk.on { background: #7a87d6; }
