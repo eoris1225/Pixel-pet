@@ -231,11 +231,23 @@ function miniWorld(g) {
 /* ---------- bubbles ---------- */
 const petBubble = $("#pet-bubble"), worldBubble = $("#world-bubble");
 let bubbleUntil = 0;
+// resolves once every face used inside el has loaded, so a bubble never shows up empty and fills in late
+function fontsReady(el) {
+  if (!document.fonts || !document.fonts.load) return Promise.resolve();
+  const els = [el, ...el.querySelectorAll("*")], loads = [];
+  for (const e of els) {
+    const t = e.textContent; if (!t || !t.trim()) continue;
+    const cs = getComputedStyle(e);                                     // style, weight, size and family only: no line height
+    loads.push(document.fonts.load(`${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`, t).catch(() => {}));
+  }
+  return Promise.all(loads);
+}
+let sayToken = 0;
 function say(textStr, ms = 4000) {
-  const bb = petBubble.querySelector(".bb");
+  const bb = petBubble.querySelector(".bb"), my = ++sayToken;
   textStr = fixJosa(textStr);
-  bb.textContent = textStr; bb.className = "bb pxp " + tClass(textStr, S.pet); petBubble.hidden = false;
-  bubbleUntil = performance.now() + ms;
+  bb.textContent = textStr; bb.className = "bb pxp " + tClass(textStr, S.pet);
+  fontsReady(bb).then(() => { if (my !== sayToken) return; petBubble.hidden = false; bubbleUntil = performance.now() + ms; });
 }
 function placeBubble(el, gx, gy, minTop = 30) {
   const w = el.offsetWidth, h = el.offsetHeight;
@@ -250,7 +262,8 @@ const pick = a => a[Math.random() * a.length | 0];
 let toastT = 0;
 function toast(msg, ms = 2600, title) {
   const t = $("#toast");
-  t.innerHTML = (title ? `<span class="lvup t-peak">${esc(title)}</span>` : "") + esc(fixJosa(msg)); t.hidden = false;
+  t.innerHTML = (title ? `<span class="lvup t-peak">${esc(title)}</span>` : "") + esc(fixJosa(msg));
+  fontsReady(t).then(() => { t.hidden = false; });
   clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, ms);
 }
 
@@ -284,11 +297,17 @@ function confirmBox(msg, okLabel, onOk, cancelLabel = "취소") {
 let selMode = "first", selPick = null, typer = 0;
 function typeText(el, s) {
   clearInterval(typer);
-  const shown = document.createElement("span"), rest = document.createElement("span");
+  const shown = document.createElement("span"), rest = document.createElement("span"), my = ++typeToken;
   rest.style.visibility = "hidden"; el.replaceChildren(shown, rest);
   let i = 1; shown.textContent = s.slice(0, i); rest.textContent = s.slice(i);     // the bubble has its full size from the start
-  typer = setInterval(() => { i++; shown.textContent = s.slice(0, i); rest.textContent = s.slice(i); if (i >= s.length) clearInterval(typer); }, 30);
+  el.style.visibility = "hidden";                                                   // ...and appears once its font is in
+  fontsReady(el).then(() => {
+    if (my !== typeToken) return;
+    el.style.visibility = "";
+    typer = setInterval(() => { i++; shown.textContent = s.slice(0, i); rest.textContent = s.slice(i); if (i >= s.length) clearInterval(typer); }, 30);
+  });
 }
+let typeToken = 0;
 function renderSelect(mode) {
   selMode = mode; selPick = mode === "change" ? S.pet : null;
   $("#scr-select .back").hidden = mode === "first";
@@ -754,6 +773,7 @@ function nextCoach() {
   card.classList.remove("fly"); card.style.transform = "";
   const p = card.querySelector("p");
   p.innerHTML = (st.num ? numBadge(st.num) + " " : "") + rich(st.text); paintIcons(p);
+  card.style.visibility = "hidden"; fontsReady(card).then(() => { card.style.visibility = ""; });
   card.querySelector("small").textContent = coachStep === TUTORIAL.length - 1 ? "눌러서 시작하기" : "눌러서 계속";
   if (st.target) { coachTarget = $(st.target); coachTarget.classList.add("coach-target"); }
   placeCoachCard();
@@ -836,4 +856,8 @@ if (S.pet) {
 addEventListener("visibilitychange", save);
 addEventListener("pagehide", save);
 // wait for the pixel fonts so the first frame is never drawn in a fallback font
-(document.fonts ? document.fonts.ready : Promise.resolve()).then(() => requestAnimationFrame(loop));
+// every face is fetched up front (the ones the first screens need are waited for), so nothing appears in a fallback
+// font or as an empty bubble the first time it is used
+const FACES = ["PF", "Galmuri11", "Galmuri14", "Ramche", "PFSX", "Galmuri9", "Galmuri11B", "Galmuri11C", "GalmuriMono9", "Mulmaru", "Silver", "Roborobo", "PFS"];
+const faceLoads = document.fonts ? FACES.map(f => document.fonts.load(`16px "${f}"`, "가나다Aa1").catch(() => {})) : [];
+Promise.all(faceLoads.slice(0, 6)).then(() => requestAnimationFrame(loop));
