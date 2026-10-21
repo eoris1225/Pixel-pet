@@ -107,13 +107,53 @@ function autoTeddy(grid) {
   return out;
 }
 
+// where the face is when findEyes sees no open eyes (closed or squinting eyes, a profile, a face pressed to the ground):
+// a pupil touching the head's outline, still next to a cheek; else the hatched blush (pink with outline stripes) itself
+function findFace(grid) {
+  const h = grid.length, w = grid[0].length, at = (x, y) => (y >= 0 && y < h && x >= 0 && x < w ? grid[y][x] : "B");
+  const pink = (x, y, r) => { for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) if (at(x + i, y + j) === "P") return true; return false; };
+  const eyes = [];
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    if (at(x, y) !== "W") continue;
+    const k = (at(x - 1, y) === "K") + (at(x + 1, y) === "K") + (at(x, y - 1) === "K") + (at(x, y + 1) === "K");
+    let box = 0; for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) box += at(x + i, y + j) === "K";
+    if (k >= 3 && box >= 5 && pink(x, y, 6) && !eyes.some(e => Math.abs(e.cx - x) <= 2 && Math.abs(e.cy - y) <= 2)) eyes.push({ cx: x, cy: y });
+  }
+  const cheeks = [];                                       // pink spots; a real cheek has outline stripes through it
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (at(x, y) !== "P") continue;
+    let c = cheeks.find(c => c.pts.some(([px, py]) => Math.abs(px - x) <= 2 && Math.abs(py - y) <= 2));
+    if (!c) cheeks.push(c = { pts: [], striped: false });
+    c.pts.push([x, y]);
+    if (at(x + 1, y) === "K" && at(x + 2, y) === "P") c.striped = true;
+  }
+  cheeks.forEach(c => { c.cx = c.pts.reduce((a, p) => a + p[0], 0) / c.pts.length; c.cy = c.pts.reduce((a, p) => a + p[1], 0) / c.pts.length; });
+  const blush = cheeks.filter(c => c.pts.length <= 14);
+  const pair = (list, far) => { let best = null;
+    for (const a of list) for (const b of list) if (a.cx < b.cx && Math.abs(a.cy - b.cy) <= 2.5 && b.cx - a.cx >= (far > 14 ? 8 : 4) && b.cx - a.cx <= far && (far <= 14 || a.striped || b.striped)) best = best || [a, b];
+    return best; };
+  const ep = pair(eyes, 14);
+  if (ep) { const d = ep[1].cx - ep[0].cx; return { cx: (ep[0].cx + ep[1].cx) / 2, cy: (ep[0].cy + ep[1].cy) / 2 + 3, rx: d / 2 + 5.2, ry: 6 }; }
+  const cp = pair(blush, 20);
+  if (cp) { const d = cp[1].cx - cp[0].cx; return { cx: (cp[0].cx + cp[1].cx) / 2 + 0.5, cy: (cp[0].cy + cp[1].cy) / 2, rx: Math.max(6.5, d / 2 + 1.7), ry: 6 }; }
+  if (eyes.length) return { cx: eyes[0].cx, cy: eyes[0].cy + 3, rx: 6.5, ry: 6 };
+  const one = blush.find(c => c.striped);
+  if (one) {                                               // one cheek: a profile, the face sits between it and the middle of the body
+    const c = { x: one.cx, y: one.cy }; let sx = 0, n = 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (at(x, y) !== "B") { sx += x; n++; }
+    const dir = Math.sign(sx / n - c.x) || 1;
+    return { cx: c.x + 0.5 + dir * 3, cy: c.y - 1.5, rx: 6.5, ry: 6 };
+  }
+  return null;
+}
+
 // Lv6 pajamas: a hooded onesie in the character's colour. Everything but the face turns into the suit, so her own
 // ears become the hood's ears; a lighter rim marks the hood opening and two white buttons sit on the chest.
-// Facing away, the whole body is the suit (the back of the hood). Close-ups keep their own look.
+// Facing away, the whole body is the suit (the back of the hood). 욱's white tail pokes out of it. Close-ups keep their own look.
 const PAJAMA = {
   mochi: { main: "#ffbdd0", shade: "#f29ab5", rim: "#ffdbe6" },
   sora:  { main: "#acdaf8", shade: "#84bfeb", rim: "#d6eefd" },
-  nori:  { main: "#ffd766", shade: "#efb53a", rim: "#ffeaa8" },
+  nori:  { main: "#ffd766", shade: "#efb53a", rim: "#ffeaa8", keep: "W" },
 };
 function autoPajama(grid, pet) {
   const h = grid.length, w = grid[0].length, pal = PAJAMA[pet];
@@ -122,11 +162,12 @@ function autoPajama(grid, pet) {
   let face = null;
   if (eyes.length === 2) { const d = eyes[1].cx - eyes[0].cx; face = { cx: (eyes[0].cx + eyes[1].cx) / 2 + 0.5, cy: (eyes[0].cy + eyes[1].cy) / 2 + 2.5, rx: d / 2 + 5.2, ry: 6 }; }
   else if (eyes.length === 1) face = { cx: eyes[0].cx + 0.5, cy: eyes[0].cy + 2.5, rx: 6.5, ry: 6 };
+  else face = findFace(grid);
   const ell = (x, y, grow) => face && ((x + 0.5 - face.cx) / (face.rx + grow)) ** 2 + ((y + 0.5 - face.cy) / (face.ry + grow)) ** 2 <= 1;
   const out = [];
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const c = grid[y][x];
-    if (c === "B" || c === "K" || ell(x, y, 0)) continue;
+    if (c === "B" || c === "K" || (pal.keep && pal.keep.includes(c)) || ell(x, y, 0)) continue;
     out.push([x, y, ell(x, y, 1.3) ? pal.rim : "LNQM".includes(c) ? pal.shade : pal.main]);
   }
   if (face) {                                              // two buttons down the front
