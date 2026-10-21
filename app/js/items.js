@@ -68,7 +68,7 @@ function fork(p, main, light) {
   return pixmap(d => {
     const body = new Map(), put = (x, y, c) => body.set(x + "," + y, c);
     for (let x = x0; x <= x1; x++) {                                     // the handle, lit along its top, with a white grip at the end
-      const grip = x - x0 < 4;
+      const grip = x <= 5;                                               // white from the end up to her lower hand
       put(x, at(x), grip ? "#ffffff" : light); put(x, at(x) + 1, grip ? "#e4ded2" : main);
     }
     const hx = x1 + 1, hy = y1;
