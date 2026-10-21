@@ -745,7 +745,7 @@ function drawSprite(g, id, pose, cx, feet, dir, equip, shadow = true) {
   g.save();
   g.translate(dir < 0 ? x + dw : x, y);
   g.scale((dir < 0 ? -1 : 1) * dw / img.width, dh / img.height);
-  const dy = img.height - INFO[id].h;               // squash / stretch moves everything above the belly
+  const dy = img.height - INFO[id].h;               // squash / stretch adds or drops a row low on the body (items below it shift)
   if (items) drawItems(g, id, equip, "back", dy, pose, img);
   g.drawImage(img, 0, 0);
   if (items) drawItems(g, id, equip, "front", dy, pose, img);

@@ -225,15 +225,17 @@ function weaponSway() {
   }
 }
 function drawWeapon(g, petId, layer, dy, pose, img) {
-  const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base ? dy : 0;
+  const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid;
   const w = grid[0].length, h = grid.length, arm = ANCHOR[petId].arm, mode = weaponMode(img), mid = WEAPON_MID[petId];
+  // breathing (squash / stretch) adds or drops a row low on her body: what she holds above it bobs with her, the ground does not
+  const shift = base && arm >= INFO[petId].dup ? dy : 0, ground = base ? dy : 0;
   const cache = base ? (ITEM_CACHE["base:" + petId] || (ITEM_CACHE["base:" + petId] = {})) : (img._auto || (img._auto = {}));
   if (!("wo" in cache)) cache.wo = weaponOffset(grid, petId);
   const o = cache.wo;
   if (mode === "ground") {                                   // laid on the grass beside her, behind her
     if (layer !== "back") return;
     const f = weaponFlat(petId);
-    g.drawImage(f.img, f.x + w - 2, f.y + h - 3 - arm + shift);   // the handle on the ground line, just past her side
+    g.drawImage(f.img, f.x + w - 2, f.y + h - 3 - arm + ground);   // the handle on the ground line, just past her side
     return;
   }
   if (mode === "lift") {                                     // arms going up and down: from across her belly to over her head
@@ -271,11 +273,14 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base ? dy : 0;
       const cache = base ? (ITEM_CACHE["base:" + petId] || (ITEM_CACHE["base:" + petId] = {})) : (img._auto || (img._auto = {}));
       const px = cache[a.auto] || (cache[a.auto] = autoItemPixels(a.auto, grid, base ? petId + "-base:0" : img.key || ""));
-      for (const [x, y, c] of px) { g.fillStyle = c; g.fillRect(x, y + shift, 1, 1); }
+      const dup = INFO[petId].dup;                    // breathing moves only what lies below the row it adds or drops
+      for (const [x, y, c] of px) { g.fillStyle = c; g.fillRect(x, y + (y >= dup ? shift : 0), 1, 1); }
       continue;
     }
     if (pose && pose.img) continue;
-    const it = itemImg(petId, id);
-    g.drawImage(it.img, it.x, it.y + dy);
+    const it = itemImg(petId, id), cut = Math.max(0, Math.min(it.img.height, INFO[petId].dup - it.y));
+    // the part above the breathing row rides with her head and face; the part below stays with her feet
+    if (cut > 0) g.drawImage(it.img, 0, 0, it.img.width, cut, it.x, it.y, it.img.width, cut);
+    if (cut < it.img.height) g.drawImage(it.img, 0, cut, it.img.width, it.img.height - cut, it.x, it.y + cut + dy, it.img.width, it.img.height - cut);
   }
 }
