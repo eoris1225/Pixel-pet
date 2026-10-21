@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#4a3550">
+<title>Pixel Pet Item Test</title>
+<link rel="preload" href="fonts/galmuri11.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/pfb.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<!-- Every screen is one 180x320 pixel page, scaled up by whole numbers (like the prototype); Korean text is set in screen pixels -->
+<div id="frame">
+<div id="app" data-pet="mochi">
+  <div id="stage" aria-label="펫이 있는 화면. 펫을 누르면 반응하고, 꾹 눌러서 들 수 있어요.">
+    <canvas id="bg"></canvas>
+    <canvas id="fg"></canvas>
+  </div>
+  <div id="speech">
+    <div id="pet-bubble" class="bubble" hidden><span class="bb pxp"></span></div>
+    <div id="world-bubble" class="bubble" hidden><span class="bb pxp f-amb"></span></div>
+  </div>
+
+  <header id="hud" class="pxp">
+    <canvas id="hud-face" width="29" height="20"></canvas>
+    <div class="hud-main">
+      <div class="hud-row"><b id="hud-lv" class="f-num">Lv.1</b><canvas id="hud-burn" width="5" height="7" hidden></canvas><span id="hud-next" class="f-sm"></span></div>
+      <div class="bar"><i id="hud-bar"></i></div>
+    </div>
+  </header>
+
+  <nav id="sidetab" class="open">
+    <div class="tabs pxp">
+      <button id="tab-stats" class="ibtn pxb soft" aria-label="공부 시간과 과목"><canvas width="11" height="11"></canvas></button>
+      <button id="tab-todo" class="ibtn pxb soft" aria-label="공부 계획표"><canvas width="11" height="11"></canvas></button>
+      <button id="tab-settings" class="ibtn pxb soft" aria-label="설정"><canvas width="11" height="11"></canvas></button>
+    </div>
+    <button id="tab-toggle" class="pxb" aria-label="메뉴 열고 닫기"><canvas width="3" height="5"></canvas></button>
+  </nav>
+
+  <div id="controls" class="pxp">
+    <button id="btn-start" class="ctl pxb mint"><span class="dot-rec" hidden></span><canvas class="ico" data-icon="play"></canvas><span class="lbl">시작</span></button>
+    <button id="btn-rest" class="ctl pxb lilac" disabled><canvas class="ico" data-icon="pause"></canvas><span class="lbl">휴식</span></button>
+    <button id="btn-end" class="ctl pxb peach" disabled><canvas class="ico" data-icon="stop"></canvas><span class="lbl">끝</span></button>
+  </div>
+
+  <!-- screens -->
+  <section class="screen" id="scr-select">
+    <header class="scr-head"><button class="back ibtn pxb" data-back aria-label="뒤로"><canvas data-icon="back"></canvas></button><h2>캐릭터 선택</h2></header>
+    <div class="scr-body">
+      <div class="sel-bubble bubble static"><p class="bb pxp" id="sel-text">마음에 드는 친구를 눌러 봐!</p></div>
+      <div class="sel-row" id="sel-row"></div>
+      <div class="sel-info pxp" id="sel-info" hidden></div>
+      <p class="sel-note f-sm" id="sel-note" hidden>바꿔도 이전 캐릭터의 데이터는 그대로 남아요.</p>
+      <button id="sel-ok" class="btn big wide pxb accent" disabled>확인</button>
+    </div>
+  </section>
+
+  <section class="screen" id="scr-stats">
+    <header class="scr-head"><button class="back ibtn pxb" data-back aria-label="뒤로"><canvas data-icon="back"></canvas></button><h2>공부 통계</h2></header>
+    <div class="scr-body" id="stats-body"></div>
+  </section>
+
+  <section class="screen" id="scr-todo">
+    <header class="scr-head"><button class="back ibtn pxb" data-back aria-label="뒤로"><canvas data-icon="back"></canvas></button><h2>투두리스트</h2></header>
+    <div class="scr-body" id="todo-body"></div>
+  </section>
+
+  <section class="screen" id="scr-settings">
+    <header class="scr-head"><button class="back ibtn pxb" data-back aria-label="뒤로"><canvas data-icon="back"></canvas></button><h2>설정</h2></header>
+    <div class="scr-body" id="settings-body"></div>
+  </section>
+
+  <section class="screen" id="scr-tutorial">
+    <header class="scr-head"><button class="back ibtn pxb" data-back aria-label="뒤로"><canvas data-icon="back"></canvas></button><h2>튜토리얼</h2></header>
+    <div class="scr-body" id="tutorial-body"></div>
+  </section>
+
+  <section class="screen" id="scr-inventory">
+    <header class="scr-head"><button class="back ibtn pxb" data-back aria-label="뒤로"><canvas data-icon="back"></canvas></button><h2>인벤토리</h2></header>
+    <div class="scr-body" id="inventory-body"></div>
+  </section>
+
+  <div id="modal" hidden><div class="modal-card pxp" role="dialog" aria-modal="true"></div></div>
+
+  <div id="coach" hidden>
+    <div class="coach-dim"></div>
+    <div class="coach-card bubble"><div class="bb pxp"><p></p><small class="f-sm">눌러서 계속</small></div></div>
+    <div class="coach-catch"></div>
+  </div>
+
+  <div id="toast" class="pxp dark" hidden></div>
+
+  <div id="loader" aria-label="불러오는 중"><canvas id="loader-pet" width="29" height="29"></canvas><div class="ld-shadow"></div><div class="ld-bar"><i></i></div></div>
+</div>
+</div>
+
+<script>
+// item test page: its own save, with all three friends at Lv.10 so every item can be tried on
+window.PP_TEST = true;
+try {
+  if (!localStorage.getItem("pixelpet.test.v1")) {
+    const c = () => ({ exp: 9, equip: {}, shownLv: 10 });
+    localStorage.setItem("pixelpet.test.v1", JSON.stringify({ v: 1, pet: "mochi", chars: { mochi: c(), sora: c(), nori: c() },
+      setup: { myMin: 120, goalMin: 180 }, tutorialDone: true, todos: {}, sessions: [], timer: null, sideOpen: false }));
+  }
+} catch (e) {}
+</script>
+<script src="js/sprites.js"></script>
+<script src="js/data.js"></script>
+<script src="js/pet.js"></script>
+<script src="js/item-fix.js"></script>
+<script src="js/item-auto.js"></script>
+<script src="js/items.js"></script>
+<script src="js/scene.js"></script>
+<script src="js/app.js"></script>
+<script src="js/test.js"></script>
+</body>
+</html>

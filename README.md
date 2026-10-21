@@ -22,6 +22,7 @@ python3 -m http.server 8000 --directory app
 | 경로 | 내용 |
 | --- | --- |
 | `app/index.html` | 화면 뼈대 (월드 캔버스, HUD, 사이드 탭, 시작/휴식/끝, 각 화면) |
+| `app/test.html`, `app/js/test.js` | 아이템 테스트 페이지: 세 친구 모두 Lv.10, 아이템 착용/해제·캐릭터 전환·모든 동작 실행 패널 (`/test.html`로 열기, 저장은 따로) |
 | `app/css/style.css` | 파스텔 UI 스타일 |
 | `app/js/data.js` | **대사·캐릭터 이름·레벨 규칙·아이템 목록·튜토리얼 문구** (여기만 고쳐도 내용이 바뀜) |
 | `app/js/sprites.js` | 프로토타입의 픽셀 스프라이트 원본 그대로 (수정 금지) |

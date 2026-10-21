@@ -8,7 +8,7 @@ const appEl = $("#app"), stage = $("#stage"), frameEl = $("#frame");
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 /* ---------- saved state ---------- */
-const KEY = "pixelpet.study.v1";
+const KEY = window.PP_TEST ? "pixelpet.test.v1" : "pixelpet.study.v1";   // the item test page keeps its own save
 function freshState() {
   return { v: 1, pet: null, chars: {}, setup: null, tutorialDone: false,
     subjects: DEFAULT_SUBJECTS.map(([name, color], i) => ({ id: "s" + i, name, color })),
