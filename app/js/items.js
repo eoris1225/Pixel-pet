@@ -83,7 +83,7 @@ function heldPole(p, main, light, kind) {
 
 const ITEM_ART = {
   mochi: {
-    tears: { layer: "front", hideOnBlink: true, build: () => pixmap(d => {
+    tears: { layer: "front", auto: "tears", build: () => pixmap(d => {          // build = the inventory icon; in play it is placed per frame
       const e = ANCHOR.mochi.eye + 4;
       for (const x of [10, 17]) { d.rect(x, e, 1, 3, "#8fd0f6"); d.put(x, e + 3, "#bfe5fb"); }
     }, false) },
@@ -150,12 +150,21 @@ function itemImg(pet, id) {
   return ITEM_CACHE[k] || (ITEM_CACHE[k] = ITEM_ART[pet][id].build());
 }
 
-// draws the equipped items of one layer, in the sprite's own pixels (the caller has set up the transform)
-function drawItems(g, petId, equip, layer, dy, pose) {
+// draws the equipped items of one layer, in the sprite's own pixels (the caller has set up the transform).
+// Auto items are placed on this exact frame (cached on the frame); hand-placed ones only on base-sprite frames.
+function drawItems(g, petId, equip, layer, dy, pose, img) {
   const art = ITEM_ART[petId];
   for (const [, id] of ITEM_LIST[petId]) {
-    if (!equip[id] || !art[id] || art[id].layer !== layer) continue;
-    if (art[id].hideOnBlink && pose && pose.face !== "normal") continue;
+    const a = art[id];
+    if (!equip[id] || !a || a.layer !== layer) continue;
+    if (a.auto) {
+      if (!img || !img.grid) continue;
+      const cache = img._auto || (img._auto = {});
+      const px = cache[a.auto] || (cache[a.auto] = autoItemPixels(a.auto, img.grid, img.key || ""));
+      for (const [x, y, c] of px) { g.fillStyle = c; g.fillRect(x, y, 1, 1); }
+      continue;
+    }
+    if (pose && pose.img) continue;
     const it = itemImg(petId, id);
     g.drawImage(it.img, it.x, it.y + dy);
   }

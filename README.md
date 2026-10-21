@@ -29,7 +29,10 @@ python3 -m http.server 8000 --directory app
 | `app/js/items.js` | 레벨 아이템 픽셀 아트 (스프라이트 위/뒤에 따로 그림) |
 | `app/js/scene.js` | 하늘·해·달(실제 위상)·별·구름·새·참새·나비·반딧불·풀·나무 표지판 시계 |
 | `app/js/app.js` | 상태 저장, 타이머, 레벨/버닝 계산, 투두, 통계, 설정, 인벤토리, 튜토리얼 |
-| `prototype/` | 원본 게임 프로토타입(`pixel-pet.html`)과 애니메이션 에디터(`studio/`) |
+| `app/studio/` | Pixel Pet Studio: 모션 프레임 픽셀 에디터 + 아이템 자동 배치 확인·보정 (`/studio/`로 열기) |
+| `app/js/item-auto.js` | 프레임마다 얼굴을 찾아 아이템을 붙이는 코드 (게임과 스튜디오가 같이 씀) |
+| `app/js/item-fix.js` | 스튜디오에서 보정한 프레임별 아이템 위치 (`설정 복사` 결과를 여기에) |
+| `prototype/` | 원본 게임 프로토타입(`pixel-pet.html`) |
 
 ## 규칙 (기획 반영)
 

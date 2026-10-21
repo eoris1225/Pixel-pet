@@ -19,8 +19,11 @@ function gridToCanvas(rows, pal) {
     const col = pal[rows[y][x]];
     if (col) { g.fillStyle = col; g.fillRect(x, y, 1, 1); }
   }
+  c.grid = rows;                       // kept so items can find the face on this exact frame
   return c;
 }
+// names a motion's frames the way Pixel Pet Studio does ("mochi-wave:3"), for per-frame item corrections
+const tagFrames = (imgs, set) => { imgs.forEach((c, i) => c.key = set + ":" + i); return imgs; };
 function px(x, y, w, h, col) { ctx.fillStyle = col; ctx.fillRect(Math.round(x), Math.round(y), w, h); }
 
 const PETS = [
@@ -76,7 +79,8 @@ function frame(id, o) {
     if (o.body === "squash") g.splice(info.dup, 1);
     if (o.body === "stretch") g.splice(info.dup, 0, g[info.dup].slice());
   }
-  return (FCACHE[key] = gridToCanvas(g.map(r => r.join("")), p.pal));
+  FCACHE[key] = gridToCanvas(g.map(r => r.join("")), p.pal); FCACHE[key].key = id + "-base:0";
+  return FCACHE[key];
 }
 const BASE_POSE = () => ({ face:"normal", body:"base", ear:0, step:0, yoff:0 });
 
@@ -128,10 +132,10 @@ const DANCE_MS = 83, DANCE_LEN = SORADANCE.length * DANCE_MS;
 const NOTE_ICON = { Y: "noteEE", V: "noteV", T: "noteU" };
 const danceFrame = t => Math.max(0, Math.min(SORADANCE.length - 1, Math.floor(t / DANCE_MS)));
 const danceImg = t => SORADANCE_IMG[danceFrame(t)];
-const MOCHIWAVE_IMG = MOCHIWAVE.map(g => gridToCanvas(g, PET.mochi.pal));
+const MOCHIWAVE_IMG = tagFrames(MOCHIWAVE.map(g => gridToCanvas(g, PET.mochi.pal)), "mochi-wave");
 const WAVE_MS = 100, WAVE_LEN = MOCHIWAVE.length * WAVE_MS;
 const waveFrame = t => Math.max(0, Math.min(MOCHIWAVE.length - 1, Math.floor((t % WAVE_LEN) / WAVE_MS)));
-const MOCHIGLOOM_IMG = MOCHIGLOOM.map(g => gridToCanvas(g, PET.mochi.pal));
+const MOCHIGLOOM_IMG = tagFrames(MOCHIGLOOM.map(g => gridToCanvas(g, PET.mochi.pal)), "mochi-gloom");
 const DASH_FROM = MOCHI_DASH.findIndex((d, i) => i > 0 && d.length);
 const GLOOM_HOLD = 1600, GLOOM_BACK = [13, 12, 11, 10, 9, 8, 7], GLOOM_IN = (MOCHIGLOOM.length - 1) * WAVE_MS;
 const GLOOM_MAIN = GLOOM_IN + GLOOM_HOLD + GLOOM_BACK.length * 90;
@@ -154,7 +158,7 @@ function gloomFrame(t) {
   if (t < GLOOM_IN + GLOOM_HOLD) return MOCHIGLOOM.length - 1;
   return GLOOM_BACK[Math.min(GLOOM_BACK.length - 1, Math.floor((t - GLOOM_IN - GLOOM_HOLD) / 90))];
 }
-const MOCHIHOP_IMG = MOCHIHOP.map(g => gridToCanvas(g, PET.mochi.pal));
+const MOCHIHOP_IMG = tagFrames(MOCHIHOP.map(g => gridToCanvas(g, PET.mochi.pal)), "mochi-hop");
 const HOP_FALL_F = 7, HOP_NEAR_F = 10, HOP_LAND = 12, HOP_DROP_MIN = 40;
 const SKYLAND_RUN = HOPT.ms.slice(HOP_LAND).reduce((a, b) => a + b, 0) + 160;
 const HOP_SETTLE = 380, SKYLAND_LEN = SKYLAND_RUN + HOP_SETTLE;
@@ -176,7 +180,7 @@ function hopDust(box, f) {
   const last = HOPFX.dust.reduce((m, d, i) => d.length ? i : m, 0), al = f >= last - 2 ? 0.45 + 0.25 * (last - f) : 1;
   drawCloud(D.map(([x, y, r]) => ({ x: box.x + x, y: box.y + y, r: Math.max(3, r * 2.2) })), al);
 }
-const MOCHIBOX_IMG = MOCHIBOX.map(g => gridToCanvas(g, PET.mochi.pal));
+const MOCHIBOX_IMG = tagFrames(MOCHIBOX.map(g => gridToCanvas(g, PET.mochi.pal)), "mochi-dash");
 const BOX_MS = MOCHIBOX.map((_, i) => i <= 17 ? 55 : i <= 22 ? 65 : i <= 24 ? 50 : i <= 31 ? 60 : 85);
 BOX_MS[BOX_MS.length - 1] += 500;
 const BOX_RUN = BOX_MS.reduce((a, b) => a + b, 0), DASH_LEN = BOX_RUN + STAND_LEN;
@@ -605,8 +609,8 @@ function petUpdate(now, dt) {
 }
 
 /* ---------- drawing ---------- */
-// sprite + items. Items sit on the base-sprite frames (they follow squash, stretch and the flip);
-// the traced animations are drawn as they are, without items.
+// sprite + items. Hand-placed items sit on the base-sprite frames (they follow squash, stretch and the flip);
+// auto items (item-auto.js) find their place on every frame, traced motions included.
 function drawSprite(g, id, pose, cx, feet, dir, equip, shadow = true) {
   const img = pose.img || frame(id, pose);
   if (pose.img) dir = pose.flip ? -1 : 1;
@@ -620,14 +624,14 @@ function drawSprite(g, id, pose, cx, feet, dir, equip, shadow = true) {
     g.fillRect(Math.round(cx) - (sh >> 1), feet - 1, sh, 2); g.fillRect(Math.round(cx) - (sh >> 1) + 2, feet + 1, sh - 4, 1);
   }
   g.imageSmoothingEnabled = false;
-  const items = equip && !pose.img && typeof drawItems === "function";
+  const items = equip && typeof drawItems === "function";
   g.save();
   g.translate(dir < 0 ? x + dw : x, y);
   g.scale((dir < 0 ? -1 : 1) * dw / img.width, dh / img.height);
   const dy = img.height - INFO[id].h;               // squash / stretch moves everything above the belly
-  if (items) drawItems(g, id, equip, "back", dy);
+  if (items) drawItems(g, id, equip, "back", dy, pose, img);
   g.drawImage(img, 0, 0);
-  if (items) drawItems(g, id, equip, "front", dy, pose);
+  if (items) drawItems(g, id, equip, "front", dy, pose, img);
   g.restore();
   return { x, y, w: dw, h: dh };
 }

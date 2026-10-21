@@ -206,6 +206,30 @@ header { grid-area: head; display: flex; flex-wrap: wrap; align-items: center; g
         <span class="hint" id="pvInfo"></span>
       </div>
     </div>
+    <div class="card" id="itemCard" hidden>
+      <h2>아이템 · 자동 배치</h2>
+      <div class="row">
+        <label class="chk"><input type="checkbox" id="itemOn" checked> 겹쳐보기</label>
+        <select id="itemSel" aria-label="아이템"></select>
+      </div>
+      <p class="hint" id="itemInfo"></p>
+      <div class="row">
+        <button class="btn" id="itL" aria-label="아이템 왼쪽으로 1칸">← 1칸</button>
+        <button class="btn" id="itR" aria-label="아이템 오른쪽으로 1칸">1칸 →</button>
+        <button class="btn" id="itU" aria-label="아이템 위로 1칸">↑ 1칸</button>
+        <button class="btn" id="itD" aria-label="아이템 아래로 1칸">↓ 1칸</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="itHide">이 프레임에서 숨기기</button>
+        <button class="btn" id="itAuto">자동 위치로</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="itCopy">설정 복사</button>
+        <span class="hint" id="itCopyNote"></span>
+      </div>
+      <textarea id="itJson" rows="3" readonly hidden style="width:100%;font:11px monospace"></textarea>
+      <p class="hint">눈을 찾아서 프레임마다 자동으로 붙여요. 어긋난 프레임만 옮기거나 숨기고 <b>설정 복사</b>로 Claude에게 보내 주면 게임에 넣어요.</p>
+    </div>
     <div class="card">
       <h2>이 프레임</h2>
       <div class="row">
@@ -233,6 +257,8 @@ header { grid-area: head; display: flex; flex-wrap: wrap; align-items: center; g
   </aside>
 </div>
 
+<script src="../js/item-fix.js"></script>
+<script src="../js/item-auto.js"></script>
 <script>
 (() => {
   const $ = id => document.getElementById(id);
@@ -247,6 +273,41 @@ header { grid-area: head; display: flex; flex-wrap: wrap; align-items: center; g
   let bgMode = "check";                // "check" or a colour for the empty (transparent) cells
   try { bgMode = store.get("pps.bg") || "check"; } catch (e) {}
   const cv = $("cv"), ctx = cv.getContext("2d"), scroller = $("scroller");
+
+  /* ---------- items placed automatically (the same code the game runs: ../js/item-auto.js) ---------- */
+  const ITEMS_FOR = { mochi: [["tears", "치카 Lv2 눈물 방울"]] };
+  let itemOn = store.get("pps.itemOn") !== "0", itemName = "tears";
+  let itemFix = {}; try { itemFix = JSON.parse(store.get("pps.itemfix") || "null") || JSON.parse(JSON.stringify(ITEM_FIX)); } catch (e) { itemFix = {}; }
+  const itemKey = i => SET.key + ":" + i;
+  const itemList = () => (SET && ITEMS_FOR[SET.pet]) || [];
+  function itemPixels(i) {
+    if (!itemOn || !itemList().some(([id]) => id === itemName)) return [];
+    const fix = (itemFix[itemName] || {})[itemKey(i)];
+    if (fix && fix.hide) return [];
+    const grid = frames[i].map(r => r.join(""));
+    return ITEM_AUTO[itemName](grid).map(([x, y, c]) => [x + (fix && fix.dx || 0), y + (fix && fix.dy || 0), c]);
+  }
+  function saveFix() { store.set("pps.itemfix", JSON.stringify(itemFix)); }
+  function setFix(f) {
+    const m = itemFix[itemName] || (itemFix[itemName] = {}), k = itemKey(F);
+    if (!f || (!f.hide && !f.dx && !f.dy)) delete m[k]; else m[k] = f;
+    saveFix(); drawAll(); itemUI();
+  }
+  function itemUI() {
+    const list = itemList(); $("itemCard").hidden = !list.length;
+    if (!list.length) return;
+    const sel = $("itemSel");
+    if (sel.options.length !== list.length) { sel.innerHTML = ""; list.forEach(([id, n]) => { const o = document.createElement("option"); o.value = id; o.textContent = n; sel.appendChild(o); }); }
+    sel.value = itemName; $("itemOn").checked = itemOn;
+    const fix = (itemFix[itemName] || {})[itemKey(F)], auto = ITEM_AUTO[itemName](frames[F].map(r => r.join("")));
+    $("itemInfo").textContent = fix && fix.hide ? "이 프레임: 숨김" : !auto.length ? "이 프레임: 눈을 못 찾아서 안 보여요" :
+      fix ? `이 프레임: 직접 옮김 (가로 ${fix.dx || 0}, 세로 ${fix.dy || 0})` : "이 프레임: 자동 위치";
+    const n = Object.keys(itemFix[itemName] || {}).length;
+    $("itCopyNote").textContent = n ? `고친 프레임 ${n}개` : "";
+  }
+  function drawItemPx(g, i, s, ox = 0, oy = 0) {
+    for (const [x, y, c] of itemPixels(i)) { g.fillStyle = c; g.fillRect(ox + x * s, oy + y * s, s, s); }
+  }
 
   /* ---------- data ---------- */
   fetch("refs.json").then(r => r.json()).then(d => { REFS = d; if (SET) { refUI(); drawEditor(); } }).catch(() => {});
@@ -391,6 +452,11 @@ header { grid-area: head; display: flex; flex-wrap: wrap; align-items: center; g
       }
       ctx.globalAlpha = 1;
     }
+    if (itemOn) {                                  // the item on this frame, with a thin frame round each of its pixels
+      drawItemPx(ctx, F, z);
+      ctx.strokeStyle = "rgba(40,90,160,0.55)"; ctx.lineWidth = 1;
+      for (const [x, y] of itemPixels(F)) ctx.strokeRect(x * z + 0.5, y * z + 0.5, z - 1, z - 1);
+    }
     if (gridOn && z >= 6) {
       ctx.strokeStyle = "rgba(58,42,26,0.12)"; ctx.lineWidth = 1; ctx.beginPath();
       for (let x = 0; x <= W; x++) { ctx.moveTo(x * z + 0.5, 0); ctx.lineTo(x * z + 0.5, H * z); }
@@ -398,6 +464,7 @@ header { grid-area: head; display: flex; flex-wrap: wrap; align-items: center; g
       ctx.stroke();
     }
     $("fInfo").textContent = `${F + 1} / ${frames.length}`;
+    itemUI();
   }
 
   /* ---------- background colour behind the empty cells ---------- */
@@ -447,6 +514,7 @@ header { grid-area: head; display: flex; flex-wrap: wrap; align-items: center; g
     for (let yy = 0; yy < g.length; yy++) for (let xx = 0; xx < g[0].length; xx++) {
       const k = g[yy][xx]; if (k !== "B" && P[k]) { x.fillStyle = P[k]; x.fillRect(xx * s, yy * s, s, s); }
     }
+    drawItemPx(x, i, s);
     markStrip();
   }
   function markStrip() {
@@ -582,7 +650,22 @@ header { grid-area: head; display: flex; flex-wrap: wrap; align-items: center; g
     pv.style.width = W * s + "px";
     pctx.clearRect(0, 0, pv.width, pv.height);
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const k = g[y][x]; if (k !== "B" && P[k]) { pctx.fillStyle = P[k]; pctx.fillRect(x * s, y * s, s, s); } }
+    drawItemPx(pctx, i, s);
   }
+  $("itemOn").onchange = e => { itemOn = e.target.checked; store.set("pps.itemOn", itemOn ? "1" : "0"); buildStrip(); drawAll(); };
+  $("itemSel").onchange = e => { itemName = e.target.value; buildStrip(); drawAll(); };
+  const nudge = (dx, dy) => { const f = Object.assign({ dx: 0, dy: 0 }, (itemFix[itemName] || {})[itemKey(F)]); delete f.hide; f.dx += dx; f.dy += dy; setFix(f); };
+  $("itL").onclick = () => nudge(-1, 0); $("itR").onclick = () => nudge(1, 0);
+  $("itU").onclick = () => nudge(0, -1); $("itD").onclick = () => nudge(0, 1);
+  $("itHide").onclick = () => { const f = (itemFix[itemName] || {})[itemKey(F)]; setFix(f && f.hide ? null : { hide: true }); };
+  $("itAuto").onclick = () => setFix(null);
+  $("itCopy").onclick = () => {
+    const text = JSON.stringify(itemFix), ta = $("itJson");
+    ta.value = text; ta.hidden = false;
+    const done = () => { $("itCopyNote").textContent = "복사했어요. Claude에게 붙여 넣어 주세요"; };
+    try { navigator.clipboard.writeText(text).then(done, () => { ta.select(); $("itCopyNote").textContent = "아래 글을 직접 복사해 주세요"; }); }
+    catch (e) { ta.select(); $("itCopyNote").textContent = "아래 글을 직접 복사해 주세요"; }
+  };
   $("playBtn").onclick = () => { playing = !playing; $("playBtn").textContent = playing ? "일시정지" : "재생"; clearTimeout(ptimer); tick(); };
   $("pvBig").onchange = () => { clearTimeout(ptimer); tick(); };
 
