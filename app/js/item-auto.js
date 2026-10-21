@@ -156,12 +156,12 @@ function findFace(grid) {
 
 // Lv6 pajamas: a hooded onesie in the character's colour. Everything but the face turns into the suit, so her own
 // ears become the hood's ears; a lighter rim marks the hood opening and two white buttons sit on the chest.
-// Facing away, the whole body is the suit (the back of the hood). 욱's white tail pokes out of it; 하와's opening reaches up
-// to her hair, so her bangs show in a deeper blue under the hood. Close-ups keep their own look.
+// The opening reaches well above the eyes, like the figures: 욱's brows show, and 하와's bangs in a deeper blue.
+// Facing away, the whole body is the suit (the back of the hood). 욱's white tail pokes out of it. Close-ups keep their own look.
 const PAJAMA = {
-  mochi: { main: "#ffbdd0", shade: "#f29ab5", rim: "#ffdbe6" },
+  mochi: { main: "#ffbdd0", shade: "#f29ab5", rim: "#ffdbe6", up: 2.5 },
   sora:  { main: "#acdaf8", shade: "#84bfeb", rim: "#d6eefd", up: 4, bangs: "S", bang: "#5eaee6" },
-  nori:  { main: "#ffd766", shade: "#efb53a", rim: "#ffeaa8", keep: "W" },
+  nori:  { main: "#ffd766", shade: "#efb53a", rim: "#ffeaa8", keep: "W", up: 5 },
 };
 function autoPajama(grid, pet) {
   const h = grid.length, w = grid[0].length, pal = PAJAMA[pet];
