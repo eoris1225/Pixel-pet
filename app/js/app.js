@@ -314,7 +314,7 @@ function updateSelInfo() {
   if (!selPick) { info.hidden = true; $("#sel-ok").disabled = true; return; }
   const c = CHARS[selPick];
   info.hidden = false;
-  info.innerHTML = `<p><b class="f-sm">이름</b><span class="f-name">${c.name}</span>${selMode === "change" && S.chars[selPick] ? ` <span class="f-num s muted">Lv.${lvOf(curExp(selPick))}</span>` : ""}</p><p><b class="f-sm">특징</b><span class="f-sm">${c.trait}</span></p>`;
+  info.innerHTML = `<p><b class="f-sm">이름</b>${c.name}${selMode === "change" && S.chars[selPick] ? ` <span class="f-num s muted">Lv.${lvOf(curExp(selPick))}</span>` : ""}</p><p><b class="f-sm">특징</b><span class="f-sm">${c.trait}</span></p>`;
   $("#sel-ok").disabled = selMode === "change" && selPick === S.pet;
 }
 $("#sel-ok").onclick = () => {
@@ -706,7 +706,7 @@ function renderInventory() {
       return `<button class="slot pxb ${on ? "on" : ""}" data-id="${id}" ${open ? "" : "disabled"} aria-pressed="${!!on}">
         ${open ? "<canvas></canvas>" : '<span class="q f-num">?</span>'}
         <span class="nm">${open ? esc(name) : "???"}</span>
-        <span class="sub f-sm">${on ? "착용 중" : open ? `Lv.${need} · ${part}` : `Lv.${need}`}</span></button>`;
+        <span class="sub f-xs">${on ? "착용 중" : open ? `Lv.${need} · ${part}` : `Lv.${need}`}</span></button>`;
     }).join("")}</div>
     <p class="hint t-low" style="text-align:center;margin-top:7px">누르면 붙였다 뗐다 할 수 있어요…</p>`;
   portrait($("#inventory-body .inv-preview canvas"), S.pet, true, 166, 64, miniWorld);

@@ -2,20 +2,20 @@
    Shapes, outlines, icons and sprites sit on that grid. Korean text is the exception: its unit (--px) is half a game
    pixel, so the pixel fonts are drawn twice as fine as the game and still scale with the frame.
 
-   Type, by situation and by how warm or loud a line is (every size is the font's own pixel size):
-     Galmuri11 12          body          the default: descriptions, cards, inputs
-     PF Stardust Bold 16   .f-ui         the app's voice: buttons, titles, window bars, menu rows
-     Galmuri9 10           .f-sm         secondary: hints, meta, legends
-     Galmuri11 Bold 12     .f-num        numbers that matter (Lv, %, totals); GalmuriMono9 10 for small tabular ones
-     Galmuri11 Condensed   .f-cond       names in narrow slots
-     Mulmaru 12            .f-name       name tags: characters, subjects
-     Silver 19             .f-amb        the world talking (a passing cloud)
-   Dialogue temperature:
-     Ramche 12             .t-low        quiet, timid, trailing off (...)
-     Galmuri14 15          .t-mid        ordinary warm lines
-     PF Stardust S ExtraBold 16  .t-high excited (!!)
-     Pixelroborobo 16      .t-peak       accent only: the level-up title and 욱's loudest shouts
-   Line heights are generous (about 1.6x) so wrapped lines never touch. */
+   Type. PF Stardust is the app's voice; the others each have one job (every size is the font's own pixel size):
+     PF Stardust Bold 16        body      buttons, titles, cards, ordinary dialogue: the default
+     Galmuri11 12               .f-sm     secondary: hints, meta, legends, small labels
+     Galmuri11 12               (user)    what the user wrote: to-dos, notes, input fields
+     Galmuri9 10                .f-xs     the smallest tags (item slot details, key caps in text)
+     PF Stardust S ExtraBold 16 .f-num    numbers that matter (Lv, timer, %, totals)
+     Galmuri11 Bold 12          .f-num.s  small numbers (dates, counts, badges)
+     Galmuri11 Condensed 12     .f-cond   names in narrow slots
+     Mulmaru 12                 .f-name   subject chips and tags
+     Galmuri14 15               (intro)   long first-meeting lines on the character screen
+     Silver 19                  .f-amb    the world talking (a passing cloud), small asides
+   Dialogue temperature: Ramche (.t-low, quiet "...") / PF Bold (.t-mid) / PF S ExtraBold (.t-high, "!!") /
+   Pixelroborobo (.t-peak, accent only: level-up title and 욱's loudest shouts).
+   Line heights are about 1.5-1.7x so wrapped lines never touch. */
 @font-face { font-family: "Galmuri11"; src: url("../fonts/galmuri11.woff2") format("woff2"); font-display: block; }
 @font-face { font-family: "Galmuri11B"; src: url("../fonts/galmuri11-bold.woff2") format("woff2"); font-display: block; }
 @font-face { font-family: "Galmuri11C"; src: url("../fonts/galmuri11-condensed.woff2") format("woff2"); font-display: block; }
@@ -70,18 +70,18 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: bloc
 h2, h3, h4, p, ul, ol, dl, dd { margin: 0; padding: 0; font-weight: normal; }
 
 /* ---------- type ---------- */
-#app { font: calc(12 * var(--px)) / calc(20 * var(--px)) "Galmuri11", "PF", sans-serif; }
-.f-ui, .pxb, .scr-head h2, .win-t, .card-t, .lbl-mark { font: calc(16 * var(--px)) / calc(22 * var(--px)) "PF", sans-serif; }
-.f-sm  { font: calc(10 * var(--px)) / calc(16 * var(--px)) "Galmuri9", "Galmuri11", sans-serif; }
-.f-num { font: calc(12 * var(--px)) / calc(16 * var(--px)) "Galmuri11B", "Galmuri11", sans-serif; }
-.f-num.s { font: calc(10 * var(--px)) / calc(14 * var(--px)) "GalmuriMono9", "Galmuri9", monospace; }
-.f-cond { font: calc(12 * var(--px)) / calc(16 * var(--px)) "Galmuri11C", "Galmuri11", sans-serif; }
+#app, .f-ui, .t-mid { font: calc(16 * var(--px)) / calc(25 * var(--px)) "PF", sans-serif; }
+.f-sm  { font: calc(12 * var(--px)) / calc(19 * var(--px)) "Galmuri11", "PF", sans-serif; }
+.f-xs  { font: calc(10 * var(--px)) / calc(16 * var(--px)) "Galmuri9", "Galmuri11", sans-serif; }
+.f-num { font: calc(16 * var(--px)) / calc(22 * var(--px)) "PFSX", "PF", sans-serif; }
+.f-num.s { font: calc(12 * var(--px)) / calc(16 * var(--px)) "Galmuri11B", "Galmuri11", sans-serif; }
+.f-cond { font: calc(12 * var(--px)) / calc(17 * var(--px)) "Galmuri11C", "Galmuri11", sans-serif; }
 .f-name { font: calc(12 * var(--px)) / calc(18 * var(--px)) "Mulmaru", "Galmuri11B", sans-serif; }
 .f-amb { font: calc(19 * var(--px)) / calc(16 * var(--px)) "Silver", "Galmuri9", sans-serif; }
 .t-low  { font: calc(12 * var(--px)) / calc(21 * var(--px)) "Ramche", "Galmuri11", sans-serif; }
-.t-mid  { font: calc(15 * var(--px)) / calc(24 * var(--px)) "Galmuri14", "Galmuri11", sans-serif; }
 .t-high { font: calc(16 * var(--px)) / calc(25 * var(--px)) "PFSX", "PF", sans-serif; }
 .t-peak { font: calc(16 * var(--px)) / calc(25 * var(--px)) "Roborobo", "PFSX", sans-serif; }
+.field, .todo-list .t, .sess .note, .mini-todos button { font: calc(12 * var(--px)) / calc(19 * var(--px)) "Galmuri11", "PF", sans-serif; }
 .muted { color: var(--muted); }
 
 /* ---------- pixel shapes ----------
@@ -202,10 +202,10 @@ textarea.field { height: 38px; resize: none; display: block; padding: 1px 3px; }
 #scr-select .scr-body { display: flex; flex-direction: column; padding-top: 7px; }
 .sel-bubble { margin: 0 0 9px; --tail: 85px; }
 .sel-bubble .bb { min-height: 54px; text-align: left; padding: 4px 6px; }
-.sel-bubble .bb.t-high { font: calc(12 * var(--px)) / calc(21 * var(--px)) "Galmuri11B", sans-serif; }   /* the intro is long: excited lines one size down */
+.sel-bubble .bb.t-mid { font: calc(15 * var(--px)) / calc(25 * var(--px)) "Galmuri14", "PF", sans-serif; }   /* the intro is long: a finer face */
+.sel-bubble .bb.t-high { font: calc(12 * var(--px)) / calc(21 * var(--px)) "Galmuri11B", "PF", sans-serif; }
 .sel-bubble { --tail: 85px; }
 .sel-row { display: grid; grid-template-columns: repeat(3, 52px); gap: 5px; justify-content: center; margin-bottom: 7px; }
-.sel-card span { font: calc(12 * var(--px)) / calc(18 * var(--px)) "Mulmaru", sans-serif; }
 .sel-card { height: 58px; flex-direction: column; gap: 0; --face: var(--c-soft); --sh: var(--line); padding-top: 1px; }
 .sel-card canvas { width: 44px; height: 38px; }
 .sel-card[aria-pressed="true"] { --face: var(--c); --sh: var(--c-deep); }
@@ -275,7 +275,7 @@ textarea.field { height: 38px; resize: none; display: block; padding: 1px 3px; }
   border: 1px solid var(--ink); clip-path: polygon(1px 0, calc(100% - 1px) 0, 100% 1px, 100% calc(100% - 1px), calc(100% - 1px) 100%, 1px 100%, 0 calc(100% - 1px), 0 1px);
   background: linear-gradient(rgba(255,255,255,.7), rgba(255,255,255,.7)) left 1px top 0 / calc(100% - 2px) 1px no-repeat padding-box,
     linear-gradient(rgba(58,42,26,.18), rgba(58,42,26,.18)) left 0 bottom 0 / 100% 1px no-repeat padding-box, var(--face); }
-.coach-card p { font: calc(15 * var(--px)) / calc(27 * var(--px)) "Galmuri14", "Galmuri11", sans-serif; }
+.coach-card p { line-height: calc(27 * var(--px)); }
 
 /* inventory */
 .inv-preview { padding: 1px; margin-bottom: 7px; --sh: transparent; }
