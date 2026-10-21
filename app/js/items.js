@@ -277,7 +277,8 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       // in her arms) moves as one piece with the part of her that holds it, so it never comes apart
       const dup = INFO[petId].dup, top = px.reduce((m, p) => Math.min(m, p[1]), 1e9), whole = top >= dup ? shift : 0;
       const each = a.auto === "pajama";
-      for (const [x, y, c] of px) { g.fillStyle = c; g.fillRect(x, y + (each ? (y >= dup ? shift : 0) : whole), 1, 1); }
+      const body = equip.pajama && typeof PAJAMA !== "undefined" ? PAJAMA[petId].main : PET[petId].pal[PET[petId].body];   // her paws: her own colour, or her onesie's
+      for (const [x, y, c] of px) { g.fillStyle = c === "body" ? body : c; g.fillRect(x, y + (each ? (y >= dup ? shift : 0) : whole), 1, 1); }
       continue;
     }
     if (pose && pose.img) continue;

@@ -100,6 +100,7 @@ const TEDDY = [
   ".KnnKKKnnK.",
   ".KKK...KKK.",
 ];
+const TEDDY_PAW = [".KK.", "KWWK", ".KK."];
 const TEDDY_PAL = { K: "#3a2a1a", N: "#be8856", n: "#ac784a", W: "#fffaf0", D: "#4a3020" };
 function autoTeddy(grid) {
   const eyes = findEyes(grid);
@@ -107,7 +108,20 @@ function autoTeddy(grid) {
   const cx = eyes.length === 2 ? (eyes[0].cx + eyes[1].cx) / 2 : eyes[0].cx;
   const bottom = Math.max(...eyes.map(e => e.y1)) + 16;               // on the base pose: eyes end at row 12, feet at 28
   const x0 = Math.round(cx - (TEDDY[0].length - 1) / 2), y0 = bottom - TEDDY.length + 1, out = [];
+  // her arms go round the bear instead of hanging at her sides: the line of each arm on her body is painted over, and
+  // two little paws hold the bear's sides ("body" is filled in by the game: her own colour, or the pajama's)
+  const at = (x, y) => (grid[y] && grid[y][x]) || "B";
+  for (let y = y0 + 4; y <= y0 + 10; y++) {
+    const r = grid[y]; if (!r) continue;
+    const xl = r.search(/[^B]/), xr = r.length - 1 - [...r].reverse().join("").search(/[^B]/);
+    if (xl < 0) continue;
+    if (at(xl, y) === "K" && !"KB".includes(at(xl + 1, y)) && at(xl + 2, y) === "K") out.push([xl + 2, y, "body"]);
+    if (at(xr, y) === "K" && !"KB".includes(at(xr - 1, y)) && at(xr - 2, y) === "K") out.push([xr - 2, y, "body"]);
+  }
   TEDDY.forEach((row, y) => [...row].forEach((ch, x) => { if (TEDDY_PAL[ch]) out.push([x0 + x, y0 + y, TEDDY_PAL[ch]]); }));
+  for (const px of [x0 - 1, x0 + TEDDY[0].length - 3]) TEDDY_PAW.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (ch !== ".") out.push([px + x, y0 + 8 + y, ch === "K" ? TEDDY_PAL.K : "body"]);
+  }));
   return out;
 }
 

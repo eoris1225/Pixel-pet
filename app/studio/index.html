@@ -306,7 +306,8 @@ header { grid-area: head; display: flex; flex-wrap: wrap; align-items: center; g
     $("itCopyNote").textContent = n ? `고친 프레임 ${n}개` : "";
   }
   function drawItemPx(g, i, s, ox = 0, oy = 0) {
-    for (const [x, y, c] of itemPixels(i)) { g.fillStyle = c; g.fillRect(ox + x * s, oy + y * s, s, s); }
+    const body = pal().W || "#fffaf0";                    // the bear-hug paws take her own colour
+    for (const [x, y, c] of itemPixels(i)) { g.fillStyle = c === "body" ? body : c; g.fillRect(ox + x * s, oy + y * s, s, s); }
   }
 
   /* ---------- data ---------- */
