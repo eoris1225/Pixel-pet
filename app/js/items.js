@@ -246,6 +246,25 @@ function smoothHold(key, x, y, a) {
   if (x !== null) { const k = 1 - Math.exp(-(now - WSM.t) / 110); WSM.x += (x - WSM.x) * k; WSM.y += (y - WSM.y) * k; WSM.a += (a - WSM.a) * k; }
   WSM.t = now; return WSM;
 }
+// her drawn-out hands taken away (the dance), once her paws are on the weapon: around each hand the outline is pulled
+// back to the line her body would follow there (from a few rows above to a few below), clearing the hand
+function handsOff(grid, hd) {
+  const out = [];
+  for (const [side, hand] of [[-1, hd.l], [1, hd.r]]) {
+    if (!hand) continue;
+    const edge = y => { const r = grid[y] || ""; const i = side < 0 ? r.search(/[^B]/) : r.length - 1 - [...r].reverse().join("").search(/[^B]/); return i < 0 || i >= r.length ? null : i; };
+    const y0 = hand[1] - 3, y1 = hand[1] + 3, a = edge(y0), b = edge(y1);
+    if (a === null || b === null) continue;
+    for (let y = y0 + 1; y < y1; y++) {
+      const e = edge(y); if (e === null) continue;
+      const t = Math.round(a + (b - a) * (y - y0) / (y1 - y0));
+      if ((e - t) * side <= 0) continue;                       // not sticking out here
+      for (let x = e; x !== t; x -= side) out.push([x, y, "clear"]);
+      out.push([t, y, "outline"]);
+    }
+  }
+  return out;
+}
 function findHands(grid) {
   const h = grid.length, f = faceOf(grid), top = f ? Math.round(f.cy) : Math.round(h * 0.35), out = {};
   for (const side of [-1, 1]) {
@@ -280,7 +299,7 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
     const sm = smoothHold("dance" + pet.t0 + petId, o ? mid + o.dx : null, o ? arm + 0.5 + o.dy : null, ang)
       || { x: mid, y: arm + 0.5, a: ang };
     const cx = sm.x, cy = sm.y; ang = sm.a;
-    const off = cache.warm || (cache.warm = armOff(grid, Math.round(cy) - 4, Math.round(cy) + 2));
+    const off = cache.warm || (cache.warm = handsOff(grid, hd).concat(armOff(grid, Math.round(cy) - 4, Math.round(cy) + 2)));
     for (const [x, y, c] of off) { if (c === "clear") g.clearRect(x, y, 1, 1); else { g.fillStyle = OUT; g.fillRect(x, y, 1, 1); } }
     g.save(); g.translate(Math.round(cx), Math.round(cy)); g.rotate(ang);
     g.drawImage(f.img, f.x - mid, f.y - arm);
