@@ -124,6 +124,18 @@ const POCHETTE = [
 ];
 const bagStrap = d => d.line(4, 17, 17, 21, "#fff7ea");                  // the strap, from her shoulder to her hip
 const bagFace = d => d.grid(POCHETTE, { P: "#f7a8bd", p: "#ec8fab", W: "#fffaf0", D: "#5a4636" }, 16, 20);
+function guitarArt() {
+  return pixmap(d => {
+    d.line(9, 17, 29, -2, "#a8693a", 2);                                     // the neck
+    d.line(10, 16, 29, -3, "#7a4a2a");                                       // its fingerboard
+    d.disc(2, 25, 6.2, "#d9a15e"); d.disc(7, 18.5, 4.6, "#d9a15e");          // lower and upper bout
+    d.disc(2.5, 26.5, 5, "#e6b574");                                         // the light on the wood
+    d.disc(4.5, 22, 1.8, "#5a3a22");                                         // sound hole
+    d.rect(-1, 27, 4, 1, "#7a4a2a");                                         // bridge
+    d.line(0, 27, 10, 16, "#fbeed5");                                        // strings over the body
+    d.rect(29, -6, 3, 4, "#8a5530"); d.put(28, -5, "#fbeed5"); d.put(28, -3, "#fbeed5"); d.put(32, -5, "#fbeed5"); d.put(32, -3, "#fbeed5");   // headstock and pegs
+  });
+}
 const ITEM_ART = {
   mochi: {
     tears: { layer: "front", auto: "tears", build: () => pixmap(d => {          // build = the inventory icon; in play it is placed per frame
@@ -138,11 +150,9 @@ const ITEM_ART = {
   },
   sora: {
     beanie: { layer: "front", auto: "bangs", build: () => bangsIcon("sora") },   // her bangs restyled (item id kept for saves)
-    guitar: { layer: "back", build: () => pixmap(d => {
-      d.line(6, 20, 29, -1, "#8a5a35", 2);
-      d.rect(28, -4, 3, 4, "#6e4528"); d.put(27, -3, "#e8d9c0"); d.put(31, -2, "#e8d9c0");
-      d.disc(3, 25, 5.2, "#d29a62"); d.disc(6, 19, 4, "#d29a62"); d.disc(4.5, 22, 1.4, "#5a3a22");
-    }) },
+    // 하와's guitar, slung on her back: a warm wooden body with a round lower and a smaller upper bout, a dark sound hole,
+    // strings, and a long neck reaching up past her shoulder to a headstock with pegs
+    guitar: { layer: "back", auto: "guitar", build: () => guitarArt() },
     pajama: { layer: "front", auto: "pajama", under: true, build: () => onesieIcon("sora") },
     camera: { layer: "front", build: () => pixmap(d => {
       d.line(7, 17, 11, 21, "#6cb8e6"); d.line(21, 17, 17, 21, "#6cb8e6");
@@ -412,6 +422,29 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
   const order = ITEM_LIST[petId].slice().sort((p, q) => !!(art[q[1]] || {}).under - !!(art[p[1]] || {}).under);   // the onesie goes on first
   for (const [, id] of order) {
     const a = art[id];
+    if (equip[id] && a && a.auto === "guitar") {           // slung on her back: behind her from the front, over her back from behind
+      if (!img || !img.grid) continue;
+      const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base && 20 >= INFO[petId].dup ? dy : 0;
+      const cache = base ? (ITEM_CACHE["base:" + petId] || (ITEM_CACHE["base:" + petId] = {})) : (img._auto || (img._auto = {}));
+      if (!("wo" in cache)) cache.wo = weaponOffset(grid, petId);
+      const o = cache.wo, it = itemImg(petId, id);
+      if (o && layer === "back") g.drawImage(it.img, it.x + o.dx, it.y + o.dy + shift);
+      if (o && layer === "front") {                       // its strap across her chest, from her right shoulder to her left hip
+        const row = y => { const r = grid[y] || ""; const q = r.search(/[^B]/); return q < 0 ? null : [q, r.length - 1 - [...r].reverse().join("").search(/[^B]/)]; };
+        const f = faceOf(grid), sy = Math.round(f.cy + 4), hy = Math.round(f.cy + 10), a1 = row(sy), a2 = row(hy);
+        if (a1 && a2) for (const [x, y, c] of pixList("gstrap:" + [a1[1], sy, a2[0], hy], d => d.line(a1[1], sy, a2[0], hy, "#9a6a3e"))) { g.fillStyle = c; g.fillRect(x, y + shift, 1, 1); }
+      }
+      if (!o && layer === "front") {
+        let x0 = 1e9, x1 = -1, bottom = grid.length - 1;
+        grid.forEach(r => { const q = r.search(/[^B]/); if (q >= 0) { x0 = Math.min(x0, q); x1 = Math.max(x1, r.length - 1 - [...r].reverse().join("").search(/[^B]/)); } });
+        while (bottom > 0 && !/[^B]/.test(grid[bottom])) bottom--;
+        const cx = (x0 + x1) / 2, oy = bottom - (SPRITES[petId].length - 1);
+        g.save(); g.translate(Math.round(cx * 2), 0); g.scale(-1, 1);              // mirrored about her middle
+        g.drawImage(it.img, it.x + Math.round(cx - 14), it.y + oy);
+        g.restore();
+      }
+      continue;
+    }
     if (equip[id] && a && a.auto === "weapon") { if (img && img.grid) drawWeapon(g, petId, layer, dy, pose, img, equip); continue; }
     if (!equip[id] || !a || a.layer !== layer) continue;
     if (a.auto) {
