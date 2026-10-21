@@ -106,7 +106,7 @@ function autoTeddy(grid) {
   const eyes = findEyes(grid);
   if (!eyes.length) return [];                                        // facing away: the bear is hidden behind her
   const cx = eyes.length === 2 ? (eyes[0].cx + eyes[1].cx) / 2 : eyes[0].cx;
-  const bottom = Math.max(...eyes.map(e => e.y1)) + 16;               // on the base pose: eyes end at row 12, feet at 28
+  const bottom = Math.max(...eyes.map(e => e.y1)) + 15;               // held a little up off her feet (base pose: eyes end at row 12)
   const x0 = Math.round(cx - (TEDDY[0].length - 1) / 2), y0 = bottom - TEDDY.length + 1, out = [];
   // her arms go round the bear instead of hanging at her sides. Each arm is a little bulge outside her body, its inner
   // line being her body's edge: the bulge is cleared, that line becomes her outline (a slimmer waist, not wide shoulders),
@@ -119,16 +119,19 @@ function autoTeddy(grid) {
       if (e >= 0 && at(e, y) === "K" && !"KB".includes(at(e - side, y)) && at(e - 2 * side, y) === "K") arm.push(y); }
     if (!arm.length) continue;
     const top = Math.max(0, arm[0] - 2), bot = arm[arm.length - 1];
-    for (let y = top; y <= bot; y++) {
+    const waist = edge(bot) - 2 * side;
+    for (let y = top; y <= bot + 1; y++) {
       const e = edge(y); if (e < 0) continue;
-      const tx = arm.includes(y) ? e - 2 * side : e - side;  // her own edge: the arm's inner line, or one in at the shoulder
+      // her own edge: the arm's inner line, one in at the shoulder, and the hip just below kept in line with the waist
+      const tx = y > bot ? ((waist - e) * -side > 0 ? waist : e) : arm.includes(y) ? e - 2 * side : e - side;
+      if (tx === e && y > bot) continue;
       for (let x = e; x !== tx; x -= side) out.push([x, y, "clear"]);
       out.push([tx, y, "outline"]);
     }
   }
   TEDDY.forEach((row, y) => [...row].forEach((ch, x) => { if (TEDDY_PAL[ch]) out.push([x0 + x, y0 + y, TEDDY_PAL[ch]]); }));
   for (const px of [x0 - 1, x0 + TEDDY[0].length - 3]) TEDDY_PAW.forEach((row, y) => [...row].forEach((ch, x) => {
-    if (ch !== ".") out.push([px + x, y0 + 8 + y, ch === "K" ? TEDDY_PAL.K : "body"]);
+    if (ch !== ".") out.push([px + x, y0 + 6 + y, ch === "K" ? TEDDY_PAL.K : "body"]);   // where her arms were
   }));
   return out;
 }
