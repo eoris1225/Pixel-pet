@@ -417,11 +417,19 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
     if (a.auto) {
       if (!img || !img.grid) continue;
       if (a.auto === "teddy" && typeof teddyHugged === "function" && !teddyHugged()) continue;   // the bear is off in the world
-      if (a.auto === "bangs" && equip.pajama) continue;                                          // her hood is over her hair
       // on the base pose the face is found on the plain sprite, so a blink does not make the item vanish
       const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base ? dy : 0;
       const cache = base ? (ITEM_CACHE["base:" + petId] || (ITEM_CACHE["base:" + petId] = {})) : (img._auto || (img._auto = {}));
-      const px = cache[a.auto] || (cache[a.auto] = autoItemPixels(a.auto, grid, base ? petId + "-base:0" : img.key || "", petId));
+      let px = cache[a.auto] || (cache[a.auto] = autoItemPixels(a.auto, grid, base ? petId + "-base:0" : img.key || "", petId));
+      if (a.auto === "bangs" && equip.pajama) {      // in her onesie the new bangs show only in the hood's opening, in its deeper blue
+        const key = "bangsPJ";
+        if (!cache[key]) {
+          const pj = PAJAMA[petId], suit = cache.pajama || (cache.pajama = autoItemPixels("pajama", grid, base ? petId + "-base:0" : img.key || "", petId));
+          const hood = new Set(suit.filter(p => p[2] !== pj.bang).map(p => p[0] + "," + p[1]));
+          cache[key] = px.filter(p => !hood.has(p[0] + "," + p[1])).map(([x, y, c]) => [x, y, c === BANGS[petId] ? pj.bang : c]);
+        }
+        px = cache[key];
+      }
       // breathing adds or drops a row low on her body: the pajama follows her pixel for pixel, while a solid thing (the bear
       // in her arms) moves as one piece with the part of her that holds it, so it never comes apart
       const dup = INFO[petId].dup, top = px.reduce((m, p) => Math.min(m, p[1]), 1e9), whole = top >= dup ? shift : 0;
