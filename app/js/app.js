@@ -90,23 +90,53 @@ function layout() {
   frameEl.style.width = W * K + "px"; frameEl.style.height = H * K + "px";
   frameEl.style.left = Math.round((vw - W * K) / 2) + "px"; frameEl.style.top = Math.round((vh - H * K - 10) / 2) + "px";
   appEl.style.transform = `scale(${K})`;
+  // Korean text is set in screen pixels (one --px = one screen pixel), doubled only on very large screens
+  appEl.style.setProperty("--px", ((K >= 4 ? 2 : 1) / K) + "px");
 }
 addEventListener("resize", layout);
 
 /* ---------- pixel icons ---------- */
-const TAB_ICONS = {
+const ICONS = {
   "tab-stats": ["...KKKKK...", "..KWWWWWK..", ".KWWWKWWWK.", "KWWWWKWWWWK", "KWWWWKWWWWK", "KWWWWKKKWWK", "KWWWWWWWWWK", ".KWWWWWWWK.", "..KWWWWWK..", "...KKKKK..."],
   "tab-todo": [".K..K..K...", "KKKKKKKKKK.", "KRRRRRRRRK.", "KKKKKKKKKK.", "KWWWWWWWWK.", "KWKWKWKWWK.", "KWWWWWWWWK.", "KWKWKWKWWK.", "KWWWWWWWWK.", "KKKKKKKKKK."],
   "tab-settings": ["....KKK....", ".KK.KGK.KK.", ".KGKKGKKGK.", "..KGGGGGK..", "KKKGGKGGKKK", "KGGGK.KGGGK", "KKKGGKGGKKK", "..KGGGGGK..", ".KGKKGKKGK.", ".KK.KGK.KK.", "....KKK...."],
+  open: ["..K", ".K.", "K..", ".K.", "..K"], closed: ["K..", ".K.", "..K", ".K.", "K.."],
+  back: ["...K", "..K.", ".K..", "K...", ".K..", "..K.", "...K"],
+  next: ["K...", ".K..", "..K.", "...K", "..K.", ".K..", "K..."],
+  x: ["K...K", ".K.K.", "..K..", ".K.K.", "K...K"],
+  plus: ["..K..", "..K..", "KKKKK", "..K..", "..K.."],
+  grip: ["KKKKK", ".....", "KKKKK", ".....", "KKKKK"],
+  play: ["K......", "KKK....", "KKKKK..", "KKKKKKK", "KKKKK..", "KKK....", "K......"],
+  pause: ["KK.KK", "KK.KK", "KK.KK", "KK.KK", "KK.KK", "KK.KK", "KK.KK"],
+  stop: ["KKKKKKK", "KKKKKKK", "KKKKKKK", "KKKKKKK", "KKKKKKK", "KKKKKKK", "KKKKKKK"],
+  flame: ["..O..", ".OO..", ".OYO.", "OYYO.", "OYWYO", "OYWYO", ".OOO."],
 };
-const IPAL_UI = { K: OUT, W: "#fffdf6", R: "#ff9db4", G: "#c9d1e0" };
-function paintIcon(canvas, rows) {
+const IPAL_UI = { K: OUT, W: "#fffdf6", R: "#ff9db4", G: "#c9d1e0", O: "#ff7a4d", Y: "#ffd25e" };
+function paintIcon(canvas, name) {
+  const rows = ICONS[name]; if (!rows) return;
+  const w = Math.max(...rows.map(r => r.length));
+  if (!canvas.dataset.fixed) { canvas.width = w; canvas.height = rows.length; canvas.style.width = w + "px"; canvas.style.height = rows.length + "px"; }
   const g = canvas.getContext("2d"); g.clearRect(0, 0, canvas.width, canvas.height);
-  const img = gridToCanvas(rows, IPAL_UI);
+  const img = gridToCanvas(rows.map(r => r.padEnd(w, ".")), IPAL_UI);
   g.drawImage(img, (canvas.width - img.width) >> 1, (canvas.height - img.height) >> 1);
 }
-for (const id in TAB_ICONS) paintIcon($("#" + id + " canvas"), TAB_ICONS[id]);
-const ARROW = { open: ["..K", ".K.", "K..", ".K.", "..K"], closed: ["K..", ".K.", "..K", ".K.", "K.."] };
+const paintIcons = root => root.querySelectorAll("canvas[data-icon]").forEach(c => paintIcon(c, c.dataset.icon));
+const icon = (name, cls = "") => `<canvas data-icon="${name}" class="${cls}"></canvas>`;
+for (const id of ["tab-stats", "tab-todo", "tab-settings"]) { const c = $("#" + id + " canvas"); c.dataset.fixed = 1; paintIcon(c, id); }
+paintIcons(document);
+paintIcon($("#hud-burn"), "flame");
+// paper with a faint pixel dot pattern for the screens
+{ const c = document.createElement("canvas"); c.width = 6; c.height = 6; const g = c.getContext("2d"); g.fillStyle = "#f7e9c9"; g.fillRect(0, 0, 1, 1); g.fillRect(3, 3, 1, 1);
+  appEl.style.setProperty("--dots", `url(${c.toDataURL()})`); }
+
+/* ---------- dialogue temperature: which typeface a line is spoken in ---------- */
+function tempOf(textStr, petId) {
+  if (/…|\.\./.test(textStr)) return "low";                                    // timid, trailing off
+  if (petId === "nori" && (/!!!/.test(textStr) || /^우라아아/.test(textStr))) return "peak";   // 욱 shouting: the one loud font
+  if (/!!/.test(textStr)) return "high";                                      // excited
+  return "mid";
+}
+const tClass = (textStr, petId) => "t-" + tempOf(textStr, petId);
 
 /* ---------- portraits: sprites drawn 1:1 on the same grid ---------- */
 const portraits = [];
@@ -149,7 +179,8 @@ function miniWorld(g) {
 const petBubble = $("#pet-bubble"), worldBubble = $("#world-bubble");
 let bubbleUntil = 0;
 function say(textStr, ms = 4000) {
-  petBubble.textContent = textStr; petBubble.hidden = false;
+  const bb = petBubble.querySelector(".bb");
+  bb.textContent = textStr; bb.className = "bb pxp " + tClass(textStr, S.pet); petBubble.hidden = false;
   bubbleUntil = performance.now() + ms;
 }
 function placeBubble(el, gx, gy, minTop = 30) {
@@ -163,8 +194,9 @@ const pick = a => a[Math.random() * a.length | 0];
 
 /* ---------- toast ---------- */
 let toastT = 0;
-function toast(msg, ms = 2600) {
-  const t = $("#toast"); t.textContent = msg; t.hidden = false;
+function toast(msg, ms = 2600, title) {
+  const t = $("#toast");
+  t.innerHTML = (title ? `<span class="lvup t-peak">${esc(title)}</span>` : "") + esc(msg); t.hidden = false;
   clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, ms);
 }
 
@@ -180,15 +212,16 @@ document.querySelectorAll("[data-back]").forEach(b => b.addEventListener("click"
 
 const modal = $("#modal"), modalCard = $("#modal .modal-card");
 let modalClose = null;
-const X_BTN = '<button class="x ibtn" aria-label="닫기">x</button>';
-function openModal(html, onClose) {
-  modalCard.innerHTML = html; modal.hidden = false; modalClose = onClose || null; modalCard.scrollTop = 0;
+function openModal(title, html, onClose, closable = true) {
+  modalCard.innerHTML = `<div class="win-t"><span class="grow">${title}</span>${closable ? `<button class="x pxb" aria-label="닫기">${icon("x")}</button>` : ""}</div>` + html;
+  paintIcons(modalCard);
+  modal.hidden = false; modalClose = onClose || null; modalCard.scrollTop = 0;
   const x = modalCard.querySelector(".x"); if (x) x.onclick = () => closeModal(true);
 }
 function closeModal(cancelled) { modal.hidden = true; modalCard.innerHTML = ""; const f = modalClose; modalClose = null; if (cancelled && typeof f === "function") f(); }
 modal.addEventListener("pointerdown", e => { if (e.target === modal && modalClose !== "lock") closeModal(true); });
 function confirmBox(msg, okLabel, onOk, cancelLabel = "취소") {
-  openModal(`<p>${msg}</p><div class="actions"><button class="btn" data-no>${cancelLabel}</button><button class="btn primary" data-ok>${okLabel}</button></div>`);
+  openModal("확인", `<p>${msg}</p><div class="actions"><button class="btn pxb" data-no>${cancelLabel}</button><button class="btn pxb accent" data-ok>${okLabel}</button></div>`);
   modalCard.querySelector("[data-no]").onclick = () => closeModal(true);
   modalCard.querySelector("[data-ok]").onclick = () => { closeModal(false); onOk(); };
 }
@@ -203,12 +236,13 @@ function renderSelect(mode) {
   selMode = mode; selPick = mode === "change" ? S.pet : null;
   $("#scr-select .back").hidden = mode === "first";
   $("#sel-note").hidden = mode === "first";
-  $("#sel-bubble").textContent = mode === "first" ? "마음에 드는 친구를 눌러 봐!" : "누구랑 같이 공부할래?";
+  const st = $("#sel-text"); st.className = "bb pxp t-mid";
+  st.textContent = mode === "first" ? "마음에 드는 친구를 눌러 봐!" : "누구랑 같이 공부할래?";
   const row = $("#sel-row"); row.innerHTML = "";
   for (const id of CHAR_ORDER) {
     const c = CHARS[id], b = document.createElement("button");
-    b.className = "sel-card"; b.dataset.id = id;
-    b.style.setProperty("--c", c.color); b.style.setProperty("--c-soft", c.soft);
+    b.className = "sel-card pxb"; b.dataset.id = id;
+    b.style.setProperty("--c", c.color); b.style.setProperty("--c-soft", c.soft); b.style.setProperty("--c-deep", c.deep);
     b.innerHTML = `<canvas></canvas><span>${c.name}</span>`;
     b.setAttribute("aria-pressed", id === selPick);
     portrait(b.querySelector("canvas"), id, mode === "change", 44, 40);
@@ -221,7 +255,8 @@ function selectChar(id) {
   selPick = id;
   document.querySelectorAll(".sel-card").forEach(b => b.setAttribute("aria-pressed", b.dataset.id === id));
   const p = portraits.find(p => p.canvas.closest(".sel-card")?.dataset.id === id); if (p) p.happy = performance.now() + 900;
-  typeText($("#sel-bubble"), CHARS[id].intro);
+  const st = $("#sel-text"); st.className = "bb pxp " + tClass(CHARS[id].intro, id).replace("t-peak", "t-high");
+  typeText(st, CHARS[id].intro);
   updateSelInfo();
 }
 function updateSelInfo() {
@@ -229,7 +264,7 @@ function updateSelInfo() {
   if (!selPick) { info.hidden = true; $("#sel-ok").disabled = true; return; }
   const c = CHARS[selPick];
   info.hidden = false;
-  info.innerHTML = `<p>이름 : ${c.name}${selMode === "change" && S.chars[selPick] ? ` <span class="muted">(Lv.${lvOf(curExp(selPick))})</span>` : ""}</p><p>특징 : ${c.trait}</p>`;
+  info.innerHTML = `<p><b class="f-sm">이름</b>${c.name}${selMode === "change" && S.chars[selPick] ? ` <span class="f-num s muted">Lv.${lvOf(curExp(selPick))}</span>` : ""}</p><p><b class="f-sm">특징</b><span class="f-sm">${c.trait}</span></p>`;
   $("#sel-ok").disabled = selMode === "change" && selPick === S.pet;
 }
 $("#sel-ok").onclick = () => {
@@ -250,16 +285,15 @@ function setPet(id) {
 /* ---------- first-run study time setup (also editable in settings) ---------- */
 function askSetup(first) {
   const s = S.setup || { myMin: 120, goalMin: 180 };
-  openModal(`
-    ${first ? "" : X_BTN}
-    <span class="hl">나의 순공 시간?</span>
+  openModal("순공 시간", `
+    <p class="lbl-mark">나의 순공 시간?</p>
     <div class="time-in"><input class="field" inputmode="numeric" id="my-h" value="${Math.floor(s.myMin / 60)}">시간
-      <input class="field" inputmode="numeric" id="my-m" value="${s.myMin % 60}">분 <span class="muted">(하루)</span></div>
-    <span class="hl">목표 순공 시간?</span>
+      <input class="field" inputmode="numeric" id="my-m" value="${s.myMin % 60}">분 <span class="f-sm muted">하루</span></div>
+    <p class="lbl-mark">목표 순공 시간?</p>
     <div class="time-in"><input class="field" inputmode="numeric" id="goal-h" value="${Math.floor(s.goalMin / 60)}">시간
-      <input class="field" inputmode="numeric" id="goal-m" value="${s.goalMin % 60}">분 <span class="muted">(하루)</span></div>
-    <p class="warn">(단, 달성 가능한 시간으로 설정 부탁!)</p>
-    <button class="btn peach wide" id="setup-ok">확인</button>`, first ? "lock" : null);
+      <input class="field" inputmode="numeric" id="goal-m" value="${s.goalMin % 60}">분 <span class="f-sm muted">하루</span></div>
+    <p class="warn f-sm">(단, 달성 가능한 시간으로 설정 부탁!)</p>
+    <div class="actions"><button class="btn big pxb accent" id="setup-ok">확인</button></div>`, first ? "lock" : null, !first);
   $("#setup-ok").onclick = () => {
     const v = id => Math.max(0, parseInt($(id).value || "0", 10) || 0);
     const myMin = Math.min(1440, v("#my-h") * 60 + Math.min(59, v("#my-m")));
@@ -287,11 +321,11 @@ let startPick = null;
 function openStartModal() {
   startPick = null;
   const render = () => {
-    openModal(`${X_BTN}<h3>무슨 공부 할래?</h3>
-      <div class="chips">${S.subjects.map(s => `<button class="chip" data-id="${s.id}" style="--c:${s.color}" aria-pressed="${s.id === startPick}">${esc(s.name)}</button>`).join("")}</div>
-      <div class="row2"><input class="field" id="new-subj" maxlength="10" placeholder="과목 추가"><button class="btn" id="add-subj">추가</button></div>
-      <p class="hint">과목을 골라야 시작할 수 있어요.</p>
-      <div class="actions"><button class="btn primary big" id="go" ${startPick ? "" : "disabled"}>시작!</button></div>`);
+    openModal("무슨 공부 할래?", `
+      <div class="chips">${S.subjects.map(s => `<button class="chip pxb" data-id="${s.id}" style="--c:${s.color}" aria-pressed="${s.id === startPick}">${esc(s.name)}</button>`).join("")}</div>
+      <div class="row2"><input class="field" id="new-subj" maxlength="10" placeholder="과목 추가"><button class="btn pxb" id="add-subj">추가</button></div>
+      <p class="hint f-sm">과목을 골라야 시작할 수 있어요</p>
+      <div class="actions"><button class="btn big pxb mint" id="go" ${startPick ? "" : "disabled"}>${icon("play", "ico")}시작</button></div>`);
     modalCard.querySelectorAll(".chip").forEach(b => b.onclick = () => { startPick = b.dataset.id; render(); });
     const add = () => { const n = $("#new-subj").value.trim(); if (!n) return; const s = addSubject(n); startPick = s.id; render(); };
     $("#add-subj").onclick = add; $("#new-subj").onkeydown = e => { if (e.key === "Enter" && !e.isComposing) add(); };
@@ -315,17 +349,17 @@ function openEndModal() {
   const t = S.timer; if (!t.endAt) t.endAt = Date.now(); save();
   const sum = sessionSums(t), sb = subj(t.subjectId), todos = S.todos[todayKey()] || [];
   const gain = Math.max(0, Math.min(sum.exp, MAX_EXP - charState(t.pet).exp));
-  openModal(`${X_BTN}<h3>기록할까?</h3>
+  openModal("기록할까?", `
     <dl class="summary">
-      <dt>과목</dt><dd><span class="tag" style="--c:${sb.color}">${esc(sb.name)}</span></dd>
-      <dt>순공</dt><dd>${fmtDur(sum.study)}</dd>
-      <dt>휴식</dt><dd>${fmtDur(sum.rest)}</dd>
-      <dt>경험</dt><dd>+${Math.round(gain * 100)}% ${sum.burn ? '<span class="burn">버닝</span>' : ""}</dd>
+      <dt class="f-sm">과목</dt><dd><span class="tag f-sm" style="--c:${sb.color}">${esc(sb.name)}</span></dd>
+      <dt class="f-sm">순공</dt><dd class="f-num">${fmtTimer(sum.study)}</dd>
+      <dt class="f-sm">휴식</dt><dd class="f-num">${fmtTimer(sum.rest)}</dd>
+      <dt class="f-sm">경험치</dt><dd class="f-num">+${Math.round(gain * 100)}%${sum.burn ? ` ${icon("flame")}` : ""}</dd>
     </dl>
-    <span class="hl">무엇을 했어?</span>
+    <p class="lbl-mark">무엇을 했어?</p>
     <textarea class="field" id="end-note" maxlength="300" placeholder="${esc(CHARS[t.pet].note)}"></textarea>
-    ${todos.length ? `<p class="hint">끝낸 할 일을 체크해요</p><ul class="mini-todos">${todos.map(td => `<li><button data-id="${td.id}"><span class="chk ${td.done ? "on" : ""}"></span>${esc(td.text)}</button></li>`).join("")}</ul>` : ""}
-    <div class="actions"><button class="btn" id="end-drop">기록 안 할래</button><button class="btn primary" id="end-save">기록하기</button></div>`,
+    ${todos.length ? `<p class="hint f-sm">끝낸 할 일을 체크해요</p><ul class="mini-todos">${todos.map(td => `<li><button data-id="${td.id}"><span class="chk ${td.done ? "on" : ""}"></span>${esc(td.text)}</button></li>`).join("")}</ul>` : ""}
+    <div class="actions"><button class="btn pxb" id="end-drop">안 할래</button><button class="btn pxb accent" id="end-save">기록하기</button></div>`,
     () => { t.endAt = null; save(); });      // closed: keep going
   modalCard.querySelectorAll(".mini-todos button").forEach(b => b.onclick = () => {
     const td = todos.find(x => x.id === b.dataset.id); if (!td) return;
@@ -333,7 +367,7 @@ function openEndModal() {
   });
   $("#end-save").onclick = () => { const note = $("#end-note").value.trim(); closeModal(false); finishSession(true, note); };
   $("#end-drop").onclick = () => {
-    confirmBox("기록하지 않으면 이번 공부 시간과 경험치가 사라져요. 괜찮아?", "기록 안 할래", () => finishSession(false, ""), "돌아가기");
+    confirmBox("기록하지 않으면 이번 공부 시간과 경험치가 사라져요. 괜찮아?", "안 할래", () => finishSession(false, ""), "돌아가기");
     modalClose = () => { if (S.timer) openEndModal(); };      // back to the end card
   };
 }
@@ -353,11 +387,13 @@ function finishSession(keep, note) {
 function syncControls() {
   const st = timerState();
   btnStart.classList.toggle("running", st !== "idle");
-  btnStart.querySelector(".ctl-main").textContent = st === "idle" ? "시작" : subj(S.timer.subjectId).name;
+  btnStart.querySelector(".lbl").textContent = st === "idle" ? "시작" : subj(S.timer.subjectId).name;
   btnStart.querySelector(".dot-rec").hidden = st !== "run";
+  btnStart.querySelector(".ico").hidden = st !== "idle";
   btnRest.disabled = st === "idle"; btnEnd.disabled = st === "idle";
   btnRest.classList.toggle("resting", st === "rest");
-  btnRest.querySelector(".ctl-main").textContent = st === "rest" ? "다시" : "휴식";
+  btnRest.querySelector(".lbl").textContent = st === "rest" ? "다시" : "휴식";
+  paintIcon(btnRest.querySelector(".ico"), st === "rest" ? "play" : "pause");
   G.studying = st === "run";
   petSetSleep(st === "rest");
 }
@@ -368,17 +404,17 @@ function updateHud() {
   const e = curExp(), lv = lvOf(e), frac = lv >= LEVEL.max ? 1 : e - Math.floor(e);
   const burning = isBurning(Date.now());
   $("#hud-lv").textContent = `Lv.${lv}`;
-  $("#hud-bar").style.width = Math.round(frac * $("#hud .bar").clientWidth) + "px";
+  $("#hud-bar").style.width = Math.round(frac * 130) + "px";
   $("#hud-burn").hidden = !burning;
   const bar = $("#hud .bar"); bar.classList.toggle("burning", burning); bar.classList.toggle("max", lv >= LEVEL.max);
-  $("#hud-next").textContent = lv >= LEVEL.max ? "MAX" : `${Math.ceil((1 - frac) * (burning ? LEVEL.burnMin : LEVEL.normalMin))}분 남음`;
+  $("#hud-next").textContent = lv >= LEVEL.max ? "MAX" : `다음 레벨까지 ${Math.ceil((1 - frac) * (burning ? LEVEL.burnMin : LEVEL.normalMin))}분`;
   const cs = charState(S.pet);
   if (lv > (cs.shownLv || 1)) {
     const fresh = ITEM_LIST[S.pet].filter(([need]) => need > (cs.shownLv || 1) && need <= lv);
     fresh.forEach(([, id]) => cs.equip[id] = true);
     cs.shownLv = lv; save();
     petCelebrate(); say(CHARS[S.pet].levelup, 3500);
-    toast(fresh.length ? `Lv.${lv} 달성! 새 아이템: ${fresh.map(f => f[2]).join(", ")}` : `Lv.${lv} 달성!`, 3600);
+    toast(fresh.length ? `새 아이템: ${fresh.map(f => f[2]).join(", ")}` : `Lv.${lv} 달성!`, 3800, `LEVEL UP! Lv.${lv}`);
   } else if (lv < (cs.shownLv || 1)) { cs.shownLv = lv; save(); }
   G.equip = equipOf(S.pet);
   // 치카 gets gloomy when today's plan is falling apart (late and much left undone)
@@ -398,7 +434,7 @@ function signInfo() {
 const side = $("#sidetab");
 function setSide(open) {
   side.classList.toggle("open", open); S.sideOpen = open; save();
-  paintIcon($("#tab-toggle canvas"), open ? ARROW.open : ARROW.closed);
+  paintIcon($("#tab-toggle canvas"), open ? "open" : "closed");
 }
 $("#tab-toggle").onclick = () => setSide(!side.classList.contains("open"));
 $("#tab-stats").onclick = () => { statsDay = todayKey(); renderStats(); openScreen("scr-stats"); };
@@ -445,8 +481,8 @@ function drawDonut(canvas, parts, label, sub) {
   canvas.dataset.label = label; canvas.dataset.sub = sub || "";
 }
 function donutBox(id, title, label, sub) {
-  return `<div><h4>${title}</h4><div class="donut-wrap" style="position:relative;width:64px;height:64px;margin:0 auto">
-    <canvas id="${id}"></canvas><div style="position:absolute;left:0;right:0;top:${sub ? 19 : 25}px;text-align:center"><div class="num">${esc(label)}</div>${sub ? `<div class="muted">${sub}</div>` : ""}</div></div></div>`;
+  return `<div><h4 class="f-sm">${title}</h4><div class="dn"><canvas id="${id}"></canvas>
+    <div class="dn-l"><span class="f-num">${esc(label)}</span>${sub ? `<span class="f-sm muted">${sub}</span>` : ""}</div></div></div>`;
 }
 function renderStats() {
   const day = parseKey(statsDay), a = day.getTime(), b = a + 86400000;
@@ -465,30 +501,31 @@ function renderStats() {
   const ratio = (s, r) => s + r ? Math.round(s / (s + r) * 100) + "%" : "-";
   $("#stats-body").innerHTML = `
     <div class="date-nav">
-      <button class="ibtn" id="d-prev" aria-label="이전 날">&lt;</button>
-      <label class="date-chip">${day.getFullYear()}.${pad(day.getMonth() + 1)}.${pad(day.getDate())}<input type="date" id="d-pick" value="${statsDay}" max="${todayKey()}"></label>
-      <button class="ibtn" id="d-next" aria-label="다음 날" ${isToday ? "disabled" : ""}>&gt;</button>
+      <button class="ibtn pxb" id="d-prev" aria-label="이전 날">${icon("back")}</button>
+      <label class="date-chip pxb f-num s">${day.getFullYear()}.${pad(day.getMonth() + 1)}.${pad(day.getDate())}<input type="date" id="d-pick" value="${statsDay}" max="${todayKey()}"></label>
+      <button class="ibtn pxb" id="d-next" aria-label="다음 날" ${isToday ? "disabled" : ""}>${icon("next")}</button>
     </div>
-    <div class="card" id="day-card">
+    <div class="card pxp" id="day-card">
       <div class="donuts">
         ${donutBox("dn-subj", "하루 과목", study ? hm(study) : "-", study ? "순공" : "")}
-        ${donutBox("dn-day", "공부&휴식", ratio(study, rest), study + rest ? "공부" : "")}
+        ${donutBox("dn-day", "공부 & 휴식", ratio(study, rest), study + rest ? "공부" : "")}
       </div>
-      <ul class="legend">${parts.map(p => `<li><span class="sw" style="--c:${p.c}"></span>${esc(p.n)}<b>${fmtDur(p.v)}</b></li>`).join("") || '<li class="muted">기록이 없어요. 밀어서 다른 날 보기</li>'}
+      <ul class="legend f-sm">${parts.map(p => `<li><span class="sw" style="--c:${p.c}"></span>${esc(p.n)}<b>${fmtDur(p.v)}</b></li>`).join("") || '<li class="muted t-low">이 날은 기록이 없어요… 옆으로 밀면 다른 날</li>'}
         ${rest ? `<li><span class="sw" style="--c:#b9b4c9"></span>휴식<b>${fmtDur(rest)}</b></li>` : ""}</ul>
     </div>
-    ${goal ? `<div class="card"><h3>목표 <span class="muted">(임시)</span></h3>
-      <div>${fmtDur(goal)} 중 ${fmtDur(study)} <span class="muted">${pct}%</span></div><div class="goal-bar"><i style="width:${pct}%"></i></div></div>` : ""}
-    <div class="card">
+    ${goal ? `<div class="card pxp"><div class="card-t">목표 순공<span class="f-amb muted">임시</span></div>
+      <div class="f-sm">${fmtDur(goal)} 중 ${fmtDur(study)} <span class="f-num s">${pct}%</span></div><div class="goal-bar"><i style="width:${pct}%"></i></div></div>` : ""}
+    <div class="card pxp">
       <div class="donuts">
-        <div style="text-align:left"><h4>총 공부 시간</h4><div class="big" style="margin:8px 0 6px">${hm(totStudy)}</div><p class="muted">(공부 시간만)</p></div>
-        ${donutBox("dn-all", "공부&휴식", ratio(totStudy, totRest), totStudy + totRest ? "공부" : "")}
+        <div style="text-align:left"><div class="card-t">총 공부 시간</div><div class="f-num" style="margin:6px 0 2px">${hm(totStudy)}</div><p class="f-sm muted">공부 시간만</p></div>
+        ${donutBox("dn-all", "공부 & 휴식", ratio(totStudy, totRest), totStudy + totRest ? "공부" : "")}
       </div>
     </div>
-    ${daySess.length ? `<div class="card"><h3>이 날의 기록</h3><ul class="sess">${daySess.map(s => {
+    ${daySess.length ? `<div class="card pxp"><div class="card-t">이 날의 기록</div><ul class="sess f-sm">${daySess.map(s => {
       const sb = subj(s.subjectId), st = new Date(s.segs[0].a), en = new Date(s.segs[s.segs.length - 1].b ?? Date.now());
-      return `<li><span class="tag" style="--c:${sb.color}">${esc(sb.name)}</span> ${fmtHM(st)}~${s.live ? "지금" : fmtHM(en)}<br><span class="muted">순공 ${fmtDur(clipSum(s.segs, 0, 9e15, "s"))} · ${CHARS[s.pet] ? CHARS[s.pet].name : ""}</span>
+      return `<li><span class="tag" style="--c:${sb.color}">${esc(sb.name)}</span> <span class="f-num s">${fmtHM(st)}~${s.live ? "" : fmtHM(en)}</span>${s.live ? "지금" : ""}<br><span class="muted">순공 ${fmtDur(clipSum(s.segs, 0, 9e15, "s"))} · ${CHARS[s.pet] ? CHARS[s.pet].name : ""}</span>
         ${s.note ? `<div class="note">${esc(s.note)}</div>` : ""}</li>`; }).join("")}</ul></div>` : ""}`;
+  paintIcons($("#stats-body"));
   drawDonut($("#dn-subj"), parts.map(p => ({ v: p.v, c: p.c })));
   drawDonut($("#dn-day"), [{ v: study, c: "#ffe58a" }, { v: rest, c: "#b9b4c9" }]);
   drawDonut($("#dn-all"), [{ v: totStudy, c: "#ffe58a" }, { v: totRest, c: "#b9b4c9" }]);
@@ -506,21 +543,23 @@ let todoEdit = false, todoAdding = false;
 function todayTodos() { const k = todayKey(); return S.todos[k] || (S.todos[k] = []); }
 function renderTodo() {
   const list = todayTodos(), c = CHARS[S.pet], allDone = list.length && list.every(t => t.done);
+  const line = allDone ? c.todoDone : c.todo;
   $("#todo-body").innerHTML = `
-    <div class="card todo-hero">
+    <div class="card pxp todo-hero">
       <canvas></canvas>
-      <div><h3>오늘 할 일 <button class="ibtn plus" id="todo-plus" aria-label="할 일 추가">+</button></h3><p>${esc(allDone ? c.todoDone : c.todo)}</p></div>
+      <div><div class="card-t">오늘 할 일 <button class="ibtn pxb accent" id="todo-plus" aria-label="할 일 추가">${icon("plus")}</button></div><p class="${tClass(line, S.pet).replace("t-peak", "t-high")}">${esc(line)}</p></div>
     </div>
-    ${todoAdding ? `<div class="card"><span class="hl">할 일</span><div class="row2"><input class="field" id="todo-in" maxlength="40" placeholder="예) 수학 문제집 3쪽"><button class="btn primary" id="todo-add">추가</button></div></div>` : ""}
-    <div class="todo-tools"><span>${list.filter(t => t.done).length} / ${list.length} 완료</span>
-      ${list.length ? `<button class="btn" id="todo-edit">${todoEdit ? "완료" : "수정"}</button>` : ""}</div>
+    ${todoAdding ? `<div class="card pxp"><p class="lbl-mark">할 일</p><div class="row2"><input class="field" id="todo-in" maxlength="40" placeholder="예) 수학 문제집 3쪽"><button class="btn pxb accent" id="todo-add">추가</button></div></div>` : ""}
+    <div class="todo-tools f-sm"><span><span class="f-num s">${list.filter(t => t.done).length}/${list.length}</span> 완료</span>
+      ${list.length ? `<button class="btn pxb" id="todo-edit">${todoEdit ? "완료" : "수정"}</button>` : ""}</div>
     <ul class="todo-list" id="todo-list">${list.map(t => `
-      <li data-id="${t.id}" class="${t.done ? "done" : ""}">
+      <li data-id="${t.id}" class="pxp ${t.done ? "done" : ""}">
         ${todoEdit ? "" : `<button class="chk ${t.done ? "on" : ""}" aria-label="완료 표시"></button>`}
         ${todoEdit ? `<input class="t" value="${esc(t.text)}" maxlength="40" aria-label="할 일 고치기">` : `<span class="t">${esc(t.text)}</span>`}
-        ${todoEdit ? `<button class="del" aria-label="지우기">x</button><button class="grip" aria-label="끌어서 순서 바꾸기">=</button>` : ""}
+        ${todoEdit ? `<button class="del" aria-label="지우기">${icon("x")}</button><button class="grip" aria-label="끌어서 순서 바꾸기">${icon("grip")}</button>` : ""}
       </li>`).join("")}</ul>
-    ${list.length ? "" : '<p class="empty">+ 를 눌러서 오늘 할 일을 적어 봐요</p>'}`;
+    ${list.length ? "" : '<p class="empty t-low">+ 를 눌러서 오늘 할 일을 적어 봐요…</p>'}`;
+  paintIcons($("#todo-body"));
   portrait($("#todo-body .todo-hero canvas"), S.pet, true);
   $("#todo-plus").onclick = () => { todoAdding = !todoAdding; renderTodo(); if (todoAdding) $("#todo-in").focus(); };
   if (todoAdding) {
@@ -562,15 +601,17 @@ function dragTodo(e, li, list) {
 /* ---------- settings ---------- */
 function renderSettings() {
   const c = CHARS[S.pet], lv = lvOf(curExp());
+  const row = (go, hl, label, extra = "") => `<button class="row pxb" data-go="${go}" style="--hl:${hl}"><span class="mk"></span><span class="grow">${label}</span>${extra}${icon("next")}</button>`;
   $("#settings-body").innerHTML = `
-    <div class="card set-pic"><canvas></canvas><div><h3>${c.name} <span class="num muted">Lv.${lv}</span></h3><p>${esc(c.trait)}</p></div></div>
+    <div class="set-pic pxp"><canvas></canvas><div><div class="card-t">${c.name} <span class="f-num s muted">Lv.${lv}</span></div><p class="f-sm">${esc(c.trait)}</p></div></div>
     <div class="rows">
-      <button class="row" data-go="tutorial" style="--hl:#ffd6e0">튜토리얼 <span>&gt;</span></button>
-      <button class="row" data-go="change" style="--hl:#cfe3ff">캐릭터 변경 <span>&gt;</span></button>
-      <button class="row" data-go="inventory" style="--hl:#ffe3a8">인벤토리 <span>&gt;</span></button>
-      <button class="row" data-go="goal" style="--hl:#d4f0c8">목표 순공 시간 <small>${S.setup ? fmtDur(S.setup.goalMin * 60000) : ""}</small><span>&gt;</span></button>
-      <button class="row" data-go="subjects" style="--hl:#e6d9ff">과목 관리 <span>&gt;</span></button>
+      ${row("tutorial", "#ffb3c7", "튜토리얼")}
+      ${row("change", "#9fd3f5", "캐릭터 변경")}
+      ${row("inventory", "#ffd96b", "인벤토리")}
+      ${row("goal", "#b6ecae", "목표 순공 시간", `<span class="f-sm muted">${S.setup ? fmtDur(S.setup.goalMin * 60000) : ""}</span>`)}
+      ${row("subjects", "#d9cdff", "과목 관리")}
     </div>`;
+  paintIcons($("#settings-body"));
   portrait($("#settings-body .set-pic canvas"), S.pet, true);
   document.querySelectorAll("#settings-body .row").forEach(r => r.onclick = () => {
     const g = r.dataset.go;
@@ -583,10 +624,10 @@ function renderSettings() {
 }
 function openSubjects() {
   const render = () => {
-    openModal(`${X_BTN}<h3>과목 관리</h3>
-      <ul class="subj-list">${S.subjects.map(s => `<li><span class="sw" style="--c:${s.color}"></span><span>${esc(s.name)}</span><button class="btn" data-del="${s.id}">지우기</button></li>`).join("")}</ul>
-      <div class="row2"><input class="field" id="new-subj" maxlength="10" placeholder="새 과목"><button class="btn primary" id="add-subj">추가</button></div>
-      <p class="hint">지운 과목의 기록은 통계에 남아요.</p>`);
+    openModal("과목 관리", `
+      <ul class="subj-list">${S.subjects.map(s => `<li><span class="sw" style="--c:${s.color}"></span><span class="grow">${esc(s.name)}</span><button class="btn pxb f-sm" data-del="${s.id}">지우기</button></li>`).join("")}</ul>
+      <div class="row2"><input class="field" id="new-subj" maxlength="10" placeholder="새 과목"><button class="btn pxb accent" id="add-subj">추가</button></div>
+      <p class="hint f-sm">지운 과목의 기록은 통계에 남아요</p>`);
     modalCard.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
       if (S.timer && S.timer.subjectId === b.dataset.del) { toast("지금 공부 중인 과목이에요"); return; }
       const s = S.subjects.find(x => x.id === b.dataset.del);
@@ -600,33 +641,33 @@ function openSubjects() {
 
 function renderTutorialPage() {
   $("#tutorial-body").innerHTML = `
-    <div class="card"><ol class="steps">
+    <div class="card pxp"><ol class="steps f-sm">
       <li>1시간마다 캐릭터가 레벨 업을 해요!</li>
       <li>버닝 시간은 18시~0시로, 이때는 레벨 업이 더 빨라요! (50분에 1레벨)</li>
       <li>캐릭터당 최대 레벨은 10레벨이에요!</li>
       <li>아이템은 탈부착이 가능해요! (설정의 인벤토리)</li>
       <li>시작을 누르면 타이머가 작동되고, 끝을 누르면 타이머가 멈추는 동시에 자신이 무엇을 했는지 작성해요!</li>
     </ol></div>
-    <button class="btn primary big wide" id="tut-again">다시 보기</button>`;
+    <button class="btn big wide pxb accent" id="tut-again">다시 보기</button>`;
   $("#tut-again").onclick = () => { screenStack.slice().forEach(closeScreen); setTimeout(startCoach, 300); };
 }
 
 function renderInventory() {
   const lv = lvOf(curExp()), cs = charState(S.pet);
   $("#inventory-body").innerHTML = `
-    <div class="inv-preview"><canvas></canvas></div>
+    <div class="inv-preview pxp"><canvas></canvas></div>
     <div class="slots">${ITEM_LIST[S.pet].map(([need, id, name]) => {
       const open = lv >= need;
-      return `<button class="slot ${open ? (cs.equip[id] ? "on" : "") : "locked"}" data-id="${id}" ${open ? "" : "disabled"}>
-        ${open ? "<canvas></canvas>" : '<span class="q">?</span>'}<span class="nm">${open ? esc(name) : `Lv.${need}`}</span></button>`;
+      return `<button class="slot pxb ${open && cs.equip[id] ? "on" : ""}" data-id="${id}" ${open ? "" : "disabled"}>
+        ${open ? "<canvas></canvas>" : '<span class="q f-num">?</span>'}<span class="f-sm">${open ? esc(name) : `Lv.${need}`}</span></button>`;
     }).join("")}</div>
-    <p class="hint" style="text-align:center;margin-top:8px">누르면 붙였다 뗐다 할 수 있어요</p>`;
+    <p class="hint t-low" style="text-align:center;margin-top:7px">누르면 붙였다 뗐다 할 수 있어요…</p>`;
   portrait($("#inventory-body .inv-preview canvas"), S.pet, true, 166, 64, miniWorld);
   document.querySelectorAll("#inventory-body .slot").forEach(b => {
     const id = b.dataset.id, cv = b.querySelector("canvas");
     if (cv) {
       const it = itemImg(S.pet, id); cv.width = 34; cv.height = 30;
-      const g = cv.getContext("2d"), kk = it.img.width > 34 || it.img.height > 30 ? 0.5 : 1;   // big items shown at half size, still whole pixels
+      const g = cv.getContext("2d"), kk = it.img.width > 34 || it.img.height > 30 ? 0.5 : 1;   // big items shown at half size
       g.imageSmoothingEnabled = false;
       const w = Math.round(it.img.width * kk), h = Math.round(it.img.height * kk);
       g.drawImage(it.img, (34 - w) >> 1, (30 - h) >> 1, w, h);
@@ -650,7 +691,7 @@ function nextCoach() {
   const st = TUTORIAL[coachStep];
   card.classList.remove("fly"); card.style.transform = "";
   card.querySelector("p").textContent = st.text;
-  card.querySelector("small").textContent = coachStep === TUTORIAL.length - 1 ? "눌러서 시작하기 >" : "눌러서 계속 >";
+  card.querySelector("small").textContent = coachStep === TUTORIAL.length - 1 ? "눌러서 시작하기" : "눌러서 계속";
   if (st.target) { coachTarget = $(st.target); coachTarget.classList.add("coach-target"); }
   placeCoachCard();
   if (st.fly) card.dataset.fly = "1"; else delete card.dataset.fly;
@@ -710,7 +751,7 @@ function loop(now) {
     }
     const ws = sceneSpeech(now);
     worldBubble.hidden = !ws;
-    if (ws) { if (worldBubble.textContent !== ws.text) worldBubble.textContent = ws.text; placeBubble(worldBubble, ws.x, ws.y); }
+    if (ws) { const bb = worldBubble.firstElementChild; if (bb.textContent !== ws.text) bb.textContent = ws.text; placeBubble(worldBubble, ws.x, ws.y); }
     if (coachStep >= 0) placeCoachCard();
     // cheers now and then
     if (S.pet && coachStep < 0 && modal.hidden) {

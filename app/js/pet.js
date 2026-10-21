@@ -552,7 +552,7 @@ function petUpdate(now, dt) {
     else if (G.pet === "mochi" && r < (G.lowMood ? 0.4 : 0.08)) startAct("gloom", now);   // 치카 gets gloomy when her plan falls apart
     else if (G.pet === "mochi" && r < 0.3) startAct("wave", now);
     else if (G.pet === "mochi" && r < 0.45 && startDash(now)) {}
-    else if (r < 0.7) { pet.act = "walk"; pet.target = 50 + Math.random() * 82; }
+    else if (r < 0.7) { pet.act = "walk"; pet.target = 36 + Math.random() * 108; }
   }
   if (press && !press.grabbed && press.canGrab && now - press.t0 > GRAB_HOLD) grab(now);
   if (pet.act === "held" && press) {
