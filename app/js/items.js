@@ -57,32 +57,34 @@ function headHat(p, main, rib) {
   }, false);
 }
 // Lv10 weapons, held in both hands across the belly like the plush toys and the anime.
-// 치카 and 하와: a long-handled two-pronged fork (a weeding fork): the prongs curve apart into a U and have dark teeth
-// on their inner side. It is held slanting up towards the way she faces, her two little hands on the handle.
-const FORK_HEAD = [
-  ".....MMMMMMM",
-  "...MMLLLLLLM",
-  "..ML..D...D.",
-  ".ML.........",
-  ".M..........",
-  "ML..........",
-  "M...........",
-  "ML..........",
-  ".M..........",
-  ".ML.........",
-  "..ML..D...D.",
-  "...MMLLLLLLM",
-  ".....MMMMMMM",
-];
+// 치카 and 하와: a long-handled two-pronged fork (a weeding fork). The prongs spread from the handle, run forward and
+// flick outward at the tips, with little dark thorns along both their outer and inner edges. It is held slanting up
+// towards the way she faces, her two little hands on the handle.
+const PRONG = [[0, 0], [1, -1], [2, -2], [3, -3], [4, -4], [5, -4], [6, -5], [7, -5], [8, -5], [9, -5], [10, -5], [11, -6], [12, -7]];
 const HAND = [".KKK.", "KWWWK", "KWWWK", ".KKK."];
 function fork(p, main, light) {
-  const y = ANCHOR[p].arm, x0 = -6, x1 = 27, y0 = y + 4, y1 = y - 3;
+  const y = ANCHOR[p].arm, x0 = -6, x1 = 26, y0 = y + 4, y1 = y - 3;
   const at = x => Math.round(y0 + (x - x0) * (y1 - y0) / (x1 - x0));
   return pixmap(d => {
-    for (let x = x0; x <= x1; x++) { d.put(x, at(x), light); d.put(x, at(x) + 1, main); }   // the handle, lit along its top
-    d.grid(FORK_HEAD, { M: main, L: light, D: OUT }, x1 + 1, y1 - 6);
-    for (const hx of [4, 17]) d.grid(HAND, { K: OUT, W: "#fffaf0" }, hx - 2, at(hx) - 1);   // her hands round the handle
-  });
+    const body = new Map(), put = (x, y, c) => body.set(x + "," + y, c);
+    for (let x = x0; x <= x1; x++) { put(x, at(x), light); put(x, at(x) + 1, main); }   // the handle, lit along its top
+    const hx = x1 + 1, hy = y1;
+    put(hx, hy, main); put(hx, hy + 1, main);
+    const thorns = [];
+    for (const s of [-1, 1]) PRONG.forEach(([px, py], i) => {          // s = -1: the upper prong, 1: the lower (mirrored)
+      const yy = hy + (s < 0 ? py : 1 - py);
+      put(hx + px, yy, main); put(hx + px, yy + s, light);              // two thick, lit on the outside
+      if (i === 3 || i === 7 || i === 10) thorns.push([hx + px, yy + 3 * s]);   // outer thorns
+      if (i === 5 || i === 9) thorns.push([hx + px, yy - 2 * s]);            // inner thorns
+    });
+    for (const [k, c] of body) { const [x, y] = k.split(",").map(Number); d.put(x, y, c); }
+    for (const k of body.keys()) {                                       // outline round it all
+      const [x, y] = k.split(",").map(Number);
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!body.has((x + dx) + "," + (y + dy))) d.put(x + dx, y + dy, OUT);
+    }
+    for (const [x, y] of thorns) d.put(x, y, OUT);
+    for (const hx2 of [4, 17]) d.grid(HAND, { K: OUT, W: "#fffaf0" }, hx2 - 2, at(hx2) - 1);   // her hands round the handle
+  }, false);
 }
 
 // 욱: a long yellow staff with white caps at both ends, tilted a little, with the rabbit she doodled on it (a dark speck)
