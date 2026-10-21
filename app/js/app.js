@@ -107,6 +107,9 @@ const ICONS = {
   play: ["K......", "KKK....", "KKKKK..", "KKKKKKK", "KKKKK..", "KKK....", "K......"],
   pause: ["KK.KK", "KK.KK", "KK.KK", "KK.KK", "KK.KK", "KK.KK", "KK.KK"],
   stop: ["KKKKKKK", "KKKKKKK", "KKKKKKK", "KKKKKKK", "KKKKKKK", "KKKKKKK", "KKKKKKK"],
+  play5: ["K....", "KKK..", "KKKKK", "KKK..", "K...."],
+  pause5: ["KK.KK", "KK.KK", "KK.KK", "KK.KK", "KK.KK"],
+  stop5: ["KKKKK", "KKKKK", "KKKKK", "KKKKK", "KKKKK"],
   flame: ["..O..", ".OO..", ".OYO.", "OYYO.", "OYWYO", "OYWYO", ".OOO."],
 };
 const IPAL_UI = { K: OUT, W: "#fffdf6", R: "#ff9db4", G: "#c9d1e0", O: "#ff7a4d", Y: "#ffd25e" };
@@ -120,6 +123,19 @@ function paintIcon(canvas, name) {
 }
 const paintIcons = root => root.querySelectorAll("canvas[data-icon]").forEach(c => paintIcon(c, c.dataset.icon));
 const icon = (name, cls = "") => `<canvas data-icon="${name}" class="${cls}"></canvas>`;
+// rich text for explanations: {start} {rest} {end} become the real keys in miniature, {stats} {todo} {settings} the tab icons
+const KEYS = { start: ["mint", "play5", "시작"], rest: ["lilac", "pause5", "휴식"], end: ["peach", "stop5", "끝"] };
+const NUM_COLORS = ["#ffb3c7", "#9fd3f5", "#ffd96b", "#b6ecae", "#d9cdff"];
+function rich(textStr) {
+  return esc(textStr).replace(/\{(\w+)\}(\S*)(?: (\S+))?/g, (m, k, tail, word) => {
+    // a key or icon stays on one line with the word that belongs to it ("[시작]을", "[설정] 설정의")
+    const keep = s => `<span style="white-space:nowrap">${s}${tail}${word && !KEYS[k] ? " " + word : ""}</span>${word && KEYS[k] ? " " + word : ""}`;
+    if (KEYS[k]) return keep(`<span class="kbd pxb ${KEYS[k][0]}">${icon(KEYS[k][1])}${KEYS[k][2]}</span>`);
+    if (["stats", "todo", "settings"].includes(k)) return keep(`<span class="tabi pxb soft"><canvas data-icon="tab-${k}"></canvas></span>`);
+    return m;
+  });
+}
+const numBadge = n => `<span class="nb f-num s" style="--face:${NUM_COLORS[(n - 1) % NUM_COLORS.length]}">${n}</span>`;
 for (const id of ["tab-stats", "tab-todo", "tab-settings"]) { const c = $("#" + id + " canvas"); c.dataset.fixed = 1; paintIcon(c, id); }
 paintIcons(document);
 paintIcon($("#hud-burn"), "flame");
@@ -227,8 +243,11 @@ function confirmBox(msg, okLabel, onOk, cancelLabel = "취소") {
 /* ---------- character select (first time and "캐릭터 변경") ---------- */
 let selMode = "first", selPick = null, typer = 0;
 function typeText(el, s) {
-  clearInterval(typer); el.textContent = ""; let i = 0;
-  typer = setInterval(() => { el.textContent = s.slice(0, ++i); if (i >= s.length) clearInterval(typer); }, 30);
+  clearInterval(typer);
+  const shown = document.createElement("span"), rest = document.createElement("span");
+  rest.style.visibility = "hidden"; el.replaceChildren(shown, rest);
+  let i = 1; shown.textContent = s.slice(0, i); rest.textContent = s.slice(i);     // the bubble has its full size from the start
+  typer = setInterval(() => { i++; shown.textContent = s.slice(0, i); rest.textContent = s.slice(i); if (i >= s.length) clearInterval(typer); }, 30);
 }
 function renderSelect(mode) {
   selMode = mode; selPick = mode === "change" ? S.pet : null;
@@ -647,14 +666,9 @@ function openSubjects() {
 
 function renderTutorialPage() {
   $("#tutorial-body").innerHTML = `
-    <div class="card pxp"><ol class="steps f-sm">
-      <li>1시간마다 캐릭터가 레벨 업을 해요!</li>
-      <li>버닝 시간은 18시~0시로, 이때는 레벨 업이 더 빨라요! (50분에 1레벨)</li>
-      <li>캐릭터당 최대 레벨은 10레벨이에요!</li>
-      <li>아이템은 탈부착이 가능해요! (설정의 인벤토리)</li>
-      <li>시작을 누르면 타이머가 작동되고, 끝을 누르면 타이머가 멈추는 동시에 자신이 무엇을 했는지 작성해요!</li>
-    </ol></div>
+    <div class="card pxp"><ol class="steps">${TUTORIAL_STEPS.map((t, i) => `<li>${numBadge(i + 1)}<span>${rich(t)}</span></li>`).join("")}</ol></div>
     <button class="btn big wide pxb accent" id="tut-again">다시 보기</button>`;
+  paintIcons($("#tutorial-body"));
   $("#tut-again").onclick = () => { screenStack.slice().forEach(closeScreen); setTimeout(startCoach, 300); };
 }
 
@@ -698,7 +712,8 @@ function nextCoach() {
   if (coachStep >= TUTORIAL.length) return endCoach();
   const st = TUTORIAL[coachStep];
   card.classList.remove("fly"); card.style.transform = "";
-  card.querySelector("p").textContent = st.text;
+  const p = card.querySelector("p");
+  p.innerHTML = (st.num ? numBadge(st.num) + " " : "") + rich(st.text); paintIcons(p);
   card.querySelector("small").textContent = coachStep === TUTORIAL.length - 1 ? "눌러서 시작하기" : "눌러서 계속";
   if (st.target) { coachTarget = $(st.target); coachTarget.classList.add("coach-target"); }
   placeCoachCard();

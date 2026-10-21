@@ -243,10 +243,20 @@ textarea.field { height: 38px; resize: none; display: block; padding: 1px 3px; }
 .row .grow { flex: 1; text-align: left; }
 
 /* tutorial page */
-.steps { list-style: none; counter-reset: s; display: grid; gap: 4px; }
-.steps li { counter-increment: s; display: flex; gap: 5px; word-break: keep-all; }
-.steps li::before { content: counter(s); flex: none; width: 9px; height: 9px; margin-top: 1px; background: var(--accent); border: 1px solid var(--ink);
-  font: calc(12 * var(--px)) / 9px "PFSX", sans-serif; text-align: center; }
+.steps { list-style: none; display: grid; gap: 6px; padding: 2px 0; }
+.steps li { display: flex; gap: 5px; align-items: flex-start; line-height: calc(26 * var(--px)); }
+.steps li .nb { margin-top: 1px; }
+
+/* explanations: the real keys in miniature, tab icons, numbered badges */
+.kbd { height: 11px; padding: 0 3px 1px; gap: 2px; vertical-align: -2px; font: calc(12 * var(--px)) / 1 "PFS", "PF", sans-serif; margin: 0 1px; }
+.kbd canvas { width: 5px; height: 5px; }
+.tabi { width: 13px; height: 13px; vertical-align: -3px; margin: 0 1px; padding: 0; }
+.tabi canvas { width: 11px; height: 11px; }
+.nb { display: inline-flex; align-items: center; justify-content: center; width: 11px; height: 11px; flex: none; vertical-align: -2px;
+  border: 1px solid var(--ink); clip-path: polygon(1px 0, calc(100% - 1px) 0, 100% 1px, 100% calc(100% - 1px), calc(100% - 1px) 100%, 1px 100%, 0 calc(100% - 1px), 0 1px);
+  background: linear-gradient(rgba(255,255,255,.7), rgba(255,255,255,.7)) left 1px top 0 / calc(100% - 2px) 1px no-repeat padding-box,
+    linear-gradient(rgba(58,42,26,.18), rgba(58,42,26,.18)) left 0 bottom 0 / 100% 1px no-repeat padding-box, var(--face); }
+.coach-card p { line-height: calc(26 * var(--px)); }
 
 /* inventory */
 .inv-preview { padding: 1px; margin-bottom: 7px; --sh: transparent; }
