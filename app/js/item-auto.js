@@ -262,7 +262,7 @@ function autoPajama(grid, pet) {
 }
 
 // 하와's Lv2 look: her bangs restyled, not a hat. Her blue hair comes down to just above her eyes in one straight edge,
-// with a little point of hair in the middle (like the anime), over her own sprite on every frame where she faces us
+// with a little notch rising to a point in the middle (like the anime), over her own sprite on every frame where she faces us
 const BANGS = { sora: "#9fd3f5" };
 function autoBangs(grid, pet) {
   const col = BANGS[pet], f = faceOf(grid);
@@ -271,10 +271,11 @@ function autoBangs(grid, pet) {
   const edge = (x, y) => at(x - 1, y) === "B" || at(x + 1, y) === "B" || at(x, y - 1) === "B" || at(x, y + 1) === "B";
   const hy = Math.round(f.cy - 7), cx = Math.floor(f.cx - 0.5);                      // the new hairline, just above her eyes
   let y0 = 0; while (y0 < h && !/S/.test(grid[y0])) y0++;                            // where her hair starts
-  for (let y = y0; y <= hy + 2; y++) for (let x = 0; x < w; x++) {
+  for (let y = y0; y <= hy + 1; y++) for (let x = 0; x < w; x++) {
     const c = at(x, y); if (c === "B" || (c === "K" && edge(x, y))) continue;        // her outline stays
-    const line = y === hy + 1 + (x === cx || x === cx + 1 ? 1 : 0);                 // the edge, dipping to a point in the middle
-    const hair = y <= hy || (y === hy + 1 && (x === cx || x === cx + 1));
+    const mid = x === cx || x === cx + 1;
+    const line = y === hy + 1 - (mid ? 1 : 0);                                       // the edge, notched up to a point in the middle
+    const hair = y <= hy - (mid ? 1 : 0);
     if (hair) out.push([x, y, col]); else if (line) out.push([x, y, "#3a2a1a"]);
   }
   return out;
