@@ -61,7 +61,7 @@ function headHat(p, main, rib) {
 // flick outward at the tips, packed with little white thorns along both their outer and inner edges. It is held slanting up
 // towards the way she faces, her two little hands on the handle.
 const PRONG = [[0, 0], [1, -1], [2, -2], [3, -3], [4, -4], [5, -4], [6, -5], [7, -5], [8, -5], [9, -5], [10, -5], [11, -6], [12, -7]];
-const HAND = [".KKK.", "KWWWK", "KWWWK", ".KKK."];
+const HAND = [".KK.", "KWWK", ".KK."];                   // a little paw over the handle
 function fork(p, main, light, flat = false) {
   const y = ANCHOR[p].arm, x0 = -6, x1 = 26, y0 = flat ? y : y + 4, y1 = flat ? y : y - 3;
   const at = x => Math.round(y0 + (x - x0) * (y1 - y0) / (x1 - x0));
@@ -86,7 +86,7 @@ function fork(p, main, light, flat = false) {
       const [x, y] = k.split(",").map(Number);
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!body.has((x + dx) + "," + (y + dy))) d.put(x + dx, y + dy, OUT);
     }
-    if (!flat) for (const hx2 of [4, 17]) d.grid(HAND, { K: OUT, W: "#fffaf0" }, hx2 - 2, at(hx2) - 1);   // her hands round the handle
+    if (!flat) for (const hx2 of [7, 22]) d.grid(HAND, { K: OUT, W: "#fffaf0" }, hx2 - 1, at(hx2) - 1);   // where her own hands are
   }, false);
 }
 
