@@ -161,7 +161,7 @@ function findFace(grid) {
 const PAJAMA = {
   mochi: { main: "#ffbdd0", shade: "#f29ab5", rim: "#ffdbe6", up: 2.5 },
   sora:  { main: "#acdaf8", shade: "#84bfeb", rim: "#d6eefd", up: 4, bangs: "S", bang: "#5eaee6" },
-  nori:  { main: "#ffd766", shade: "#efb53a", rim: "#ffeaa8", keep: "W", up: 5 },
+  nori:  { main: "#ffd766", shade: "#efb53a", rim: "#ffe07e", keep: "W", up: 4 },   // her rim must not match her own face colour
 };
 function autoPajama(grid, pet) {
   const h = grid.length, w = grid[0].length, pal = PAJAMA[pet];
