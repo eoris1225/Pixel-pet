@@ -538,6 +538,10 @@ function teddyImg(rot) {                // the bear turned in quarter turns, pix
 function teddyDown(now, x, rot) {
   Object.assign(prop, { state: "ground", x: Math.max(10, Math.min(W - 10, x)), y: FEET + 2, z: pet.z, vx: 0, vy: 0, rot, ready: now + 900 });
 }
+// she sets it down: it moves from her arms to its place on the grass (a little lift, then down) instead of jumping there
+function teddyPlace(now, x, rot) {
+  Object.assign(prop, { state: "place", t0: now, fx: pet.x, fy: FEET - 1, tx: Math.max(10, Math.min(W - 10, x)), trot: rot, z: pet.z, rot: 0 });
+}
 function teddyToss(now, vx, vy, spin) {                  // it leaves her arms wherever she is: up in the air when she is dropped
   const y = (pet.act === "fall" || pet.act === "held" ? pet.hy : FEET) - 6;
   Object.assign(prop, { state: "fly", x: pet.x, y, z: pet.z, vx, vy, spin, t0: now, rot: 0 });
@@ -548,11 +552,11 @@ function updateTeddy(now, dt) {
   prop.lastAct = act;
   if (prop.state === "hug" && began) {
     const side = pet.x < W / 2 ? 1 : -1;
-    if (act === "wave") teddyDown(now, pet.x + side * 19, 0);                       // puts it down to wave both hands
-    else if (act === "lieDown" || (G.sleeping && act !== "held" && act !== "fall")) teddyDown(now, pet.x + side * 19, 1);   // tucked in beside her
-    else if (act === "peek") teddyDown(now, pet.x, 0);                               // left where she was
+    if (act === "wave") teddyPlace(now, pet.x + side * 19, 0);                      // puts it down to wave both hands
+    else if (act === "lieDown" || (G.sleeping && act !== "held" && act !== "fall")) teddyPlace(now, pet.x + side * 19, 1);   // tucked in beside her
+    else if (act === "peek") teddyPlace(now, pet.x, 0);                              // left where she was
     else if (act === "dash") teddyToss(now, pet.dir * 70, -120, pet.dir);            // loses grip as she dives
-    else if (act === "fall") teddyToss(now, (pet.vx || 0) * 0.5, -170, pet.vx < 0 ? -1 : 1);   // thrown: it flies off her and spins
+    else if (act === "fall" && FEET - pet.hy >= 14) teddyToss(now, (pet.vx || 0) * 0.5, -170, pet.vx < 0 ? -1 : 1);   // thrown: it flies off her and spins (a little lift, she keeps hold)
   }
   if (prop.state === "fly") {
     prop.vy += 520 * s; prop.x += prop.vx * s; prop.y += prop.vy * s;
@@ -561,7 +565,7 @@ function updateTeddy(now, dt) {
     // she catches it when it comes down onto her and she is standing
     const free = ["idle", "walk", "land", "pet"].includes(pet.act) && !G.sleeping;
     if (prop.vy > 0 && free && Math.abs(prop.x - pet.x) < 14 && prop.y > FEET - 30 && prop.y < FEET - 6) {
-      prop.state = "hug"; hearts(pet.x, FEET - 34, 2); return;
+      Object.assign(prop, { state: "lift", t0: now, fx: prop.x, fy: prop.y, arc: 0, dur: 160 }); hearts(pet.x, FEET - 34, 2); return;   // into her arms, not snapped there
     }
     if (prop.y >= FEET + 2) {
       prop.y = FEET + 2;
@@ -570,9 +574,15 @@ function updateTeddy(now, dt) {
     }
   }
   if (prop.state === "lift") {
-    const q = Math.min(1, (now - prop.t0) / 260);
-    prop.x = prop.fx + (pet.x - prop.fx) * q; prop.y = prop.fy + (FEET - 3 - prop.fy) * q - Math.sin(q * Math.PI) * 10; prop.rot = 0;
-    if (q >= 1) prop.state = "hug";
+    const q = Math.min(1, (now - prop.t0) / (prop.dur || 260)), arc = prop.arc ?? 10;
+    prop.x = prop.fx + (pet.x - prop.fx) * q; prop.y = prop.fy + (FEET - 1 - prop.fy) * q - Math.sin(q * Math.PI) * arc; prop.rot = 0;
+    if (q >= 1) Object.assign(prop, { state: "hug", arc: undefined, dur: undefined });
+  }
+  if (prop.state === "place") {
+    const q = Math.min(1, (now - prop.t0) / 300);
+    prop.x = prop.fx + (prop.tx - prop.fx) * q; prop.y = prop.fy + (FEET + 2 - prop.fy) * q - Math.sin(q * Math.PI) * 6;
+    prop.rot = q > 0.6 ? prop.trot : 0;
+    if (q >= 1) teddyDown(now, prop.tx, prop.trot);
   }
 }
 // when she is free and her bear is on the ground, she goes to get it (called before she picks something else to do)
