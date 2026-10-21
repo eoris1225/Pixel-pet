@@ -39,7 +39,7 @@ const CHEER_EVERY_MS = 10 * 60 * 1000, IDLE_CHEER_EVERY_MS = 4 * 60 * 1000;
 // level-up items per character: [level, id, name, where it is worn] (the pixel art is in items.js)
 const ITEM_LIST = {
   mochi: [[2, "tears", "눈물 방울", "표정"], [4, "teddy", "곰인형", "품"], [6, "pajama", "파자마", "전신"], [8, "bag", "곰 포셰트", "몸"], [10, "fork", "분홍 이지창", "무기"]],
-  sora:  [[2, "beanie", "고양이 비니", "머리"], [4, "guitar", "통기타", "등"], [6, "pajama", "파자마", "전신"], [8, "camera", "목걸이 카메라", "목"], [10, "trident", "파랑 이지창", "무기"]],
+  sora:  [[2, "beanie", "고양이 앞머리", "머리"], [4, "guitar", "통기타", "등"], [6, "pajama", "파자마", "전신"], [8, "camera", "목걸이 카메라", "목"], [10, "trident", "파랑 이지창", "무기"]],
   nori:  [[2, "shades", "선글라스 세트", "얼굴"], [4, "pass", "합격증", "이마"], [6, "pajama", "파자마", "전신"], [8, "pudding", "푸딩", "손"], [10, "pencil", "토끼 장대", "무기"]],
 };
 

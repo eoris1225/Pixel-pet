@@ -44,6 +44,14 @@ function onesieIcon(p) {
     d.put(x, y, over.get(x + "," + y) || PET[p].pal[ch]);
   })), false);
 }
+// the inventory picture of 하와's new bangs: her face with them on
+function bangsIcon(p) {
+  const g = SPRITES[p], over = new Map(autoBangs(g, p).map(([x, y, c]) => [x + "," + y, c]));
+  return pixmap(d => g.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (ch === "B" || y > ANCHOR[p].eye + 6) return;
+    d.put(x, y, over.get(x + "," + y) || PET[p].pal[ch]);
+  })), false);
+}
 // a beanie that takes the shape of the head (copied from the silhouette of the sprite, never drawn into it)
 function headHat(p, main, rib) {
   const g = SPRITES[p], a = ANCHOR[p], bottom = a.eye - 3;
@@ -129,7 +137,7 @@ const ITEM_ART = {
     fork: { layer: "front", auto: "weapon", build: () => fork("mochi", "#f59ab6", "#ffd0de") },
   },
   sora: {
-    beanie: { layer: "front", build: () => headHat("sora", "#9fd3f5", "#d6eefc") },
+    beanie: { layer: "front", auto: "bangs", build: () => bangsIcon("sora") },   // her bangs restyled (item id kept for saves)
     guitar: { layer: "back", build: () => pixmap(d => {
       d.line(6, 20, 29, -1, "#8a5a35", 2);
       d.rect(28, -4, 3, 4, "#6e4528"); d.put(27, -3, "#e8d9c0"); d.put(31, -2, "#e8d9c0");
@@ -409,6 +417,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
     if (a.auto) {
       if (!img || !img.grid) continue;
       if (a.auto === "teddy" && typeof teddyHugged === "function" && !teddyHugged()) continue;   // the bear is off in the world
+      if (a.auto === "bangs" && equip.pajama) continue;                                          // her hood is over her hair
       // on the base pose the face is found on the plain sprite, so a blink does not make the item vanish
       const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base ? dy : 0;
       const cache = base ? (ITEM_CACHE["base:" + petId] || (ITEM_CACHE["base:" + petId] = {})) : (img._auto || (img._auto = {}));
