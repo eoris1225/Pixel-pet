@@ -127,7 +127,7 @@ const icon = (name, cls = "") => `<canvas data-icon="${name}" class="${cls}"></c
 const KEYS = { start: ["mint", "play5", "시작"], rest: ["lilac", "pause5", "휴식"], end: ["peach", "stop5", "끝"] };
 const NUM_COLORS = ["#ffb3c7", "#9fd3f5", "#ffd96b", "#b6ecae", "#d9cdff"];
 function rich(textStr) {
-  return esc(textStr).replace(/\{(\w+)\}(\S*)(?: (\S+))?/g, (m, k, tail, word) => {
+  return esc(fixJosa(textStr)).replace(/\{(\w+)\}(\S*)(?: (\S+))?/g, (m, k, tail, word) => {
     // a key or icon stays on one line with the word that belongs to it ("[시작]을", "[설정] 설정의")
     const keep = s => `<span style="white-space:nowrap">${s}${tail}${word && !KEYS[k] ? " " + word : ""}</span>${word && KEYS[k] ? " " + word : ""}`;
     if (KEYS[k]) return keep(`<span class="kbd pxb ${KEYS[k][0]}">${icon(KEYS[k][1])}${KEYS[k][2]}</span>`);
@@ -142,6 +142,30 @@ paintIcon($("#hud-burn"), "flame");
 // paper with a faint pixel dot pattern for the screens
 { const c = document.createElement("canvas"); c.width = 6; c.height = 6; const g = c.getContext("2d"); g.fillStyle = "#f7e9c9"; g.fillRect(0, 0, 1, 1); g.fillRect(3, 3, 1, 1);
   appEl.style.setProperty("--dots", `url(${c.toDataURL()})`); }
+
+/* ---------- Korean particles: picked from the last sound of the word before them ---------- */
+// jong: 0 = no final consonant, 8 = ㄹ, otherwise another final consonant (digits are read aloud: 0 영, 1 일, 3 삼 ...)
+function jong(word) {
+  const ch = String(word).trim().slice(-1);
+  const c = ch.charCodeAt(0);
+  if (c >= 0xac00 && c <= 0xd7a3) return (c - 0xac00) % 28;
+  if (/[0-9]/.test(ch)) return [21, 8, 0, 16, 0, 0, 1, 8, 8, 0][+ch];      // 영 일 이 삼 사 오 육 칠 팔 구
+  return 0;
+}
+const PAIRS = { "을": ["을", "를"], "를": ["을", "를"], "이": ["이", "가"], "가": ["이", "가"], "은": ["은", "는"], "는": ["은", "는"], "과": ["과", "와"], "와": ["과", "와"] };
+function josa(word, p) {
+  const j = jong(word);
+  if (p === "으로" || p === "로") return j && j !== 8 ? "으로" : "로";            // ㄹ takes 로: 칼로, 연필로
+  if (p === "이에요" || p === "예요") return j ? "이에요" : "예요";
+  const pr = PAIRS[p]; return pr ? (j ? pr[0] : pr[1]) : p;
+}
+// "치카(으)로", "욱을(를)", "하와이(가)" style markers in a line are resolved automatically
+function fixJosa(textStr) {
+  return String(textStr)
+    .replace(/([가-힣0-9]+)\(으\)로/g, (m, w) => w + josa(w, "로"))
+    .replace(/([가-힣0-9]+)(을|를|이|가|은|는|과|와)\((을|를|이|가|은|는|과|와)\)/g, (m, w, a) => w + josa(w, a))
+    .replace(/([가-힣0-9]+)\((이|가|을|를|은|는|과|와)\)/g, (m, w, a) => w + josa(w, a));
+}
 
 /* ---------- dialogue temperature: which typeface a line is spoken in ---------- */
 function tempOf(textStr, petId) {
@@ -194,6 +218,7 @@ const petBubble = $("#pet-bubble"), worldBubble = $("#world-bubble");
 let bubbleUntil = 0;
 function say(textStr, ms = 4000) {
   const bb = petBubble.querySelector(".bb");
+  textStr = fixJosa(textStr);
   bb.textContent = textStr; bb.className = "bb pxp " + tClass(textStr, S.pet); petBubble.hidden = false;
   bubbleUntil = performance.now() + ms;
 }
@@ -210,7 +235,7 @@ const pick = a => a[Math.random() * a.length | 0];
 let toastT = 0;
 function toast(msg, ms = 2600, title) {
   const t = $("#toast");
-  t.innerHTML = (title ? `<span class="lvup t-peak">${esc(title)}</span>` : "") + esc(msg); t.hidden = false;
+  t.innerHTML = (title ? `<span class="lvup t-peak">${esc(title)}</span>` : "") + esc(fixJosa(msg)); t.hidden = false;
   clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, ms);
 }
 
@@ -297,7 +322,7 @@ $("#sel-ok").onclick = () => {
   if (selMode === "first") { setPet(id); closeScreen("scr-select"); askSetup(true); return; }
   if (S.timer) { toast("공부 중에는 바꿀 수 없어요. 먼저 끝을 눌러 주세요."); return; }
   const had = S.chars[id] && S.chars[id].exp > 0;
-  const msg = `${CHARS[id].name}(으)로 바꿀까요?<br><span class="muted">${had ? `기존 데이터는 유지되고, Lv.${lvOf(curExp(id))}부터 이어서 해요.` : "기존 데이터는 유지가 되지만 새 캐릭터는 1레벨부터 다시 시작합니다."}</span>`;
+  const msg = `${CHARS[id].name}${josa(CHARS[id].name, "로")} 바꿀까요?<br><span class="muted">${had ? `기존 데이터는 유지되고, Lv.${lvOf(curExp(id))}부터 이어서 해요.` : "기존 데이터는 유지가 되지만 새 캐릭터는 1레벨부터 다시 시작합니다."}</span>`;
   confirmBox(msg, "바꾸기", () => { setPet(id); screenStack.slice().forEach(closeScreen); say(pick(CHARS[id].cheers)); });
 };
 function setPet(id) {
