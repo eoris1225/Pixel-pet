@@ -154,6 +154,14 @@ function findFace(grid) {
   return null;
 }
 
+// the face on one frame (its centre and size), from open eyes or else from the cheeks; null when she faces away
+function faceOf(grid) {
+  const eyes = findEyes(grid);
+  if (eyes.length === 2) { const d = eyes[1].cx - eyes[0].cx; return { cx: (eyes[0].cx + eyes[1].cx) / 2 + 0.5, cy: (eyes[0].cy + eyes[1].cy) / 2 + 2.5, rx: d / 2 + 5.2, ry: 6 }; }
+  if (eyes.length === 1) return { cx: eyes[0].cx + 0.5, cy: eyes[0].cy + 2.5, rx: 6.5, ry: 6 };
+  return findFace(grid);
+}
+
 // Lv6 pajamas: a hooded onesie in the character's colour. Everything but the face turns into the suit, so her own
 // ears become the hood's ears; a lighter rim marks the hood opening and two white buttons sit on the chest.
 // The opening reaches well above the eyes, like the figures: 욱's brows show, and 하와's bangs in a deeper blue.
@@ -172,11 +180,7 @@ function dim(col, shadow) {
 function autoPajama(grid, pet) {
   const h = grid.length, w = grid[0].length, pal = PAJAMA[pet];
   if (!pal || w > 60) return [];
-  const eyes = findEyes(grid);
-  let face = null;
-  if (eyes.length === 2) { const d = eyes[1].cx - eyes[0].cx; face = { cx: (eyes[0].cx + eyes[1].cx) / 2 + 0.5, cy: (eyes[0].cy + eyes[1].cy) / 2 + 2.5, rx: d / 2 + 5.2, ry: 6 }; }
-  else if (eyes.length === 1) face = { cx: eyes[0].cx + 0.5, cy: eyes[0].cy + 2.5, rx: 6.5, ry: 6 };
-  else face = findFace(grid);
+  const face = faceOf(grid);
   if (face) {                                              // the opening ends just under the mouth, so a low face (a bow) leaves the body to the suit
     const main = mainOutline(grid); let low = -1;
     for (let y = Math.ceil(face.cy); y <= face.cy + face.ry; y++) for (let x = Math.floor(face.cx - 3); x <= face.cx + 3; x++)

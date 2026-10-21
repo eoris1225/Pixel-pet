@@ -117,7 +117,7 @@ const ITEM_ART = {
       d.line(6, 18, 18, 24, "#a8714a");
       d.rect(17, 23, 7, 5, "#ffc4a8"); d.rect(17, 23, 7, 2, "#f29b8a"); d.put(20, 25, "#fff4dc");
     }) },
-    fork: { layer: "front", build: () => fork("mochi", "#f59ab6", "#ffd0de") },
+    fork: { layer: "front", auto: "weapon", build: () => fork("mochi", "#f59ab6", "#ffd0de") },
   },
   sora: {
     beanie: { layer: "front", build: () => headHat("sora", "#9fd3f5", "#d6eefc") },
@@ -132,7 +132,7 @@ const ITEM_ART = {
       d.rect(10, 21, 9, 6, "#f4f1ea"); d.rect(10, 21, 9, 1, "#4a4f6e"); d.rect(11, 20, 3, 1, "#4a4f6e");
       d.disc(14.5, 24, 1.9, "#4a4f6e"); d.put(14, 23, "#a6d6f2"); d.put(17, 22, "#ffd84d");
     }) },
-    trident: { layer: "front", build: () => fork("sora", "#4f9fe0", "#a9d6f7") },
+    trident: { layer: "front", auto: "weapon", build: () => fork("sora", "#4f9fe0", "#a9d6f7") },
   },
   nori: {
     shades: { layer: "front", build: () => pixmap(d => {
@@ -158,10 +158,34 @@ const ITEM_ART = {
       d.rect(-1, y - 2, 7, 4, "#ffe08a"); d.rect(0, y - 3, 5, 1, "#ffe08a");
       d.rect(0, y - 4, 5, 2, "#a8642e"); d.put(1, y - 4, "#d48a4a");
     }) },
-    pencil: { layer: "front", build: () => staff("nori") },
+    pencil: { layer: "front", auto: "weapon", build: () => staff("nori") },
   },
 };
 const ITEM_CACHE = {};
+// Lv10 weapons follow every motion: the weapon drawn for the base pose moves with her face. Facing away, she holds it
+// in front of her where it cannot be seen.
+const WEAPON_OF = { mochi: "fork", sora: "trident", nori: "pencil" };
+function weaponPixels(pet) {
+  const k = "px:" + pet; if (ITEM_CACHE[k]) return ITEM_CACHE[k];
+  const it = itemImg(pet, WEAPON_OF[pet]), g = it.img.getContext("2d"), d = g.getImageData(0, 0, it.img.width, it.img.height).data, out = [];
+  for (let y = 0; y < it.img.height; y++) for (let x = 0; x < it.img.width; x++) {
+    const i = (y * it.img.width + x) * 4; if (d[i + 3] < 128) continue;
+    out.push([it.x + x, it.y + y, "#" + [d[i], d[i + 1], d[i + 2]].map(v => v.toString(16).padStart(2, "0")).join("")]);
+  }
+  return (ITEM_CACHE[k] = out);
+}
+ITEM_AUTO.weapon = (grid, pet) => {
+  if (!WEAPON_OF[pet] || grid[0].length > 60) return [];
+  const f = faceOf(grid), b = faceOf(SPRITES[pet]);
+  if (!f || !b) return [];
+  const dx = Math.round(f.cx - b.cx);
+  let dy = Math.round(f.cy - b.cy);
+  // when her face sits low (lying down, a squashed landing) the weapon still stays in her arms, not under her
+  let bottom = grid.length - 1; while (bottom > 0 && !/[^B]/.test(grid[bottom])) bottom--;
+  const held = ANCHOR[pet].arm + dy;
+  if (held > bottom - 3) dy -= held - (bottom - 3);
+  return weaponPixels(pet).map(([x, y, c]) => [x + dx, y + dy, c]);
+};
 function itemImg(pet, id) {
   const k = pet + ":" + id;
   return ITEM_CACHE[k] || (ITEM_CACHE[k] = ITEM_ART[pet][id].build());
