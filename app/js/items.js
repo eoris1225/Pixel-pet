@@ -237,6 +237,15 @@ function drawPaws(g, petId, equip, pts) {
     g.fillStyle = ch === "K" ? OUT : paw; g.fillRect(Math.round(x) - 2 + i, Math.round(y) - 1 + j, 1, 1);
   }));
 }
+// what she holds eases from frame to frame instead of jumping with every redrawn frame of a motion: it moves a good
+// part of the way toward where this frame puts it (no springs, no overshoot), and stays put on a frame that cannot tell
+const WSM = { x: 0, y: 0, a: 0, t: 0, key: "" };
+function smoothHold(key, x, y, a) {
+  const now = performance.now(), fresh = WSM.key !== key || now - WSM.t > 300;
+  if (fresh) { if (x === null) return null; Object.assign(WSM, { x, y, a, t: now, key }); return WSM; }
+  if (x !== null) { const k = 1 - Math.exp(-(now - WSM.t) / 110); WSM.x += (x - WSM.x) * k; WSM.y += (y - WSM.y) * k; WSM.a += (a - WSM.a) * k; }
+  WSM.t = now; return WSM;
+}
 function findHands(grid) {
   const h = grid.length, f = faceOf(grid), top = f ? Math.round(f.cy) : Math.round(h * 0.35), out = {};
   for (const side of [-1, 1]) {
@@ -268,7 +277,9 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
     let ang = DIAG[petId];
     if (hd.l && hd.r) ang = Math.max(-0.35, Math.min(0.35, Math.atan2(hd.r[1] - hd.l[1], hd.r[0] - hd.l[0])));
     else if (hd.r) ang = -0.3; else if (hd.l) ang = 0.3;
-    const cx = mid + (o ? o.dx : 0), cy = arm + 0.5 + (o ? o.dy : 0);
+    const sm = smoothHold("dance" + pet.t0 + petId, o ? mid + o.dx : null, o ? arm + 0.5 + o.dy : null, ang)
+      || { x: mid, y: arm + 0.5, a: ang };
+    const cx = sm.x, cy = sm.y; ang = sm.a;
     const off = cache.warm || (cache.warm = armOff(grid, Math.round(cy) - 4, Math.round(cy) + 2));
     for (const [x, y, c] of off) { if (c === "clear") g.clearRect(x, y, 1, 1); else { g.fillStyle = OUT; g.fillRect(x, y, 1, 1); } }
     g.save(); g.translate(Math.round(cx), Math.round(cy)); g.rotate(ang);
@@ -297,7 +308,11 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
   }
   const pj = equip.pajama && WEAPON_PJ[petId], sway = weaponSway();
   const it = pj ? (ITEM_CACHE["pj:" + petId] || (ITEM_CACHE["pj:" + petId] = pj())) : itemImg(petId, WEAPON_OF[petId]);
-  const ox = o ? o.dx : Math.round(w / 2 - 14), oy = (o ? o.dy : h - INFO[petId].h) + shift;
+  let ox = o ? o.dx : Math.round(w / 2 - 14), oy = (o ? o.dy : h - INFO[petId].h) + shift;
+  if (o && !base && typeof pet !== "undefined") {             // a traced motion: ease from frame to frame
+    const sm = smoothHold(pet.act + pet.t0 + petId, o.dx, o.dy, 0);
+    ox = Math.round(sm.x); oy = Math.round(sm.y) + shift;
+  }
   if (!sway) { g.drawImage(it.img, it.x + ox, it.y + oy); return; }
   const cx = mid + ox, cy = arm + oy;
   g.save(); g.translate(cx, cy); g.rotate(sway); g.drawImage(it.img, it.x + ox - cx, it.y + oy - cy); g.restore();
