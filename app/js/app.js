@@ -91,7 +91,22 @@ function layout() {
   frameEl.style.left = Math.round((vw - W * K) / 2) + "px"; frameEl.style.top = Math.round((vh - H * K - 10) / 2) + "px";
   appEl.style.transform = `scale(${K})`;
 }
-addEventListener("resize", layout);
+// a phone keyboard shrinks the window: keep the frame's size and only slide it up so the field stays in view
+let lastW = innerWidth;
+const editing = () => { const a = document.activeElement; return !!a && (a.tagName === "INPUT" || a.tagName === "TEXTAREA"); };
+function keepFieldVisible() {
+  const a = document.activeElement; if (!a) return;
+  const vh = window.visualViewport ? visualViewport.height : innerHeight, r = a.getBoundingClientRect();
+  const over = r.bottom + 12 - vh;
+  if (over > 0) frameEl.style.top = Math.round(parseFloat(frameEl.style.top) - over) + "px";
+}
+function onResize() {
+  if (editing() && innerWidth === lastW) { keepFieldVisible(); return; }
+  lastW = innerWidth; layout();
+}
+addEventListener("resize", onResize);
+if (window.visualViewport) visualViewport.addEventListener("resize", onResize);
+addEventListener("focusout", () => setTimeout(() => { if (!editing()) layout(); }, 120));
 
 /* ---------- pixel icons ---------- */
 const ICONS = {
@@ -727,7 +742,7 @@ function renderInventory() {
 let coachStep = -1, coachTarget = null;
 function startCoach() {
   if (!S.pet) return;
-  coachStep = -1; $("#coach").hidden = false; appEl.classList.add("coaching");
+  coachStep = -1; $("#coach").hidden = false; appEl.classList.add("coaching"); petHold(true);
   setSide(true); nextCoach();
 }
 function nextCoach() {
@@ -750,7 +765,7 @@ function placeCoachCard() {
   placeBubble(card, box.x + box.w / 2, box.y, 100);
 }
 function endCoach() {
-  $("#coach").hidden = true; appEl.classList.remove("coaching");
+  $("#coach").hidden = true; appEl.classList.remove("coaching"); petHold(false);
   S.tutorialDone = true; save(); coachStep = -1;
   say(pick(CHARS[S.pet].cheers));
 }

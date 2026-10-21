@@ -380,6 +380,13 @@ function petCelebrate() {
   hearts(pet.x, FEET - INFO[G.pet].h - 2, 5); sparks(pet.x, FEET - INFO[G.pet].h / 2, 8);
 }
 function petSetSleep(v) { G.wantSleep = !!v; }
+// stand still in the middle (for the tutorial): breathing and blinking go on, nothing else starts
+function petHold(on) {
+  G.still = !!on;
+  if (!on) return;
+  Object.assign(pet, { act: "idle", x: 90, dir: 1, peek: null, dash: null });
+  if (prop.state !== "hug") prop.state = "hug";
+}
 
 /* ---------- input: tap to pet, press and hold to pick up ---------- */
 let press = null;
@@ -619,7 +626,8 @@ function petUpdate(now, dt) {
   if (!G.sleeping && pet.act === "idle" && now > pet.nextEar) { pet.earT = now; pet.nextEar = now + 3000 + Math.random() * 5000; }
 
   updateTeddy(now, dt);
-  if (pet.act === "idle" && !G.sleeping && !G.wantSleep && now > prop.ready && fetchTeddy(now)) {}
+  if (G.still) pet.nextThink = now + 1500;                               // the tutorial is talking: she stands and listens
+  else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && now > prop.ready && fetchTeddy(now)) {}
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && now > pet.nextThink) {
     pet.nextThink = now + 2500 + Math.random() * 3500;
     const r = Math.random(), calm = G.studying;          // fewer big moves while you study
