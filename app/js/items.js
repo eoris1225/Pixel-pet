@@ -87,14 +87,7 @@ const ITEM_ART = {
       const e = ANCHOR.mochi.eye + 4;
       for (const x of [10, 17]) { d.rect(x, e, 1, 3, "#8fd0f6"); d.put(x, e + 3, "#bfe5fb"); }
     }, false) },
-    bearpin: { layer: "front", build: () => pixmap(d => d.grid([
-      "NN...NN",
-      "NONNNON",
-      "NNNNNNN",
-      "NKNNNKN",
-      "NNOOONN",
-      ".NNKNN.",
-    ], { N: "#c98a5a", O: "#f3cfa0", K: OUT }, 16, -3)) },
+    teddy: { layer: "front", auto: "teddy", build: () => pixmap(d => d.grid(TEDDY, TEDDY_PAL, 0, 0), false) },
     nightcap: { layer: "front", build: () => nightcap("mochi", "#ffb3c7", "#ffe3ea") },
     bag: { layer: "front", build: () => pixmap(d => {
       d.line(6, 18, 18, 24, "#a8714a");
@@ -159,9 +152,12 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
     if (!equip[id] || !a || a.layer !== layer) continue;
     if (a.auto) {
       if (!img || !img.grid) continue;
-      const cache = img._auto || (img._auto = {});
-      const px = cache[a.auto] || (cache[a.auto] = autoItemPixels(a.auto, img.grid, img.key || ""));
-      for (const [x, y, c] of px) { g.fillStyle = c; g.fillRect(x, y, 1, 1); }
+      if (a.auto === "teddy" && typeof teddyHugged === "function" && !teddyHugged()) continue;   // the bear is off in the world
+      // on the base pose the face is found on the plain sprite, so a blink does not make the item vanish
+      const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base ? dy : 0;
+      const cache = base ? (ITEM_CACHE["base:" + petId] || (ITEM_CACHE["base:" + petId] = {})) : (img._auto || (img._auto = {}));
+      const px = cache[a.auto] || (cache[a.auto] = autoItemPixels(a.auto, grid, base ? petId + "-base:0" : img.key || ""));
+      for (const [x, y, c] of px) { g.fillStyle = c; g.fillRect(x, y + shift, 1, 1); }
       continue;
     }
     if (pose && pose.img) continue;

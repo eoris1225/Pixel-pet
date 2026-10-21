@@ -275,7 +275,7 @@ header { grid-area: head; display: flex; flex-wrap: wrap; align-items: center; g
   const cv = $("cv"), ctx = cv.getContext("2d"), scroller = $("scroller");
 
   /* ---------- items placed automatically (the same code the game runs: ../js/item-auto.js) ---------- */
-  const ITEMS_FOR = { mochi: [["tears", "치카 Lv2 눈물 방울"]] };
+  const ITEMS_FOR = { mochi: [["tears", "치카 Lv2 눈물 방울"], ["teddy", "치카 Lv4 곰인형"]] };
   let itemOn = store.get("pps.itemOn") !== "0", itemName = "tears";
   let itemFix = {}; try { itemFix = JSON.parse(store.get("pps.itemfix") || "null") || JSON.parse(JSON.stringify(ITEM_FIX)); } catch (e) { itemFix = {}; }
   const itemKey = i => SET.key + ":" + i;

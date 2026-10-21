@@ -78,7 +78,36 @@ function autoTears(grid) {
   return out;
 }
 
-const ITEM_AUTO = { tears: autoTears };
+// 치카's teddy bear (round head, little round ears, white muzzle): she hugs it in front of her belly.
+// It is centred under her face and stands where her feet are, so it follows her through every motion.
+const TEDDY = [
+  ".KK.....KK.",
+  "KNNK...KNNK",
+  "KNNKKKKKNNK",
+  ".KNNNNNNNK.",
+  "KNNDNNNDNNK",
+  "KNNNWWWNNNK",
+  "KNNWWDWWNNK",
+  ".KNNWWWNNK.",
+  "..KKNNNKK..",
+  ".KKnnnnnKK.",
+  "KnnKnnnKnnK",
+  ".KKnnnnnKK.",
+  ".KnnKKKnnK.",
+  ".KKK...KKK.",
+];
+const TEDDY_PAL = { K: "#3a2a1a", N: "#be8856", n: "#ac784a", W: "#fffaf0", D: "#4a3020" };
+function autoTeddy(grid) {
+  const eyes = findEyes(grid);
+  if (!eyes.length) return [];                                        // facing away: the bear is hidden behind her
+  const cx = eyes.length === 2 ? (eyes[0].cx + eyes[1].cx) / 2 : eyes[0].cx;
+  const bottom = Math.max(...eyes.map(e => e.y1)) + 16;               // on the base pose: eyes end at row 12, feet at 28
+  const x0 = Math.round(cx - (TEDDY[0].length - 1) / 2), y0 = bottom - TEDDY.length + 1, out = [];
+  TEDDY.forEach((row, y) => [...row].forEach((ch, x) => { if (TEDDY_PAL[ch]) out.push([x0 + x, y0 + y, TEDDY_PAL[ch]]); }));
+  return out;
+}
+
+const ITEM_AUTO = { tears: autoTears, teddy: autoTeddy };
 
 // the pixels of an auto item on one frame, with the studio's correction for that frame applied
 function autoItemPixels(item, grid, key) {

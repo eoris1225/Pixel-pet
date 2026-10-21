@@ -502,6 +502,82 @@ function petPose(now) {
   return a;
 }
 
+/* ---------- 치카's teddy bear: a little object in the world, not a sticker on her ----------
+   hug   : in her arms (drawn by items.js on the frames where her face shows)
+   ground: set down or dropped; she walks over and picks it up when she is free
+   fly   : slipped out of her arms, tumbling in 90-degree steps; she catches it if it comes down on her
+   lift  : the short hop back into her arms */
+const prop = { state: "hug", x: 0, y: 0, vx: 0, vy: 0, rot: 0, spin: 0, t0: 0, fx: 0, fy: 0, ready: 0, lastAct: "" };
+const teddyOn = () => G.pet === "mochi" && !!(G.equip && G.equip.teddy);
+const teddyHugged = () => !teddyOn() || prop.state === "hug";
+let TEDDY_ROT = null;
+function teddyImg(rot) {                // the bear turned in quarter turns, pixel for pixel
+  if (!TEDDY_ROT) {
+    const base = gridToCanvas(TEDDY.map(r => r.replace(/\./g, "B")), TEDDY_PAL);
+    TEDDY_ROT = [0, 1, 2, 3].map(q => {
+      const c = document.createElement("canvas"), side = q % 2;
+      c.width = side ? base.height : base.width; c.height = side ? base.width : base.height;
+      const g = c.getContext("2d"); g.translate(q === 1 ? c.width : q === 2 ? c.width : 0, q === 2 ? c.height : q === 3 ? c.height : 0);
+      g.rotate(q * Math.PI / 2); g.drawImage(base, 0, 0); return c;
+    });
+  }
+  return TEDDY_ROT[((rot % 4) + 4) % 4];
+}
+function teddyDown(now, x, rot) {
+  Object.assign(prop, { state: "ground", x: Math.max(10, Math.min(W - 10, x)), y: FEET + 2, vx: 0, vy: 0, rot, ready: now + 900 });
+}
+function teddyToss(now, vx, vy, spin) {
+  Object.assign(prop, { state: "fly", x: pet.x, y: FEET - 4, vx, vy, spin, t0: now, rot: 0 });
+}
+function updateTeddy(now, dt) {
+  if (!teddyOn()) { prop.state = "hug"; prop.lastAct = pet.act; return; }
+  const s = dt / 1000, act = pet.act, began = act !== prop.lastAct;
+  prop.lastAct = act;
+  if (prop.state === "hug" && began) {
+    const side = pet.x < W / 2 ? 1 : -1;
+    if (act === "wave") teddyDown(now, pet.x + side * 19, 0);                       // puts it down to wave both hands
+    else if (act === "lieDown" || (G.sleeping && act !== "held" && act !== "fall")) teddyDown(now, pet.x + side * 19, 1);   // tucked in beside her
+    else if (act === "peek") teddyDown(now, pet.x, 0);                               // left where she was
+    else if (act === "dash") teddyToss(now, pet.dir * 70, -120, pet.dir);            // loses grip as she dives
+    else if (act === "fall") teddyToss(now, (pet.vx || 0) * 0.5, -170, pet.vx < 0 ? -1 : 1);   // thrown: it flies off her and spins
+  }
+  if (prop.state === "fly") {
+    prop.vy += 520 * s; prop.x += prop.vx * s; prop.y += prop.vy * s;
+    if (prop.x < 8 || prop.x > W - 8) { prop.vx = -prop.vx * 0.6; prop.x = Math.max(8, Math.min(W - 8, prop.x)); }
+    prop.rot = prop.spin ? Math.floor((now - prop.t0) / 90) * prop.spin : 0;
+    // she catches it when it comes down onto her and she is standing
+    const free = ["idle", "walk", "land", "pet"].includes(pet.act) && !G.sleeping;
+    if (prop.vy > 0 && free && Math.abs(prop.x - pet.x) < 14 && prop.y > FEET - 30 && prop.y < FEET - 6) {
+      prop.state = "hug"; hearts(pet.x, FEET - 34, 2); return;
+    }
+    if (prop.y >= FEET + 2) {
+      prop.y = FEET + 2;
+      if (prop.vy > 140) { prop.vy = -prop.vy * 0.35; prop.vx *= 0.6; dust(prop.x, FEET + 1); }
+      else { teddyDown(now, prop.x, ((Math.round(prop.rot) % 2) + 2) % 2); dust(prop.x, FEET + 1); }
+    }
+  }
+  if (prop.state === "lift") {
+    const q = Math.min(1, (now - prop.t0) / 260);
+    prop.x = prop.fx + (pet.x - prop.fx) * q; prop.y = prop.fy + (FEET - 3 - prop.fy) * q - Math.sin(q * Math.PI) * 10; prop.rot = 0;
+    if (q >= 1) prop.state = "hug";
+  }
+}
+// when she is free and her bear is on the ground, she goes to get it (called before she picks something else to do)
+function fetchTeddy(now) {
+  if (!teddyOn() || prop.state !== "ground" || now < prop.ready || G.sleeping || G.wantSleep) return false;
+  const dx = prop.x - pet.x;
+  if (Math.abs(dx) > 9) { pet.act = "walk"; pet.target = prop.x - Math.sign(dx) * 7; return true; }
+  Object.assign(prop, { state: "lift", t0: now, fx: prop.x, fy: prop.y });
+  pet.dir = Math.sign(dx) || pet.dir; startAct("pet", now); return true;
+}
+function drawTeddy(front) {
+  if (!teddyOn() || prop.state === "hug") return;
+  if ((prop.state === "ground") === front) return;                 // on the ground it is behind her, in the air in front
+  const im = teddyImg(prop.rot), x = Math.round(prop.x - im.width / 2), y = Math.round(prop.y - im.height);
+  if (prop.state === "ground") { ctx.fillStyle = "rgba(40,50,40,0.2)"; ctx.fillRect(x + 1, Math.round(prop.y) - 1, im.width - 2, 2); }
+  ctx.drawImage(im, x, y);
+}
+
 /* ---------- update ---------- */
 function petUpdate(now, dt) {
   updateParts(dt);
@@ -542,7 +618,9 @@ function petUpdate(now, dt) {
   if (!G.sleeping && now > pet.blinkUntil + 2500 && Math.random() < dt / 1500) pet.blinkUntil = now + 140;
   if (!G.sleeping && pet.act === "idle" && now > pet.nextEar) { pet.earT = now; pet.nextEar = now + 3000 + Math.random() * 5000; }
 
-  if (pet.act === "idle" && !G.sleeping && !G.wantSleep && now > pet.nextThink) {
+  updateTeddy(now, dt);
+  if (pet.act === "idle" && !G.sleeping && !G.wantSleep && now > prop.ready && fetchTeddy(now)) {}
+  else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && now > pet.nextThink) {
     pet.nextThink = now + 2500 + Math.random() * 3500;
     const r = Math.random(), calm = G.studying;          // fewer big moves while you study
     if (G.pet === "nori" && r < (calm ? 0.35 : 0.3)) startAct("lie", now);
@@ -646,7 +724,9 @@ function petRender(now) {
     const img = pose.img || MOCHIBOX_IMG[0];
     dashDust({ x: Math.round(pet.x + (pose.dx || 0)) - (img.width >> 1), y: FEET - img.height + pose.yoff }, false);
   }
+  drawTeddy(false);
   const box = pose.hidden ? { x: pet.x, y: FEET - 30, w: 0, h: 30 } : drawSprite(ctx, G.pet, pose, pet.x, FEET, pet.dir, G.equip);
+  drawTeddy(true);
   if (G.pet === "mochi" && pet.act === "fall" && pet.skyDrop) hopLines(box, pose.hopF, now);
   if (G.pet === "mochi" && pet.act === "skyland" && now - pet.t0 < SKYLAND_RUN) { const f = skylandFrame(Math.max(0, now - pet.t0)); hopLines(box, f, now); hopDust(box, f); }
   if (pet.act === "dash" && !pose.hidden) dashDust(box, true);
