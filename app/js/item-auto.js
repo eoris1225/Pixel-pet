@@ -82,6 +82,30 @@ function autoTears(grid) {
   return out;
 }
 
+// her arms taken away (when she holds something in front of her with her own little paws). Each arm is a small bulge
+// outside her body whose inner line is her body's edge: the bulge is cleared, that line becomes her outline (her own waist,
+// not wide shoulders) and the hip just below is kept in line. "clear", "outline" and "body" are filled in by whoever draws.
+// Rows y1..y2 are searched for the arm (her legs, lower down, look alike).
+function armOff(grid, y1, y2) {
+  const out = [], at = (x, y) => (grid[y] && grid[y][x]) || "B";
+  for (const side of [-1, 1]) {
+    const edge = y => { const r = grid[y]; if (!r) return -1; const i = side < 0 ? r.search(/[^B]/) : r.length - 1 - [...r].reverse().join("").search(/[^B]/); return i < 0 || i >= r.length ? -1 : i; };
+    const arm = [];                                          // rows where the arm shows: outline, a pixel of arm, its inner line
+    for (let y = y1; y <= y2; y++) { const e = edge(y); if (e >= 0 && at(e, y) === "K" && !"KB".includes(at(e - side, y)) && at(e - 2 * side, y) === "K") arm.push(y); }
+    if (!arm.length) continue;
+    const top = Math.max(0, arm[0] - 2), bot = arm[arm.length - 1], waist = edge(bot) - 2 * side;
+    for (let y = top; y <= bot + 1; y++) {
+      const e = edge(y); if (e < 0) continue;
+      // her own edge: the arm's inner line, one in at the shoulder, and the hip just below kept in line with the waist
+      const tx = y > bot ? ((waist - e) * -side > 0 ? waist : e) : arm.includes(y) ? e - 2 * side : e - side;
+      if (tx === e && y > bot) continue;
+      for (let x = e; x !== tx; x -= side) out.push([x, y, "clear"]);
+      out.push([tx, y, "outline"]);
+    }
+  }
+  return out;
+}
+
 // 치카's teddy bear (round head, little round ears, white muzzle): she hugs it in front of her belly.
 // It is centred under her face and stands where her feet are, so it follows her through every motion.
 const TEDDY = [
@@ -108,27 +132,8 @@ function autoTeddy(grid) {
   const cx = eyes.length === 2 ? (eyes[0].cx + eyes[1].cx) / 2 : eyes[0].cx;
   const bottom = Math.max(...eyes.map(e => e.y1)) + 15;               // held a little up off her feet (base pose: eyes end at row 12)
   const x0 = Math.round(cx - (TEDDY[0].length - 1) / 2), y0 = bottom - TEDDY.length + 1, out = [];
-  // her arms go round the bear instead of hanging at her sides. Each arm is a little bulge outside her body, its inner
-  // line being her body's edge: the bulge is cleared, that line becomes her outline (a slimmer waist, not wide shoulders),
-  // and two little paws hold the bear's sides. "clear", "outline" and "body" are filled in by whoever draws it.
-  const at = (x, y) => (grid[y] && grid[y][x]) || "B";
-  for (const side of [-1, 1]) {
-    const edge = y => { const r = grid[y]; if (!r) return -1; const i = side < 0 ? r.search(/[^B]/) : r.length - 1 - [...r].reverse().join("").search(/[^B]/); return i < 0 || i >= r.length ? -1 : i; };
-    const arm = [];                                          // rows where the arm shows: outline, a pixel of arm, its inner line
-    for (let y = y0 + 3; y <= y0 + 7; y++) { const e = edge(y);   // (her legs, lower down, look alike)
-      if (e >= 0 && at(e, y) === "K" && !"KB".includes(at(e - side, y)) && at(e - 2 * side, y) === "K") arm.push(y); }
-    if (!arm.length) continue;
-    const top = Math.max(0, arm[0] - 2), bot = arm[arm.length - 1];
-    const waist = edge(bot) - 2 * side;
-    for (let y = top; y <= bot + 1; y++) {
-      const e = edge(y); if (e < 0) continue;
-      // her own edge: the arm's inner line, one in at the shoulder, and the hip just below kept in line with the waist
-      const tx = y > bot ? ((waist - e) * -side > 0 ? waist : e) : arm.includes(y) ? e - 2 * side : e - side;
-      if (tx === e && y > bot) continue;
-      for (let x = e; x !== tx; x -= side) out.push([x, y, "clear"]);
-      out.push([tx, y, "outline"]);
-    }
-  }
+  // her arms go round the bear instead of hanging at her sides; two little paws hold the bear's sides
+  out.push(...armOff(grid, y0 + 3, y0 + 7));
   TEDDY.forEach((row, y) => [...row].forEach((ch, x) => { if (TEDDY_PAL[ch]) out.push([x0 + x, y0 + y, TEDDY_PAL[ch]]); }));
   for (const px of [x0 - 1, x0 + TEDDY[0].length - 3]) TEDDY_PAW.forEach((row, y) => [...row].forEach((ch, x) => {
     if (ch !== ".") out.push([px + x, y0 + 6 + y, ch === "K" ? TEDDY_PAL.K : "body"]);   // where her arms were

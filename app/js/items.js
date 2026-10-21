@@ -250,6 +250,10 @@ function drawWeapon(g, petId, layer, dy, pose, img) {
   }
   // in her hands: in front, or behind her (both long ends showing) while she faces away; swinging with what she does
   if (layer !== (o ? "front" : "back")) return;
+  if (o && petId !== "nori") {                               // the fork is held in her own little paws: her side arms go
+    const off = cache.warm || (cache.warm = armOff(grid, arm + o.dy - 3, arm + o.dy + 1));
+    for (const [x, y, c] of off) { if (c === "clear") g.clearRect(x, y + shift, 1, 1); else { g.fillStyle = OUT; g.fillRect(x, y + shift, 1, 1); } }
+  }
   const it = itemImg(petId, WEAPON_OF[petId]), sway = weaponSway();
   const ox = o ? o.dx : Math.round(w / 2 - 14), oy = (o ? o.dy : h - INFO[petId].h) + shift;
   if (!sway) { g.drawImage(it.img, it.x + ox, it.y + oy); return; }
