@@ -393,7 +393,7 @@ function petHold(on) {
 
 /* ---------- input: tap to pet, press and hold to pick up ---------- */
 let press = null;
-const GRAB_OK = ["idle", "walk", "lie", "spin", "twirl", "pet", "loaf", "dance", "wave", "gloom"];
+const GRAB_OK = ["idle", "walk", "lie", "spin", "twirl", "pet", "loaf", "dance", "wave", "gloom", "wspin"];
 const GRAB_HOLD = 260;
 let onPetTap = null;
 function grab(now) {
@@ -500,6 +500,7 @@ function petPose(now) {
       break;
     }
     case "gloom": { gloomPose(a, t); break; }
+    case "wspin": { a.yoff = t < 1100 ? -Math.round(Math.sin(Math.min(1, t / 1100) * Math.PI) * 2) : 0; if (t > 1150) a.body = "squash"; break; }
     case "loaf": { loafPose(a, t); break; }
     case "twirl": { const j = twirlIndex(t); if (j >= 0) a.img = TWIRL_IMG[j]; break; }
     case "spin": { const j = spinIndex(t); if (j >= 100) a.img = TWIRL_IMG[j - 100]; else if (j >= 0) a.img = SPIN_IMG[j]; break; }
@@ -614,7 +615,7 @@ function petUpdate(now, dt) {
   const dur = { skyland:SKYLAND_LEN, gloom:GLOOM_LEN, dash:DASH_LEN, wave:WAVE_LEN,
     pet:(G.pet === "nori" ? JUMP_LEN : G.pet === "sora" ? seqLen(SORA_ONCE) : 520), dance:DANCE_LEN, lie:LIE_DUR,
     lieDown:(G.pet === "nori" ? seqDur(LIE_DOWN) : G.pet === "sora" ? SIT_LEN : 1), getUp:(G.pet === "nori" ? seqDur(GET_UP) : G.pet === "sora" ? STAND_LEN : 1),
-    spin:SPIN_LEN, twirl:TWIRL_LEN, land:460, loaf:LOAF_LEN }[pet.act];
+    spin:SPIN_LEN, twirl:TWIRL_LEN, land:460, loaf:LOAF_LEN, wspin:(typeof WSPIN_LEN !== "undefined" ? WSPIN_LEN : 1) }[pet.act];
   if (dur && now - pet.t0 >= dur) { pet.act = "idle"; pet.nextThink = now + 1500; }
 
   // fall asleep / wake up when the app asks (rest time), once she is free
@@ -654,7 +655,9 @@ function petUpdate(now, dt) {
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && now > pet.nextThink) {
     pet.nextThink = now + 2500 + Math.random() * 3500;
     const r = Math.random(), calm = G.studying;          // fewer big moves while you study
-    if (G.pet === "nori" && r < (calm ? 0.35 : 0.3)) startAct("lie", now);
+    const armed = typeof WEAPON_OF !== "undefined" && G.equip && G.equip[WEAPON_OF[G.pet]];
+    if (armed && Math.random() < (calm ? 0.06 : 0.14)) startAct("wspin", now);   // twirls her weapon like a baton
+    else if (G.pet === "nori" && r < (calm ? 0.35 : 0.3)) startAct("lie", now);
     else if (G.pet === "nori" && r < 0.45) startAct("spin", now);
     else if (G.pet === "nori" && r < 0.58) startAct("twirl", now);
     else if (G.pet === "nori" && !calm && r < 0.66) startPeek(now);

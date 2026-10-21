@@ -62,8 +62,8 @@ function headHat(p, main, rib) {
 // towards the way she faces, her two little hands on the handle.
 const PRONG = [[0, 0], [1, -1], [2, -2], [3, -3], [4, -4], [5, -4], [6, -5], [7, -5], [8, -5], [9, -5], [10, -5], [11, -6], [12, -7]];
 const HAND = [".KKK.", "KWWWK", "KWWWK", ".KKK."];
-function fork(p, main, light) {
-  const y = ANCHOR[p].arm, x0 = -6, x1 = 26, y0 = y + 4, y1 = y - 3;
+function fork(p, main, light, flat = false) {
+  const y = ANCHOR[p].arm, x0 = -6, x1 = 26, y0 = flat ? y : y + 4, y1 = flat ? y : y - 3;
   const at = x => Math.round(y0 + (x - x0) * (y1 - y0) / (x1 - x0));
   return pixmap(d => {
     const body = new Map(), put = (x, y, c) => body.set(x + "," + y, c);
@@ -86,13 +86,13 @@ function fork(p, main, light) {
       const [x, y] = k.split(",").map(Number);
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!body.has((x + dx) + "," + (y + dy))) d.put(x + dx, y + dy, OUT);
     }
-    for (const hx2 of [4, 17]) d.grid(HAND, { K: OUT, W: "#fffaf0" }, hx2 - 2, at(hx2) - 1);   // her hands round the handle
+    if (!flat) for (const hx2 of [4, 17]) d.grid(HAND, { K: OUT, W: "#fffaf0" }, hx2 - 2, at(hx2) - 1);   // her hands round the handle
   }, false);
 }
 
 // 욱: a long yellow staff with white caps at both ends, tilted a little, with the rabbit she doodled on it (a dark speck)
-function staff(p) {
-  const y = ANCHOR[p].arm + 1, x0 = -8, x1 = 36, rise = 6;
+function staff(p, flat = false) {
+  const y = ANCHOR[p].arm + 1, x0 = -8, x1 = 36, rise = flat ? 0 : 6;
   return pixmap(d => {
     for (let x = x0; x <= x1; x++) {
       const yy = y + Math.round(rise / 2 - (x - x0) * rise / (x1 - x0)), cap = x - x0 < 4 || x1 - x < 4;
@@ -162,9 +162,19 @@ const ITEM_ART = {
   },
 };
 const ITEM_CACHE = {};
-// Lv10 weapons follow every motion: the weapon drawn for the base pose moves with her face. Facing away, she holds it
-// in front of her where it cannot be seen.
+function itemImg(pet, id) {
+  const k = pet + ":" + id;
+  return ITEM_CACHE[k] || (ITEM_CACHE[k] = ITEM_ART[pet][id].build());
+}
+// Lv10 weapons are their own thing, like 치카's bear: held across her belly they move with her face; turned away she
+// still holds it, so it shows behind her with both long ends sticking out; lying down or asleep she leaves it on the
+// grass beside her; on 치카's sky-landing her arms are up and so is the weapon; and now and then (and while spinning or
+// dancing) she twirls it like a baton.
 const WEAPON_OF = { mochi: "fork", sora: "trident", nori: "pencil" };
+const WSPIN_LEN = 1400;
+const WEAPON_FLAT = { mochi: () => fork("mochi", "#f59ab6", "#ffd0de", true), sora: () => fork("sora", "#4f9fe0", "#a9d6f7", true), nori: () => staff("nori", true) };
+const WEAPON_MID = { mochi: 10, sora: 10, nori: 14 };                       // the middle of the handle, where it turns
+function weaponFlat(pet) { const k = "flat:" + pet; return ITEM_CACHE[k] || (ITEM_CACHE[k] = WEAPON_FLAT[pet]()); }
 function weaponPixels(pet) {
   const k = "px:" + pet; if (ITEM_CACHE[k]) return ITEM_CACHE[k];
   const it = itemImg(pet, WEAPON_OF[pet]), g = it.img.getContext("2d"), d = g.getImageData(0, 0, it.img.width, it.img.height).data, out = [];
@@ -174,21 +184,67 @@ function weaponPixels(pet) {
   }
   return (ITEM_CACHE[k] = out);
 }
-ITEM_AUTO.weapon = (grid, pet) => {
-  if (!WEAPON_OF[pet] || grid[0].length > 60) return [];
+// where her hands are on this frame, as an offset from the base pose: from her face, kept inside her arms when the
+// face sits low; null when she faces away
+function weaponOffset(grid, pet) {
   const f = faceOf(grid), b = faceOf(SPRITES[pet]);
-  if (!f || !b) return [];
+  if (!f || !b) return null;
   const dx = Math.round(f.cx - b.cx);
-  let dy = Math.round(f.cy - b.cy);
-  // when her face sits low (lying down, a squashed landing) the weapon still stays in her arms, not under her
-  let bottom = grid.length - 1; while (bottom > 0 && !/[^B]/.test(grid[bottom])) bottom--;
+  let dy = Math.round(f.cy - b.cy), bottom = grid.length - 1;
+  while (bottom > 0 && !/[^B]/.test(grid[bottom])) bottom--;
   const held = ANCHOR[pet].arm + dy;
   if (held > bottom - 3) dy -= held - (bottom - 3);
-  return weaponPixels(pet).map(([x, y, c]) => [x + dx, y + dy, c]);
+  return { dx, dy };
+}
+ITEM_AUTO.weapon = (grid, pet) => {
+  if (!WEAPON_OF[pet] || grid[0].length > 60) return [];
+  const o = weaponOffset(grid, pet);
+  return o ? weaponPixels(pet).map(([x, y, c]) => [x + o.dx, y + o.dy, c]) : [];
 };
-function itemImg(pet, id) {
-  const k = pet + ":" + id;
-  return ITEM_CACHE[k] || (ITEM_CACHE[k] = ITEM_ART[pet][id].build());
+function weaponMode(img) {
+  const act = typeof pet !== "undefined" ? pet.act : "idle";
+  if ((typeof G !== "undefined" && G.sleeping) || ["lieDown", "lie", "getUp", "loaf"].includes(act)) return "ground";
+  if (["wspin", "spin", "twirl", "dance"].includes(act)) return "spin";
+  const m = /^mochi-hop:(\d+)$/.exec((img && img.key) || "");
+  if (m && +m[1] >= 10 && +m[1] <= 18) return "overhead";
+  return "held";
+}
+function drawWeapon(g, petId, layer, dy, pose, img) {
+  const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base ? dy : 0;
+  const w = grid[0].length, h = grid.length, arm = ANCHOR[petId].arm, mode = weaponMode(img);
+  const cache = base ? (ITEM_CACHE["base:" + petId] || (ITEM_CACHE["base:" + petId] = {})) : (img._auto || (img._auto = {}));
+  if (!("wo" in cache)) cache.wo = weaponOffset(grid, petId);
+  const o = cache.wo;
+  if (mode === "ground") {                                   // laid on the grass beside her, behind her
+    if (layer !== "back") return;
+    const f = weaponFlat(petId);
+    g.drawImage(f.img, f.x + w - 2, f.y + h - 3 - arm + shift);   // the handle on the ground line, just past her side
+    return;
+  }
+  if (mode === "overhead") {                                 // both arms up: held flat above her head
+    if (layer !== "front") return;
+    const f = weaponFlat(petId), top = grid.findIndex(r => /[^B]/.test(r));
+    g.drawImage(f.img, f.x + Math.round(w / 2) - WEAPON_MID[petId], f.y + top + 1 - arm + shift);
+    return;
+  }
+  if (mode === "spin") {                                     // twirled like a baton round the middle of the handle
+    if (layer !== (o ? "front" : "back")) return;           // behind her while she faces away
+    const f = weaponFlat(petId), t = typeof pet !== "undefined" ? performance.now() - pet.t0 : 0;
+    const cx = (o ? WEAPON_MID[petId] + o.dx : w / 2), cy = (o ? arm + o.dy : h - (INFO[petId].h - arm)) + shift;
+    g.save(); g.translate(Math.round(cx), Math.round(cy)); g.rotate(Math.floor(t / 60) * Math.PI / 4);
+    g.drawImage(f.img, f.x - WEAPON_MID[petId], f.y - arm);
+    g.restore();
+    return;
+  }
+  if (o) {                                                   // in her hands, in front
+    if (layer !== "front") return;
+    const px = cache.wpx || (cache.wpx = weaponPixels(petId).map(([x, y, c]) => [x + o.dx, y + o.dy, c]));
+    for (const [x, y, c] of px) { g.fillStyle = c; g.fillRect(x, y + shift, 1, 1); }
+    return;
+  }
+  if (layer !== "back") return;                              // turned away: still in her hands, seen behind her
+  const it = itemImg(petId, WEAPON_OF[petId]);
+  g.drawImage(it.img, Math.round(w / 2 - 14) + it.x, it.y + (h - INFO[petId].h) + shift);
 }
 
 // draws the equipped items of one layer, in the sprite's own pixels (the caller has set up the transform).
@@ -198,6 +254,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
   const order = ITEM_LIST[petId].slice().sort((p, q) => !!(art[q[1]] || {}).under - !!(art[p[1]] || {}).under);   // the onesie goes on first
   for (const [, id] of order) {
     const a = art[id];
+    if (equip[id] && a && a.auto === "weapon") { if (img && img.grid) drawWeapon(g, petId, layer, dy, pose, img); continue; }
     if (!equip[id] || !a || a.layer !== layer) continue;
     if (a.auto) {
       if (!img || !img.grid) continue;
