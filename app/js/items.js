@@ -639,6 +639,17 @@ function puddingAt(grid, pet, prefer) {
   // her hand on this frame: a paw waved up by her head, else the end of her arm (the little stub of outline, arm and
   // its inner line at her side, lowest one), else where her arm would be
   let hand = side < 0 && prefer < 0 ? waveHand(grid) : null;
+  // a paw raised up by her face (her jump): a short bump of her outline out past her face, not her round side
+  // (her outline a couple of rows above and below it is well in) and not a folded-down ear (pink inside)
+  if (!hand && !profile) {
+    let best = 1;
+    for (let y = Math.max(0, Math.round(f.cy - 8)); y <= Math.round(f.cy); y++) {
+      const e = edge(y), a = edge(y - 2), b = edge(y + 3); if (e < 0 || a < 0 || b < 0 || side * (e - f.cx) < f.rx + 3) continue;
+      if ([-1, 0, 1].some(d => [1, 2, 3, 4].some(i => at(e - side * i, y + d) === "P"))) continue;
+      const jut = side > 0 ? e - Math.max(a, b) : Math.min(a, b) - e;
+      if (jut > best) { best = jut; hand = [e, y + 1]; }
+    }
+  }
   // (only as low as her arms go, so it is never her foot; the top of the stub, a little raised, where her paw is)
   if (!hand) for (let y = Math.round(f.cy); y <= ANCHOR[pet].arm + 2 + o.dy && !hand; y++) { const e = edge(y); if (e >= 0 && at(e, y) === "K" && !"KB".includes(at(e - side, y)) && at(e - 2 * side, y) === "K") hand = [e, y]; }
   if (!hand) { const y = ANCHOR[pet].arm + o.dy; hand = [edge(y) + side, y]; }
