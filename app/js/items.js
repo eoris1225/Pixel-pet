@@ -142,12 +142,7 @@ const GUITAR = [
   "....KKKK..................",
 ];
 const GUITAR_PAL = { K: OUT, T: "#d9a15e", L: "#eaba7a", H: "#4a2e1c", R: "#7a4a2a", S: "#b07640", F: "#6e4228", N: "#be7d46", D: "#6e4228", P: "#fbeed5" };
-// her arms while she plays, as in the anime: on the left a small paw curled over the top of the body, on the right an arm
-// reaching down from her side to hold the neck. Spots along the guitar (from its middle: along the neck, across it),
-// so they tip with it
-const STRUM_PAW = [-7.5, -5.5, [".KK.", "KWWK", "KWWK", ".KK."]];
-const STRUM_ARM = { at: [6.5, -0.5], reach: [0.5, -4] };  // where her paw grips the neck, and how far up her arm goes from there
-const STRUM_FEET = ["KWKWK", "KWKWK", "KWKWK", "KWKWK", ".K.K."];   // two thin legs; the guitar hides their tops
+const STRUM_FEET = ["KWKWK", "KWKWK", ".K.K."];          // her two thin legs hanging down; the guitar hides their tops
 const GUITAR_BACK = { deg: -40, x: 12, foot: 28 };       // slung on her back: turned up to her right shoulder, no lower than her feet
 /* the guitar just turned, the way pixel art is rotated (RotSprite): the level drawing is blown up 8x with Scale2x, which
    rounds its stair-steps into smooth lines, turned, and each pixel then takes the colour at its own middle. Kept per angle */
@@ -179,20 +174,15 @@ function guitarTurned(deg) {
   }
   return (GUITAR_TURNED[deg] = cv);
 }
-/* an arm: two pixels thick from her paw on the neck up to her side, outlined except where it runs into her own body
-   (so it joins her instead of being cut off by a line) */
-function drawArm(g, img, x0, y0, x1, y1, paw, p) {
-  const pts = new Set(), n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) || 1;
-  for (let k = 0; k <= n; k++) { const x = Math.round(x0 + (x1 - x0) * k / n), y = Math.round(y0 + (y1 - y0) * k / n); pts.add(x + "," + y); pts.add((x + 1) + "," + y); }
-  pts.add(x0 + "," + (y0 + 1)); pts.add((x0 + 1) + "," + (y0 + 1));           // the round of her paw under the neck
-  const gc = guitarTurned(p.ga), gx = Math.round(p.x - gc.width / 2), gy = Math.round(p.y - gc.height / 2);
-  const onGuitar = (x, y) => { const d = gc._px || (gc._px = gc.getContext("2d").getImageData(0, 0, gc.width, gc.height).data); const u = x - gx, v = y - gy; return u >= 0 && v >= 0 && u < gc.width && v < gc.height && d[(v * gc.width + u) * 4 + 3] > 0; };
-  const herBody = (x, y) => { const r = img.grid[y]; return r && r[x] && r[x] !== "B" && !onGuitar(x, y); };
-  g.fillStyle = OUT;
-  for (const k of pts) { const [x, y] = k.split(",").map(Number);
-    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) { const q = (x + dx) + "," + (y + dy); if (!pts.has(q) && !herBody(x + dx, y + dy)) g.fillRect(x + dx, y + dy, 1, 1); } }
-  g.fillStyle = paw;
-  for (const k of pts) { const [x, y] = k.split(",").map(Number); g.fillRect(x, y, 1, 1); }
+// her arms in her onesie colour (the white of the drawing swapped), kept per colour
+function tint(c, col) {
+  const k = "_t" + col; if (c[k]) return c[k];
+  const t = document.createElement("canvas"); t.width = c.width; t.height = c.height;
+  const g = t.getContext("2d"); g.drawImage(c, 0, 0);
+  const im = g.getImageData(0, 0, t.width, t.height), d = im.data, n = parseInt(col.slice(1), 16), w = parseInt(PET.sora.pal.W.slice(1), 16);
+  for (let i = 0; i < d.length; i += 4) if (d[i + 3] && ((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]) === w) { d[i] = n >> 16; d[i + 1] = (n >> 8) & 255; d[i + 2] = n & 255; }
+  g.putImageData(im, 0, 0);
+  return (c[k] = t);
 }
 // how far below its middle the turned guitar reaches
 function guitarDrop(deg) {
@@ -494,13 +484,10 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
         if (layer === "front") {
           const p = img.play, paw = equip.pajama && typeof PAJAMA !== "undefined" ? PAJAMA[petId].main : PET[petId].pal[PET[petId].body];
           const put = (rows, x, y) => rows.forEach((row, j) => [...row].forEach((ch, k) => { if (ch !== ".") { g.fillStyle = ch === "K" ? OUT : paw; g.fillRect(x + k, y + j, 1, 1); } }));
-          put(STRUM_FEET, p.fx + 1, p.fy - 1);
+          put(STRUM_FEET, p.fx + 1, p.fy);
           drawGuitar(g, p.x, p.y, p.ga);
-          const r = p.ga * Math.PI / 180, c = Math.cos(r), s = Math.sin(r), on = (u, v) => [p.x + c * u - s * v, p.y + s * u + c * v];
-          const [, , paw1] = STRUM_PAW, [lx, ly] = on(STRUM_PAW[0], STRUM_PAW[1]);
-          put(paw1, Math.round(lx - paw1[0].length / 2), Math.round(ly - paw1.length / 2));
-          const [ax, ay] = on(...STRUM_ARM.at);
-          drawArm(g, img, Math.round(ax), Math.round(ay), Math.round(ax + STRUM_ARM.reach[0]), Math.round(ay + STRUM_ARM.reach[1]), paw, p);
+          if (paw === PET[petId].pal[PET[petId].body]) g.drawImage(p.arms, 0, 0);
+          else g.drawImage(tint(p.arms, paw), 0, 0);
         }
         continue;
       }

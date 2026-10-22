@@ -136,7 +136,7 @@ const danceImg = t => SORADANCE_IMG[danceFrame(t)];
 const STRUM_IMG = SORASTRUM.map((g, i) => {
   const c = gridToCanvas(g, PET.sora.pal), [, , x, y, ga, fx, fy] = STRUM_SEQ[i];
   c.key = "sora-strum:" + i;
-  c.play = { x, y, ga, fx, fy };
+  c.play = { x, y, ga, fx, fy, arms: gridToCanvas(STRUM_ARMS[i], PET.sora.pal) };
   return c;
 });
 const STRUM_AT = STRUM_SEQ.reduce((a, f) => (a.push(a[a.length - 1] + f[1]), a), [0]), STRUM_LEN = STRUM_AT[STRUM_AT.length - 1];
