@@ -346,12 +346,10 @@ const ITEM_ART = {
       d.rect(10, 16, 9, 1, "#d2d6da");                                                          // the line under the title
     }) },
     pajama: { layer: "front", auto: "pajama", under: true, build: () => onesieIcon("nori") },
-    pudding: { layer: "front", build: () => pixmap(d => {          // in her other hand
-      const y = ANCHOR.nori.arm;
-      d.rect(-2, y + 2, 9, 1, "#ffffff");
-      d.rect(-1, y - 2, 7, 4, "#ffe08a"); d.rect(0, y - 3, 5, 1, "#ffe08a");
-      d.rect(0, y - 4, 5, 2, "#a8642e"); d.put(1, y - 4, "#d48a4a");
-    }) },
+    // a pudding on a stemmed glass dish (as in the anime), raised like Gatsby's toast in her other paw
+    pudding: { layer: "front", auto: "pudding", build: () => pixmap(d => {   // the inventory picture; in play placed per frame (below)
+      PUDDING.forEach((r, j) => [...r].forEach((ch, i) => { if (PUDDING_PAL[ch]) d.put(8 + i, 9 + j, PUDDING_PAL[ch]); }));
+    }, false) },
     pencil: { layer: "front", auto: "weapon", build: () => staff("nori") },
   },
 };
@@ -568,6 +566,57 @@ ITEM_AUTO.pass = (grid, pet) => {
   const dx = Math.round(mx - bx), dy = eTop - bTop - 1;          // a row clear of her eyes
   const out = weaponPixels(pet, "pass").map(([x, y, c]) => [x + dx, y + dy, c]);
   out.noMirror = true;
+  return out;
+};
+// the pudding: caramel on top, the custard flaring out, on a wide shallow glass with a thin stem and a round foot.
+// The stem column is the middle (x 5); row 15 is where her paw grips it
+const PUDDING = [
+  "...KKKKK...",
+  "..KCCCCCK..",
+  "..KYYYYYK..",
+  ".KYYYYYYYK.",
+  ".KYyyyyyYK.",
+  "KKKKKKKKKKK",
+  "KGGGGGGGGgK",
+  ".KGGGGGGgK.",
+  "..KKGGgKK..",
+  "....KGK....",
+  "....KGK....",
+  "....KGK....",
+  "....KGK....",
+  "..KKKGKKK..",
+  ".KGGGGGGgK.",
+  ".KKKKKKKKK.",
+];
+const PUDDING_PAL = { K: OUT, C: "#6b3b1c", Y: "#f7d276", y: "#e9b850", G: "#eef6fa", g: "#c3d8e4" };
+// 욱 raises it to the side like a toast: her arm on that side lifted out and up, her paw round the stem, the glass held
+// up by her head. It moves with her (from her face); from behind or lying down it is out of sight
+ITEM_AUTO.pudding = (grid, pet) => {
+  if (grid[0].length > 60) return [];
+  const o = weaponOffset(grid, pet), f = faceOf(grid);
+  if (!o || !f) return [];
+  let y1 = -1; grid.forEach((r, y) => { if (/[^B]/.test(r)) y1 = y; });
+  if (y1 - f.cy < f.ry + 3) return [];
+  const out = [], mid = grid[0].length / 2, at = (x, y) => (grid[y] && grid[y][x]) || "B";
+  // which paw: her left (our left) facing us; side on, the one on the side she faces
+  const eyes = findEyes(grid), cheeks = []; grid.forEach((r, y) => [...r].forEach((c, x) => { if (c !== "P" || y < f.cy - 4) return;
+    const k = cheeks.find(q => q.pts.some(([a, e]) => Math.abs(a - x) <= 2 && Math.abs(e - y) <= 2)); if (k) k.pts.push([x, y]); else cheeks.push({ pts: [[x, y]] }); }));
+  const profile = eyes.length < 2 && cheeks.filter(c => c.pts.length >= 2 && c.pts.length <= 14).length < 2;
+  const side = profile && f.cx > mid ? 1 : -1;
+  const edge = y => { const r = grid[y] || ""; const q = r.search(/[^B]/); return q < 0 ? Math.round(mid) : side < 0 ? q : r.length - 1 - [...r].reverse().join("").search(/[^B]/); };
+  out.push(...armOff(grid, ANCHOR[pet].arm - 1 + o.dy, ANCHOR[pet].arm + 2 + o.dy).filter(([x]) => side < 0 ? x < mid : x > mid));   // her arm on that side, now raised
+  const py = 22 + o.dy, sy = 26 + o.dy, px = edge(py) + side * 4, sx = edge(sy) - side * 1;   // her paw on the stem, just off her side; her shoulder
+  const gx = px - 5, gy = py - 13;                                                 // the glass, its stem through her paw
+  PUDDING.forEach((r, j) => [...r].forEach((ch, i) => { if (PUDDING_PAL[ch]) out.push([gx + i, gy + j, PUDDING_PAL[ch]]); }));
+  // the arm: a fat line from her shoulder to her paw, outlined only where it is out in the air
+  const arm = new Set(), mark = (x, y) => arm.add(x + "," + y);
+  for (let k = 0; k <= 12; k++) { const x = Math.round(sx + (px - sx) * k / 12), y = Math.round(sy + (py - sy) * k / 12); mark(x, y); mark(x + 1, y); mark(x, y + 1); mark(x + 1, y + 1); }
+  for (const [dx, dy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [2, 0], [-1, 1], [2, 1], [0, 2], [1, 2]]) mark(px + dx, py + dy);   // her paw, round
+  const rim = new Set();
+  for (const k of arm) { const [x, y] = k.split(",").map(Number); for (const [a, c] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = (x + a) + "," + (y + c); if (!arm.has(n) && at(x + a, y + c) === "B") rim.add(n); } }
+  for (const k of rim) { const [x, y] = k.split(",").map(Number); out.push([x, y, "outline"]); }
+  for (const k of arm) { const [x, y] = k.split(",").map(Number); out.push([x, y, "body"]); }
+  out.push([px - 1, py, "outline"], [px + 1, py + 1, "outline"]);              // her toes round the stem
   return out;
 };
 ITEM_AUTO.weapon = (grid, pet) => {
