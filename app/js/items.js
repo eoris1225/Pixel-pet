@@ -390,30 +390,45 @@ const SHADES_LENS = [".KKKKK.", "KGWWGGK", "KGGGGGK", "KGGGGGK", "KgggggK", ".KK
 const SHADES_PAL = { K: OUT, G: "#5b3324", g: "#7a4632", W: "#ffffff" };
 const RABBIT = [".K.K.", "KYKYK", "KYYYK", "KdYdK", ".KKK."], RABBIT_PAL = { K: OUT, Y: "#ffd84a", d: "#8a5a1a" };
 ITEM_AUTO.shades = (grid, pet) => {
+  if (grid[0].length > 60) return [];                          // close-ups keep their own look
   const out = [], put = (rows, pal, x0, y0) => rows.forEach((r, j) => [...r].forEach((ch, i) => { if (pal[ch]) out.push([x0 + i, y0 + j, pal[ch]]); }));
   const f = faceOf(grid), b = faceOf(SPRITES[pet]);
-  if (!f || !b) return out;                                    // facing away
-  const dx = Math.round(f.cx - b.cx), dy = Math.round(f.cy - b.cy), eyes = findEyes(grid);
-  const lenses = eyes.length === 2 ? [[Math.floor(eyes[0].cx) - 3, eyes[0].y0 - 1], [Math.ceil(eyes[1].cx) - 3, eyes[1].y0 - 1]]
-    : eyes.length === 1 ? [[Math.round(eyes[0].cx - 3), eyes[0].y0 - 1]]
-    : f.rx > 7 ? [[6 + dx, 16 + dy], [15 + dx, 16 + dy]] : [[Math.round(f.cx - 3.5), 16 + dy]];
-  for (const [x, y] of lenses) put(SHADES_LENS, SHADES_PAL, x, y);
-  if (lenses.length === 2) { const [l, r] = lenses, y = Math.min(l[1], r[1]) + 1; for (let x = l[0] + 7; x < r[0]; x++) out.push([x, y, OUT]); }   // the bridge
-  // the chain goes round her neck: on the side of her head where her body is (below it standing, beside it lying on
-  // her front), a band that sags out in the middle and wraps back round at both ends; only where her body is
+  if (f && b) {                                                // the glasses only where her face shows
+    const dx = Math.round(f.cx - b.cx), dy = Math.round(f.cy - b.cy), eyes = findEyes(grid);
+    const lenses = eyes.length === 2 ? [[Math.floor(eyes[0].cx) - 3, eyes[0].y0 - 1], [Math.ceil(eyes[1].cx) - 3, eyes[1].y0 - 1]]
+      : eyes.length === 1 ? [[Math.round(eyes[0].cx - 3), eyes[0].y0 - 1]]
+      : f.rx > 7 ? [[6 + dx, 16 + dy], [15 + dx, 16 + dy]] : [[Math.round(f.cx - 3.5), 16 + dy]];
+    for (const [x, y] of lenses) put(SHADES_LENS, SHADES_PAL, x, y);
+    if (lenses.length === 2) { const [l, r] = lenses, y = Math.min(l[1], r[1]) + 1; for (let x = l[0] + 7; x < r[0]; x++) out.push([x, y, OUT]); }   // the bridge
+  }
+  // the chain goes round her neck, a little back from her face: below her head standing (in profile too), beside it
+  // lying on her front, a band that sags out in the middle and wraps back round at both ends; only where her body is.
+  // Facing away her head is where it would be: above her body by her own proportions, or lying, away from her tail
   const body = (x, y) => !!(grid[y] && grid[y][x] && grid[y][x] !== "B");
-  let x0 = 1e9, x1 = -1, y1 = -1;
-  grid.forEach((r, y) => { const q = r.search(/[^B]/); if (q >= 0) { x0 = Math.min(x0, q); x1 = Math.max(x1, r.length - 1 - [...r].reverse().join("").search(/[^B]/)); y1 = y; } });
-  const reach = [[0, 1, y1 - f.cy - f.ry], [1, 0, x1 - f.cx - f.rx], [-1, 0, f.cx - x0 - f.rx]].sort((p, q) => q[2] - p[2])[0];
-  const [ux, uy] = reach, D = (uy ? f.ry : f.rx) + 0.8, W = 10;
-  const at = t => [f.cx - 0.5 + ux * (D - 2.5 * t * t) - uy * W * t, f.cy - 0.5 + uy * (D - 2.5 * t * t) + ux * W * t];
+  let x0 = 1e9, x1 = -1, y0 = -1, y1 = -1, tx = 0, tn = 0;
+  grid.forEach((r, y) => { const q = r.search(/[^B]/); if (q >= 0) { if (y0 < 0) y0 = y; x0 = Math.min(x0, q); x1 = Math.max(x1, r.length - 1 - [...r].reverse().join("").search(/[^B]/)); y1 = y; }
+    [...r].forEach((c, x) => { if (c === "W") { tx += x; tn++; } }); });
+  const lying = x1 - x0 + 1 > (y1 - y0 + 1) * 1.15;
+  const tailRight = tn ? tx / tn > (x0 + x1) / 2 : true;
+  const F = f || (lying ? { cx: tailRight ? x0 + 9.5 : x1 - 8.5, cy: y1 - 5.25, rx: 8.7, ry: 6 } : { cx: (x0 + x1) / 2 + 0.5, cy: y1 - 14.5, rx: 9.2, ry: 6 });
+  const [ux, uy] = !lying ? [0, 1] : x1 - F.cx > F.cx - x0 ? [1, 0] : [-1, 0];
+  // from behind, the back of it sits up at her nape and its sides drop away round to the front
+  const back = !f && !lying, D = back ? 1.5 : uy ? F.ry + 1.5 : F.rx + 2, W = 10, sag = back ? -2.5 : 2.5;
+  let at = t => [F.cx - 0.5 + ux * (D - sag * t * t) - uy * W * t, F.cy - 0.5 + uy * (D - sag * t * t) + ux * W * t];
+  const side = f && !lying && f.rx <= 7;
+  if (side) {                                                  // in profile: from the back of her neck down round under her chin
+    const s = f.cx > (x0 + x1) / 2 ? 1 : -1, ax = (x0 + x1) / 2 - s * 6, ay = f.cy + 1, bx = f.cx - s, by = f.cy + f.ry + 2.5;
+    at = t => { const q = (t + 1) / 2; return [ax + (bx - ax) * q, ay + (by - ay) * q + 2 * Math.sin(q * Math.PI)]; };
+  }
+  const face = (x, y) => f && ((x + 0.5 - f.cx) / (f.rx + 1)) ** 2 + ((y + 0.5 - f.cy) / (f.ry + 1)) ** 2 <= 1;
+  const ok = (x, y) => body(x, y) && !face(x, y);
   const link = new Map();
-  for (let k = 0; k <= 80; k++) { const [x, y] = at(k / 40 - 1).map(Math.round); if (body(x, y)) link.set(x + "," + y, (x + y) % 2); }
+  for (let k = 0; k <= 80; k++) { const [x, y] = at(k / 40 - 1).map(Math.round); if (ok(x, y)) link.set(x + "," + y, (x + y) % 2); }
   const ring = new Set();
-  for (const key of link.keys()) { const [x, y] = key.split(",").map(Number); for (const [a, c] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = (x + a) + "," + (y + c); if (!link.has(n) && body(x + a, y + c)) ring.add(n); } }
+  for (const key of link.keys()) { const [x, y] = key.split(",").map(Number); for (const [a, c] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = (x + a) + "," + (y + c); if (!link.has(n) && ok(x + a, y + c)) ring.add(n); } }
   for (const n of ring) { const [x, y] = n.split(",").map(Number); out.push([x, y, OUT]); }
   for (const [key, a] of link) { const [x, y] = key.split(",").map(Number); out.push([x, y, a ? "#ffe680" : "#d39a22"]); }
-  if (uy) { const [mx, my] = at(0).map(Math.round); if (body(mx, my + 4)) put(RABBIT, RABBIT_PAL, mx - 2, my + 1); }   // the rabbit at the front
+  if (f && uy && !side) { const [mx, my] = at(0).map(Math.round); if (body(mx, my + 4)) put(RABBIT, RABBIT_PAL, mx - 2, my + 1); }   // the rabbit at the front
   return out;
 };
 ITEM_AUTO.weapon = (grid, pet) => {
