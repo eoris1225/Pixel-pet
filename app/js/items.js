@@ -142,7 +142,7 @@ function rubberStaff(bend, paw, flat = false, twist = 0) {
 }
 // spinning it round (during her spin and twirl, like a knight twirling a spear): it whirls round her paws, speeding up
 // and slowing down to stop level again; spun fast its rubber ends trail in an S, and white swooshes follow them
-function spinPole(g, equip, cx, cy, t, len) {
+function spinPole(g, equip, cx, cy, t, len, paws = true) {
   const q = Math.min(1, t / len), N = len > 1500 ? 3 : 2;   // whole turns, so it ends level as it began
   const th = 2 * Math.PI * N * (q - Math.sin(2 * Math.PI * q) / (2 * Math.PI)), speed = (1 - Math.cos(2 * Math.PI * q)) / 2;
   const f = rubberStaff(0, null, true, Math.round(speed * 3)), mid = 14, arm = ANCHOR.nori.arm + 1.5;
@@ -160,7 +160,7 @@ function spinPole(g, equip, cx, cy, t, len) {
     }
     g.globalAlpha = 1;
   }
-  drawPaws(g, "nori", equip, [[cx, cy]]);
+  if (paws) drawPaws(g, "nori", equip, [[cx, cy]]);
 }
 
 const POCHETTE = [
@@ -523,10 +523,10 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
   const o = cache.wo;
   if (mode === "away") return;                               // lying on the grass where she put it (drawn by pet.js)
   if (petId === "nori" && typeof pet !== "undefined" && (pet.act === "spin" || pet.act === "twirl") && pose === pet._pose) {
-    if (layer !== "front") return;                           // twirled round in front of her
+    if (layer !== (o ? "front" : "back")) return;            // twirled round in front of her; behind her (hidden by her body) facing away
     const t = performance.now() - pet.t0, len = pet.act === "spin" ? SPIN_LEN : TWIRL_LEN;
     const cx = mid + (o ? o.dx : Math.round(w / 2 - 14)), cy = arm - 2 + (o ? o.dy : soles(grid) - soles(SPRITES.nori) - 4) + shift;
-    spinPole(g, equip, cx, cy, t, len);
+    spinPole(g, equip, cx, cy, t, len, !!o);
     return;
   }
   if (!base && typeof pet !== "undefined" && pet.act === "dance") {   // dancing: held across her belly, tipped to the beat
