@@ -482,6 +482,17 @@ function weaponSway() {
 // her hands on a frame where they are drawn out from her body (하와's dance): on each side, the short run of rows where
 // the outline juts out past the rows a few above and below it, between her face and her feet
 // her little paws on the handle wherever she is gripping it (the fork only), in her own colour or her onesie's
+// a paw raised by her head, waving (욱's jump): the outermost pixel of her on her left, from her ears down to her eyes,
+// when it sticks right out to the frame's edge
+function waveHand(grid) {
+  const f = faceOf(grid); if (!f) return null;
+  const edge = y => (grid[y] || "").search(/[^B]/);
+  for (let y = Math.max(0, Math.round(f.cy - 8)); y <= Math.round(f.cy - 1); y++) {
+    const x = edge(y);                                       // right out at the edge, and jutting past her side below it
+    if (x >= 0 && x <= 1 && edge(y + 3) >= x + 2) return [x + 1, y];
+  }
+  return null;
+}
 const pawColour = (petId, equip) => equip.pajama && typeof PAJAMA !== "undefined" ? PAJAMA[petId].main : PET[petId].pal[PET[petId].body];
 function drawPaws(g, petId, equip, pts) {
   const paw = equip.pajama && typeof PAJAMA !== "undefined" ? PAJAMA[petId].main : PET[petId].pal[PET[petId].body];
@@ -528,6 +539,20 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
     const cx = mid + (o ? o.dx : Math.round(w / 2 - 14)), cy = arm - 2 + (o ? o.dy : soles(grid) - soles(SPRITES.nori) - 4) + shift;
     spinPole(g, equip, cx, cy, t, len, !!o);
     return;
+  }
+  if (petId === "nori" && typeof pet !== "undefined" && pet.act === "pet" && pose === pet._pose && layer === "front") {
+    // 욱's jump: when she has a paw up by her head, waving, the pole goes up with it in that one paw, held near its end,
+    // reaching up and out and swaying as she waves (and bending, being rubber)
+    const hand = cache.wave !== undefined ? cache.wave : (cache.wave = waveHand(grid));
+    if (hand) {
+      const sm = smoothHold("wave" + pet.t0, hand[0], hand[1], 0.8 + (hand[1] - 17) * 0.25) || { x: hand[0], y: hand[1], a: 0.8 };
+      const f = rubberStaff(rubberBend(g.getTransform().f + sm.y), null, true), grip = 29, row = ANCHOR.nori.arm + 1.5;
+      g.save(); g.translate(Math.round(sm.x), Math.round(sm.y)); g.rotate(sm.a);
+      g.drawImage(f.img, f.x - grip, f.y - row);
+      g.restore();
+      drawPaws(g, petId, equip, [[sm.x, sm.y]]);
+      return;
+    }
   }
   if (!base && typeof pet !== "undefined" && pet.act === "dance") {   // dancing: held across her belly, tipped to the beat
     if (layer !== "front") return;

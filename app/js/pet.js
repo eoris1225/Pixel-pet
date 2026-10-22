@@ -647,7 +647,7 @@ function fetchWeapon(now) {
   const dx = wprop.x - pet.x;
   if (Math.abs(dx) > 12 || Math.abs(wprop.z - pet.z) > 1.5) { pet.act = "walk"; pet.target = wprop.x - Math.sign(dx) * 10; pet.tz = wprop.z; return true; }
   Object.assign(wprop, { state: "lift", t0: now, fx: wprop.x, fy: wprop.y });
-  pet.dir = Math.sign(dx) || pet.dir; startAct("pet", now); return true;
+  pet.dir = Math.sign(dx) || pet.dir; startAct("pickup", now); return true;   // the boing, as for the guitar
 }
 function drawWeaponProp(front) {
   if (!weaponOn() || wprop.state === "held" || !front) return;            // set down or moving, it shows in front of her
