@@ -315,16 +315,23 @@ const ITEM_ART = {
     trident: { layer: "front", auto: "weapon", build: () => fork("sora", "#4f9fe0", "#a9d6f7") },
   },
   nori: {
+    // big round-cornered dark brown sunglasses with a white glint, and a chunky twisted gold chain with a little gold rabbit head
     shades: { layer: "front", build: () => pixmap(d => {
       const e = ANCHOR.nori.eye - 1;
       d.grid([
-        "KKKKKK..KKKKKK",
-        "KGGgGKKKKGGgGK",
-        "KGGGGK..KGGGGK",
-        ".KGGK....KGGK.",
-      ], { K: OUT, G: "#3d3f5c", g: "#9aa0c8" }, 7, e);
-      for (let x = 8; x <= 20; x++) d.put(x, 26 + Math.round(2.6 * (1 - ((x - 14) / 6.5) ** 2)), "#e0a93a");
-      d.grid([".P.P.", "PPPPP", ".PPP.", "..P.."], { P: "#ff9db4" }, 12, 29);
+        ".....KKKKK....KKKKK.....",
+        "....KGWWGGKKKKGWWGGK....",
+        "....KGGGGGK..KGGGGGK....",
+        "....KGGGGGK..KGGGGGK....",
+        "....KgggggK..KgggggK....",
+        ".....KKKKK....KKKKK.....",
+      ], { K: OUT, G: "#5b3324", g: "#7a4632", W: "#ffffff" }, 2, e);
+      const sag = x => 26 + Math.round(1.6 * (1 - ((x - 13.5) / 9) ** 2));
+      for (let x = 5; x <= 22; x++) {                    // the twist: light and dark links alternating
+        const y = sag(x), a = x % 2;
+        d.put(x, y - 1, OUT); d.put(x, y, a ? "#ffe680" : "#d39a22"); d.put(x, y + 1, OUT);
+      }
+      d.grid([".K.K.", "KYKYK", "KYYYK", "KdYdK", ".KKK."], { K: OUT, Y: "#ffd84a", d: "#8a5a1a" }, 11, sag(13) + 1);   // a little rabbit head hanging in the middle
     }, false) },
     pass: { layer: "front", build: () => pixmap(d => {
       d.rect(9, 11, 11, 6, "#fffdf5");
