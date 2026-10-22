@@ -334,11 +334,20 @@ const ITEM_ART = {
       }
       d.grid([".K.K.", "KYKYK", "KYYYK", "KdYdK", ".KKK."], { K: OUT, Y: "#ffd84a", d: "#8a5a1a" }, 11, sag(13) + 1);   // a little rabbit head hanging in the middle
     }, false) },
+    // her weeding licence (as in the anime): a grey card with a little green crown, the title, a photo of her on the
+    // right, a line across and her grade below
     pass: { layer: "front", build: () => pixmap(d => {
-      d.rect(9, 11, 11, 6, "#fffdf5");
-      d.rect(11, 12, 7, 1, "#9b8e7a"); d.rect(11, 14, 5, 1, "#c9bea8");
-      d.rect(16, 14, 2, 2, "#e2504a"); d.put(13, 10, "#7cc46b"); d.put(14, 10, "#7cc46b"); d.put(15, 10, "#7cc46b");
-    }) },
+      d.grid([
+        ".KKKKKKKKKKKKKK.",
+        "KGGGgGGGKKKKKKKK",
+        "KGkkkkGGKWPWPWKK",
+        "KGGGGGGGKWYYYWKK",
+        "KKKKKKKKKYkYkYKK",
+        "KGGGGGGGGGGGGGGK",
+        "KGGGkGkkkGGGGGGK",
+        ".KKKKKKKKKKKKKK.",
+      ], { K: OUT, G: "#d9dadb", k: "#6f6f6f", g: "#8cc84b", Y: "#fcf4ca", W: "#ffffff", P: "#f5aab6" }, 6, 9);
+    }, false) },
     pajama: { layer: "front", auto: "pajama", under: true, build: () => onesieIcon("nori") },
     pudding: { layer: "front", build: () => pixmap(d => {          // in her other hand
       const y = ANCHOR.nori.arm;
@@ -891,7 +900,9 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       continue;
     }
     if (pose && pose.img) continue;
-    const it = itemImg(petId, id);
+    const it = itemImg(petId, id), keep = id === "pass" && g.getTransform().a < 0;   // the licence reads the same way when she turns
+    if (keep) { g.save(); g.translate(SPRITES[petId][0].length, 0); g.scale(-1, 1); }
     g.drawImage(it.img, it.x, it.y + (it.y >= INFO[petId].dup ? dy : 0));   // one piece, moving with where it is worn
+    if (keep) g.restore();
   }
 }
