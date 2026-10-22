@@ -241,7 +241,8 @@ textarea.field { height: 38px; resize: none; display: block; padding: 1px 3px; }
 .todo-list li { display: flex; align-items: center; gap: 4px; padding: 2px 3px 3px 4px; min-height: 19px; touch-action: pan-y; --face: #effae8; --sh: #d5eccb; }
 .todo-list li.done { --face: #f4f1ea; --sh: #e4ddcd; }
 .todo-list li.done .t { color: var(--muted); text-decoration: line-through; text-decoration-color: #7a87d6; }
-.todo-list li.dragging { --face: var(--accent-soft); }
+.todo-list li.dragging, .todo-list.edit li.dragging { --face: var(--accent); --sh: var(--accent-deep); position: relative; z-index: 2; filter: drop-shadow(1px 2px 0 rgba(58,42,26,.3)); }
+.todo-list li.dragging .grip { cursor: grabbing; }
 .todo-list .t { flex: 1; min-width: 0; }
 .todo-list input.t { height: 12px; border-bottom: 1px solid var(--ink); user-select: text; }
 .chk { width: 9px; height: 9px; background: #fff; border: 1px solid var(--ink); flex: none; position: relative; }

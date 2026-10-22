@@ -680,19 +680,40 @@ function openTodoEditor() {
 }
 function dragTodo(e, li, list, redraw) {
   e.preventDefault();
-  const ul = li.parentElement;
+  const ul = li.parentElement, k = li.getBoundingClientRect().height / li.offsetHeight || 1;   // screen px per page px
+  const grab = e.clientY - li.getBoundingClientRect().top;
   li.classList.add("dragging");
+  const follow = y => {                                 // lifted off the list, it rides under the finger
+    li.style.transform = "none"; const top = li.getBoundingClientRect().top;
+    li.style.transform = `translateY(${Math.round((y - grab - top) / k)}px)`;
+  };
   const move = ev => {
     for (const s of ul.children) {
       if (s === li) continue;
       const r = s.getBoundingClientRect();
-      if (ev.clientY > r.top && ev.clientY < r.bottom) { ul.insertBefore(li, ev.clientY > r.top + r.height / 2 ? s.nextSibling : s); break; }
+      if (ev.clientY > r.top && ev.clientY < r.bottom) {
+        const before = ev.clientY > r.top + r.height / 2 ? s.nextSibling : s;
+        if (before !== li && before !== li.nextSibling) {   // the others slide out of its way rather than jump
+          const kids = [...ul.children].filter(x => x !== li), was = kids.map(x => x.getBoundingClientRect().top);
+          ul.insertBefore(li, before);
+          kids.forEach((x, n) => {
+            const d = Math.round((was[n] - x.getBoundingClientRect().top) / k); if (!d) return;
+            x.style.transition = "none"; x.style.transform = `translateY(${d}px)`; x.offsetHeight;
+            x.style.transition = "transform .14s ease-out"; x.style.transform = "";
+          });
+          if (navigator.vibrate) navigator.vibrate(8);
+        }
+        break;
+      }
     }
+    follow(ev.clientY);
   };
   const up = () => {
     removeEventListener("pointermove", move); removeEventListener("pointerup", up); removeEventListener("pointercancel", up);
+    li.style.transition = "transform .12s ease-out"; li.style.transform = "";   // set down in its new place
     const order = [...ul.children].map(x => x.dataset.id);
-    list.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id)); redraw();
+    list.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+    setTimeout(redraw, 130);
   };
   addEventListener("pointermove", move); addEventListener("pointerup", up); addEventListener("pointercancel", up);
 }
