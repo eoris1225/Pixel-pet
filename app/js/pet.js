@@ -711,8 +711,38 @@ function licencePics() {
   const turn = src => [1, 0.7, 0.4].map(k => resample(src, Math.max(2, Math.round(w * k)), h));
   const edge = document.createElement("canvas"); edge.width = 2; edge.height = h;
   { const g = edge.getContext("2d"); g.fillStyle = OUT; g.fillRect(0, 0, 2, h); g.fillStyle = "#c8ccd0"; g.fillRect(1, 1, 1, h - 2); }
-  LIC = { face: turn(F), back: turn(back), edge, flat: resample(F, w, Math.ceil(h / 2)), boing: [resample(F, w + 2, h - 2), resample(F, w - 2, h + 2), F] };
+  const pix = c => c.getContext("2d").getImageData(0, 0, w, h).data, D = Math.ceil(Math.hypot(w, h)) + 4, view = document.createElement("canvas");
+  view.width = D; view.height = D;
+  LIC = { face: turn(F), back: turn(back), edge, flat: resample(F, w, Math.ceil(h / 2)), boing: [resample(F, w + 2, h - 2), resample(F, w - 2, h + 2), F],
+          w, h, D, view, fpx: pix(F), bpx: pix(back) };
   return LIC;
+}
+// the card as a little flat thing turning in the air: it tips over (gets narrow, shows its back), leans, and is seen
+// at a slant (a parallelogram); every pixel of the view is looked up straight from the card's own pixels, so it stays
+// crisp at any angle
+function licenceView(yaw, roll, pitch) {
+  const P = licencePics(), { w, h, D, view } = P, g = view.getContext("2d"), img = g.createImageData(D, D), o = img.data;
+  let a = Math.cos(yaw); const back = a < 0; a = Math.abs(a) < 0.14 ? (back ? -0.14 : 0.14) : a;
+  const c = Math.max(0.35, Math.abs(Math.cos(pitch))), b = Math.sin(yaw) * Math.sin(pitch) * 0.7;   // card (u,v) -> screen: R(roll) [[a,0],[b,c]]
+  const cr = Math.cos(roll), sr = Math.sin(roll);
+  const m00 = cr * a - sr * b, m01 = -sr * c, m10 = sr * a + cr * b, m11 = cr * c, det = m00 * m11 - m01 * m10;
+  const src = back ? P.bpx : P.fpx;
+  for (let y = 0; y < D; y++) for (let x = 0; x < D; x++) {
+    const X = x + 0.5 - D / 2, Y = y + 0.5 - D / 2;
+    const u = (m11 * X - m01 * Y) / det + w / 2, v = (-m10 * X + m00 * Y) / det + h / 2;
+    const ui = Math.floor(back ? w - u : u), vi = Math.floor(v);
+    if (ui < 0 || vi < 0 || ui >= w || vi >= h) continue;
+    const i = (vi * w + ui) * 4, k = (y * D + x) * 4; if (src[i + 3] < 128) continue;
+    o[k] = src[i]; o[k + 1] = src[i + 1]; o[k + 2] = src[i + 2]; o[k + 3] = 255;
+  }
+  // a clean one-pixel outline all round, whatever the angle left of the card's own
+  const filled = k => o[k + 3] > 0, edge = [];
+  for (let y = 0; y < D; y++) for (let x = 0; x < D; x++) { const k = (y * D + x) * 4; if (!filled(k)) continue;
+    if (x === 0 || y === 0 || x === D - 1 || y === D - 1 || !filled(k - 4) || !filled(k + 4) || !filled(k - D * 4) || !filled(k + D * 4)) edge.push(k); }
+  const oc = [parseInt(OUT.slice(1, 3), 16), parseInt(OUT.slice(3, 5), 16), parseInt(OUT.slice(5, 7), 16)];
+  for (const k of edge) { o[k] = oc[0]; o[k + 1] = oc[1]; o[k + 2] = oc[2]; }
+  g.putImageData(img, 0, 0);
+  return view;
 }
 // where her forehead is on the screen right now (from the frame she is drawn with)
 function foreheadAt() {
@@ -787,8 +817,8 @@ function drawLicence(front) {
   const P = licencePics(), x = Math.round(lprop.x), y = Math.round(lprop.y) - Math.round(lprop.z), now = performance.now();
   const put = (c, dy = 0) => ctx.drawImage(c, x - (c.width >> 1), y - (c.height >> 1) + dy);
   if (lprop.state === "fly") {                      // turning over: face on, narrower, edge-on, its back, and round again
-    const c = Math.cos(lprop.ang * 2.4), a = Math.abs(c), set = c >= 0 ? P.face : P.back;   // (its rocking shown as turning it over)
-    put(a > 0.85 ? set[0] : a > 0.55 ? set[1] : a > 0.2 ? set[2] : P.edge);
+    const t = (now - lprop.t0) / 1000;               // (its rocking turns it over and leans it; it wobbles towards and away from us)
+    put(licenceView(lprop.ang * 2.4, lprop.ang * 0.7 + Math.sin(t * 3.1) * 0.25, Math.sin(t * 4.3 + 1) * 0.9));
   } else if (lprop.state === "ground") {            // lying flat on the grass, seen from above
     groundShadow(ctx, x, y + 1, P.flat.width - 2, 1); ctx.drawImage(P.flat, x - (P.flat.width >> 1), y - P.flat.height + 1);
   } else if (lprop.state === "stick") {             // boing: squashed, stretched, then still
