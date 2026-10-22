@@ -686,6 +686,53 @@ function drawWeaponProp(front) {
   ctx.drawImage(f.img, f.x - mid, f.y - arm);
   ctx.restore();
 }
+// 욱's weeding licence: a light little card. Dropped from a height it comes off her forehead and flies, fluttering down
+// like a leaf (turning over and over as it sways), lands flat on the grass, and she goes and picks it up again.
+// on / fly / ground / lift
+const lprop = { state: "on", x: 0, y: 0, z: 0, vx: 0, vy: 0, t0: 0, ready: 0, lastAct: "" };
+const licenceOn = () => G.pet === "nori" && !!(G.equip && G.equip.pass);
+const licenceWorn = () => !licenceOn() || lprop.state === "on";
+function updateLicence(now, dt) {
+  if (!licenceOn()) { lprop.state = "on"; lprop.lastAct = pet.act; return; }
+  const s = Math.min(0.05, dt / 1000), began = pet.act !== lprop.lastAct;
+  lprop.lastAct = pet.act;
+  if (lprop.state === "on" && began && pet.act === "fall" && FEET - pet.hy >= 14)        // let go up high: off it comes
+    Object.assign(lprop, { state: "fly", x: pet.x + pet.dir * -2, y: pet.hy - INFO.nori.h + 12, z: pet.z, vx: (pet.vx || 0) * 0.6 + (Math.random() < 0.5 ? -50 : 50), vy: -150, t0: now });
+  if (lprop.state === "fly") {
+    const t = (now - lprop.t0) / 1000;
+    lprop.vy = Math.min(lprop.vy + 380 * s, 55);                                   // light: it soon floats down slowly
+    lprop.vx *= Math.pow(0.35, s);
+    lprop.x += (lprop.vx + Math.sin(t * 7) * 28) * s; lprop.y += lprop.vy * s;     // and sways from side to side
+    if (lprop.x < 8 || lprop.x > W - 8) { lprop.vx = -lprop.vx; lprop.x = Math.max(8, Math.min(W - 8, lprop.x)); }
+    if (lprop.y >= FEET + 1) { Object.assign(lprop, { state: "ground", y: FEET + 1, ready: now + 700 }); dust(lprop.x, FEET + 1); }
+  }
+  if (lprop.state === "lift") {
+    const q = Math.min(1, (now - lprop.t0) / 260);
+    lprop.x = lprop.fx + (pet.x - lprop.fx) * q; lprop.y = lprop.fy + (FEET - INFO.nori.h + 12 - lprop.fy) * q - Math.sin(q * Math.PI) * 8;
+    if (q >= 1) lprop.state = "on";
+  }
+}
+function fetchLicence(now) {
+  if (!licenceOn() || lprop.state !== "ground" || now < lprop.ready || G.sleeping || G.wantSleep) return false;
+  const dx = lprop.x - pet.x;
+  if (Math.abs(dx) > 9 || Math.abs(lprop.z - pet.z) > 1.5) { pet.act = "walk"; pet.target = lprop.x - Math.sign(dx) * 7; pet.tz = lprop.z; return true; }
+  Object.assign(lprop, { state: "lift", t0: now, fx: lprop.x, fy: lprop.y });
+  pet.dir = Math.sign(dx) || pet.dir; startAct("pickup", now); return true;
+}
+function drawLicence(front) {
+  if (!licenceOn() || lprop.state === "on" || !front || typeof itemImg !== "function") return;
+  const it = itemImg("nori", "pass").img, x = Math.round(lprop.x), y = Math.round(lprop.y) - Math.round(lprop.z);
+  ctx.save(); ctx.translate(x, y);
+  if (lprop.state === "fly") {                       // turning over as it falls: seen face on, then edge on, then its back
+    const k = Math.cos((performance.now() - lprop.t0) / 1000 * 9);
+    ctx.scale(Math.abs(k) < 0.15 ? 0.15 : k, 1); ctx.rotate(Math.sin((performance.now() - lprop.t0) / 1000 * 7) * 0.35);
+    ctx.drawImage(it, -it.width / 2, -it.height / 2);
+  } else if (lprop.state === "ground") {             // lying flat on the grass: seen from above, short and wide
+    groundShadow(ctx, 0, 0, it.width - 2, 1);
+    ctx.scale(1, 0.5); ctx.drawImage(it, -it.width / 2, -it.height);
+  } else ctx.drawImage(it, -it.width / 2, -it.height / 2);
+  ctx.restore();
+}
 // when she is free and her bear is on the ground, she goes to get it (called before she picks something else to do)
 function fetchTeddy(now) {
   if (!teddyOn() || prop.state !== "ground" || now < prop.ready || G.sleeping || G.wantSleep) return false;
@@ -810,9 +857,11 @@ function petUpdate(now, dt) {
 
   updateTeddy(now, dt);
   updateWeaponProp(now);
+  updateLicence(now, dt);
   if (G.still) pet.nextThink = now + 1500;                               // the tutorial is talking: she stands and listens
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && now > prop.ready && fetchTeddy(now)) {}
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && fetchWeapon(now)) {}
+  else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && fetchLicence(now)) {}
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && fetchGuitar(now)) {}
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && now > pet.nextThink) {
     pet.nextThink = now + 2500 + Math.random() * 3500;
@@ -986,7 +1035,7 @@ function petRender(now) {
   ctx.restore();
   box.y -= Math.round(pet.z);                            // back to screen space, for the Zzz and the speech bubble
   if (pet.z > SIGN_Z + 0.5 && typeof drawSignOver === "function") drawSignOver(ctx, now);   // behind the sign
-  drawTeddy(true); drawWeaponProp(true); drawGuitarRest(pose, box, now);
+  drawTeddy(true); drawWeaponProp(true); drawLicence(true); drawGuitarRest(pose, box, now);
   if (pet.act === "peek" && pet.peek.phase !== "out" && pet.peek.phase !== "in") {
     const pk = pet.peek, t = now - pk.t0, sora = pk.kind === "sora";
     let img = sora ? soraPeekImg(pk, t) : PEEK_IMG[0], off = 0;

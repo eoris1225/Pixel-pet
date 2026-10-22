@@ -619,6 +619,19 @@ ITEM_AUTO.pudding = (grid, pet) => {
   out.push([px - 1, py, "outline"], [px + 1, py + 1, "outline"]);              // her toes round the stem
   return out;
 };
+// 하와's camera is lighter than she is: when she drops it floats up a little against its strap (it cannot go further than
+// the strap lets it) and settles back on her when she lands. A small spring on how fast her face moves down the screen
+const CAMF = { r: 0, v: 0, y: null, t: 0 };
+function cameraFloat(g, img, cache, grid) {
+  if (!("fy" in cache)) { const f = faceOf(grid); cache.fy = f ? f.cy : 0; }
+  const now = performance.now(), y = (g.worldY || 0) + SPRITE_PAD + cache.fy, dt = Math.min(0.05, (now - CAMF.t) / 1000);
+  if (CAMF.y === null || dt <= 0 || now - CAMF.t > 200) { CAMF.y = y; CAMF.t = now; return Math.round(CAMF.r); }
+  const vb = (y - CAMF.y) / dt, target = vb > 30 ? -Math.min(3, (vb - 30) * 0.015) : 0;
+  CAMF.v += (260 * (target - CAMF.r) - 16 * CAMF.v) * dt; CAMF.r += CAMF.v * dt;
+  CAMF.r = Math.max(-3, Math.min(1, CAMF.r));
+  CAMF.y = y; CAMF.t = now;
+  return Math.round(CAMF.r);
+}
 ITEM_AUTO.weapon = (grid, pet) => {
   if (!WEAPON_OF[pet] || grid[0].length > 60) return [];
   const o = weaponOffset(grid, pet);
@@ -930,6 +943,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
     if (a.auto) {
       if (!img || !img.grid) continue;
       if (a.auto === "teddy" && typeof teddyHugged === "function" && !teddyHugged()) continue;   // the bear is off in the world
+      if (a.auto === "pass" && typeof licenceWorn === "function" && !licenceWorn()) continue;   // the licence is off in the world
       const lie = a.auto === "camera" && img.lying && pose && pose.img;   // lying down: it is on the grass in front of her
       // on the base pose the face is found on the plain sprite, so a blink does not make the item vanish
       const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base ? dy : 0;
@@ -949,6 +963,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       // in her arms) moves as one piece with the part of her that holds it, so it never comes apart
       const dup = INFO[petId].dup, top = px.reduce((m, p) => Math.min(m, p[1]), 1e9), whole = top >= dup ? shift : 0;
       const each = a.auto === "pajama";
+      const lift = a.auto === "camera" && !lie && typeof pet !== "undefined" && pose === pet._pose ? cameraFloat(g, img, cache, grid) : 0;   // light, it floats a little
       const body = equip.pajama && typeof PAJAMA !== "undefined" ? PAJAMA[petId].main : PET[petId].pal[PET[petId].body];   // her paws: her own colour, or her onesie's
       // on the base pose the onesie is laid on the frame as it is drawn: ears flicked sideways, feet stepping, a row added
       // or dropped by breathing; a pixel lands only where this frame has her body
@@ -961,7 +976,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
         const x0 = keepSide ? fw - xs : xs, x = x0 + (each && y < tip ? ear : 0);
         // a stretch doubles the row at dup: the onesie covers both copies
         if (each && y === dup && shift > 0 && c !== "clear" && on(x, y)) { g.fillStyle = c === "body" ? body : c === "outline" ? OUT : c; g.fillRect(x, y, 1, 1); }
-        const yy = y + (each ? (y >= dup ? shift : 0) : whole);
+        const yy = y + (each ? (y >= dup ? shift : 0) : whole) + (lift && c !== CAMERA_PAL.s && c !== CAMERA_PAL.t ? lift : 0);
         if (each && !on(x, yy)) continue;
         if (c === "clear") { g.clearRect(x, yy, 1, 1); continue; }   // her arm, now round the bear
         g.fillStyle = c === "body" ? body : c === "outline" ? OUT : c; g.fillRect(x, yy, 1, 1);
