@@ -316,7 +316,7 @@ const ITEM_ART = {
   },
   nori: {
     // big round-cornered dark brown sunglasses with a white glint, and a chunky twisted gold chain with a little gold rabbit head
-    shades: { layer: "front", build: () => pixmap(d => {
+    shades: { layer: "front", auto: "shades", build: () => pixmap(d => {   // the inventory picture; in play placed per frame (below)
       const e = ANCHOR.nori.eye - 1;
       d.grid([
         ".....KKKKK....KKKKK.....",
@@ -384,6 +384,30 @@ function weaponOffset(grid, pet) {
   if (held > bottom - 3) dy -= held - (bottom - 3);
   return { dx, dy };
 }
+// 욱's sunglasses and gold chain on every motion: a lens over each open eye (eyes shut: where her face has gone), the
+// chain across her body below her face, only where her body is, with the little rabbit head hanging in the middle
+const SHADES_LENS = [".KKKKK.", "KGWWGGK", "KGGGGGK", "KGGGGGK", "KgggggK", ".KKKKK."];
+const SHADES_PAL = { K: OUT, G: "#5b3324", g: "#7a4632", W: "#ffffff" };
+const RABBIT = [".K.K.", "KYKYK", "KYYYK", "KdYdK", ".KKK."], RABBIT_PAL = { K: OUT, Y: "#ffd84a", d: "#8a5a1a" };
+ITEM_AUTO.shades = (grid, pet) => {
+  const out = [], put = (rows, pal, x0, y0) => rows.forEach((r, j) => [...r].forEach((ch, i) => { if (pal[ch]) out.push([x0 + i, y0 + j, pal[ch]]); }));
+  const f = faceOf(grid), b = faceOf(SPRITES[pet]);
+  if (!f || !b) return out;                                    // facing away
+  const dx = Math.round(f.cx - b.cx), dy = Math.round(f.cy - b.cy), eyes = findEyes(grid);
+  const lenses = eyes.length === 2 ? [[Math.floor(eyes[0].cx) - 3, eyes[0].y0 - 1], [Math.ceil(eyes[1].cx) - 3, eyes[1].y0 - 1]]
+    : eyes.length === 1 ? [[Math.round(eyes[0].cx - 3), eyes[0].y0 - 1]]
+    : f.rx > 7 ? [[6 + dx, 16 + dy], [15 + dx, 16 + dy]] : [[Math.round(f.cx - 3.5), 16 + dy]];
+  for (const [x, y] of lenses) put(SHADES_LENS, SHADES_PAL, x, y);
+  if (lenses.length === 2) { const [l, r] = lenses, y = Math.min(l[1], r[1]) + 1; for (let x = l[0] + 7; x < r[0]; x++) out.push([x, y, OUT]); }   // the bridge
+  const body = (x, y) => !!(grid[y] && grid[y][x] && grid[y][x] !== "B");
+  const cx = 13.5 + dx, sag = x => 26 + dy + Math.round(1.6 * (1 - ((x - cx) / 9) ** 2));
+  for (let x = Math.round(cx - 9); x <= Math.round(cx + 9); x++) {   // the twist: light and dark links alternating
+    const y = sag(x); if (!body(x, y - 1) || !body(x, y + 1)) continue;
+    out.push([x, y - 1, OUT], [x, y, x % 2 ? "#ffe680" : "#d39a22"], [x, y + 1, OUT]);
+  }
+  const m = Math.floor(cx); if (body(m, sag(m) + 3)) put(RABBIT, RABBIT_PAL, m - 2, sag(m) + 1);
+  return out;
+};
 ITEM_AUTO.weapon = (grid, pet) => {
   if (!WEAPON_OF[pet] || grid[0].length > 60) return [];
   const o = weaponOffset(grid, pet);
