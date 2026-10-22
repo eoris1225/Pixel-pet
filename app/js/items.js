@@ -399,13 +399,21 @@ ITEM_AUTO.shades = (grid, pet) => {
     : f.rx > 7 ? [[6 + dx, 16 + dy], [15 + dx, 16 + dy]] : [[Math.round(f.cx - 3.5), 16 + dy]];
   for (const [x, y] of lenses) put(SHADES_LENS, SHADES_PAL, x, y);
   if (lenses.length === 2) { const [l, r] = lenses, y = Math.min(l[1], r[1]) + 1; for (let x = l[0] + 7; x < r[0]; x++) out.push([x, y, OUT]); }   // the bridge
+  // the chain goes round her neck: on the side of her head where her body is (below it standing, beside it lying on
+  // her front), a band that sags out in the middle and wraps back round at both ends; only where her body is
   const body = (x, y) => !!(grid[y] && grid[y][x] && grid[y][x] !== "B");
-  const cx = 13.5 + dx, sag = x => 26 + dy + Math.round(1.6 * (1 - ((x - cx) / 9) ** 2));
-  for (let x = Math.round(cx - 9); x <= Math.round(cx + 9); x++) {   // the twist: light and dark links alternating
-    const y = sag(x); if (!body(x, y - 1) || !body(x, y + 1)) continue;
-    out.push([x, y - 1, OUT], [x, y, x % 2 ? "#ffe680" : "#d39a22"], [x, y + 1, OUT]);
-  }
-  const m = Math.floor(cx); if (body(m, sag(m) + 3)) put(RABBIT, RABBIT_PAL, m - 2, sag(m) + 1);
+  let x0 = 1e9, x1 = -1, y1 = -1;
+  grid.forEach((r, y) => { const q = r.search(/[^B]/); if (q >= 0) { x0 = Math.min(x0, q); x1 = Math.max(x1, r.length - 1 - [...r].reverse().join("").search(/[^B]/)); y1 = y; } });
+  const reach = [[0, 1, y1 - f.cy - f.ry], [1, 0, x1 - f.cx - f.rx], [-1, 0, f.cx - x0 - f.rx]].sort((p, q) => q[2] - p[2])[0];
+  const [ux, uy] = reach, D = (uy ? f.ry : f.rx) + 0.8, W = 10;
+  const at = t => [f.cx - 0.5 + ux * (D - 2.5 * t * t) - uy * W * t, f.cy - 0.5 + uy * (D - 2.5 * t * t) + ux * W * t];
+  const link = new Map();
+  for (let k = 0; k <= 80; k++) { const [x, y] = at(k / 40 - 1).map(Math.round); if (body(x, y)) link.set(x + "," + y, (x + y) % 2); }
+  const ring = new Set();
+  for (const key of link.keys()) { const [x, y] = key.split(",").map(Number); for (const [a, c] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = (x + a) + "," + (y + c); if (!link.has(n) && body(x + a, y + c)) ring.add(n); } }
+  for (const n of ring) { const [x, y] = n.split(",").map(Number); out.push([x, y, OUT]); }
+  for (const [key, a] of link) { const [x, y] = key.split(",").map(Number); out.push([x, y, a ? "#ffe680" : "#d39a22"]); }
+  if (uy) { const [mx, my] = at(0).map(Math.round); if (body(mx, my + 4)) put(RABBIT, RABBIT_PAL, mx - 2, my + 1); }   // the rabbit at the front
   return out;
 };
 ITEM_AUTO.weapon = (grid, pet) => {
