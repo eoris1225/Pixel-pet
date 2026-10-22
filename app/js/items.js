@@ -393,20 +393,38 @@ ITEM_AUTO.shades = (grid, pet) => {
   if (grid[0].length > 60) return [];                          // close-ups keep their own look
   const out = [], put = (rows, pal, x0, y0) => rows.forEach((r, j) => [...r].forEach((ch, i) => { if (pal[ch]) out.push([x0 + i, y0 + j, pal[ch]]); }));
   const f = faceOf(grid), b = faceOf(SPRITES[pet]);
-  if (f && b) {                                                // the glasses only where her face shows
-    const dx = Math.round(f.cx - b.cx), dy = Math.round(f.cy - b.cy), eyes = findEyes(grid);
-    const lenses = eyes.length === 2 ? [[Math.floor(eyes[0].cx) - 3, eyes[0].y0 - 1], [Math.ceil(eyes[1].cx) - 3, eyes[1].y0 - 1]]
-      : eyes.length === 1 ? [[Math.round(eyes[0].cx - 3), eyes[0].y0 - 1]]
-      : f.rx > 7 ? [[6 + dx, 16 + dy], [15 + dx, 16 + dy]] : [[Math.round(f.cx - 3.5), 16 + dy]];
-    for (const [x, y] of lenses) put(SHADES_LENS, SHADES_PAL, x, y);
-    if (lenses.length === 2) { const [l, r] = lenses, y = Math.min(l[1], r[1]) + 1; for (let x = l[0] + 7; x < r[0]; x++) out.push([x, y, OUT]); }   // the bridge
+  // her cheeks (little pink patches): two show when she faces us, one in profile
+  const cheeks = []; grid.forEach((r, y) => [...r].forEach((c, x) => { if (c !== "P") return;
+    const k = cheeks.find(q => q.pts.some(([a, c]) => Math.abs(a - x) <= 2 && Math.abs(c - y) <= 2));
+    if (k) { k.pts.push([x, y]); k.n++; k.x = k.pts.reduce((m, p) => m + p[0], 0) / k.n; k.y = k.pts.reduce((m, p) => m + p[1], 0) / k.n; } else cheeks.push({ x, y, n: 1, pts: [[x, y]] }); }));
+  const blush = cheeks.filter(c => c.n <= 14 && c.y > (f ? f.cy - 4 : 0));
+  let x0 = 1e9, x1 = -1;
+  grid.forEach(r => { const q = r.search(/[^B]/); if (q >= 0) { x0 = Math.min(x0, q); x1 = Math.max(x1, r.length - 1 - [...r].reverse().join("").search(/[^B]/)); } });
+  const eyes = f ? findEyes(grid) : [], profile = f && eyes.length < 2 && blush.length < 2;
+  if (f && b && profile) {                                     // side on: the lens edge-on in front of her eye, its arm back to her ear
+    const s = f.cx > (x0 + x1) / 2 ? 1 : -1, e = eyes[0] || { cx: f.cx - 0.5, y0: Math.round(f.cy - 4) };
+    const lens = ["KKKKK.", "KGWGGK", "KGGGGK", ".KgggK", "..KKK."];   // seen from the side: a narrow slanted lens over the whole eye
+    const ex = (e.x0 != null ? (s > 0 ? e.x0 - 1 : e.x1 - 4) : Math.round(e.cx) - 3), ey = (e.y0 != null ? e.y0 : Math.round(e.cy) - 2) - 1;
+    lens.forEach((r, j) => [...r].forEach((ch, i) => { if (SHADES_PAL[ch]) out.push([s > 0 ? ex + i : ex + 5 - i, ey + j, SHADES_PAL[ch]]); }));
+    for (let k = 1; k <= 6; k++) { const x = s > 0 ? ex - k : ex + 5 + k; if (grid[ey + 1] && grid[ey + 1][x] && grid[ey + 1][x] !== "B") out.push([x, ey + 1, OUT]); }   // the arm back to her ear
+  } else if (f && b) {                                         // facing us: a lens over each eye (one eye shut or hidden: its lens still there)
+    const dx = Math.round(f.cx - b.cx), dy = Math.round(f.cy - b.cy);
+    let lenses;
+    if (eyes.length === 2) lenses = [[Math.floor(eyes[0].cx) - 3, eyes[0].y0 - 1], [Math.ceil(eyes[1].cx) - 3, eyes[1].y0 - 1]];
+    else if (eyes.length === 1) {
+      const e = eyes[0], other = blush.reduce((m, c) => Math.abs(c.x - e.cx) > Math.abs(m.x - e.cx) ? c : m, blush[0]), left = other.x > e.cx;
+      const a = [left ? Math.floor(e.cx) - 3 : Math.ceil(e.cx) - 3, e.y0 - 1]; lenses = left ? [a, [a[0] + 9, a[1]]] : [[a[0] - 9, a[1]], a];
+    } else lenses = [[6 + dx, 16 + dy], [15 + dx, 16 + dy]];
+    const on = (x, y) => grid[y] && grid[y][x] && grid[y][x] !== "B";   // turned a little, the far lens goes round the side of her head
+    for (const [lx, ly] of lenses) SHADES_LENS.forEach((r, j) => [...r].forEach((ch, i) => { if (SHADES_PAL[ch] && on(lx + i, ly + j)) out.push([lx + i, ly + j, SHADES_PAL[ch]]); }));
+    { const [l, r] = lenses, y = Math.min(l[1], r[1]) + 1; for (let x = l[0] + 7; x < r[0]; x++) out.push([x, y, OUT]); }   // the bridge
   }
   // the chain goes round her neck, a little back from her face: below her head standing (in profile too), beside it
   // lying on her front, a band that sags out in the middle and wraps back round at both ends; only where her body is.
   // Facing away her head is where it would be: above her body by her own proportions, or lying, away from her tail
   const body = (x, y) => !!(grid[y] && grid[y][x] && grid[y][x] !== "B");
-  let x0 = 1e9, x1 = -1, y0 = -1, y1 = -1, tx = 0, tn = 0;
-  grid.forEach((r, y) => { const q = r.search(/[^B]/); if (q >= 0) { if (y0 < 0) y0 = y; x0 = Math.min(x0, q); x1 = Math.max(x1, r.length - 1 - [...r].reverse().join("").search(/[^B]/)); y1 = y; }
+  let y0 = -1, y1 = -1, tx = 0, tn = 0;
+  grid.forEach((r, y) => { if (/[^B]/.test(r)) { if (y0 < 0) y0 = y; y1 = y; }
     [...r].forEach((c, x) => { if (c === "W") { tx += x; tn++; } }); });
   const lying = x1 - x0 + 1 > (y1 - y0 + 1) * 1.15;
   const tailRight = tn ? tx / tn > (x0 + x1) / 2 : true;
@@ -418,13 +436,13 @@ ITEM_AUTO.shades = (grid, pet) => {
   // from behind, the back of it sits up at her nape and its sides drop away round to the front
   const back = !f && !lying, D = back ? 1.5 : uy ? F.ry + 1.5 : F.rx + 2, W = 10, sag = back ? -2.5 : 2.5;
   let at = t => [F.cx - 0.5 + ux * (D - sag * t * t) - uy * W * t, F.cy - 0.5 + uy * (D - sag * t * t) + ux * W * t];
-  const side = f && !lying && f.rx <= 7;
+  const side = f && !lying && profile;
   if (side) {                                                  // in profile: from the back of her neck down round under her chin
     const s = f.cx > (x0 + x1) / 2 ? 1 : -1, ax = (x0 + x1) / 2 - s * 6, ay = f.cy + 1, bx = f.cx - s, by = f.cy + f.ry + 2.5;
     at = t => { const q = (t + 1) / 2; return [ax + (bx - ax) * q, ay + (by - ay) * q + 2 * Math.sin(q * Math.PI)]; };
   }
-  const face = (x, y) => f && ((x + 0.5 - f.cx) / (f.rx + 1)) ** 2 + ((y + 0.5 - f.cy) / (f.ry + 1)) ** 2 <= 1;
-  const ok = (x, y) => body(x, y) && grid[y][x] !== "W" && !face(x, y);   // never over her face or her white tail
+  const face = (x, y) => f && ((x + 0.5 - f.cx) / f.rx) ** 2 + ((y + 0.5 - f.cy) / f.ry) ** 2 <= 1;
+  const ok = (x, y) => body(x, y) && !(grid[y][x] === "W" && !f) && !face(x, y);   // never over her face, nor her white tail from behind
   const link = new Map();
   for (let k = 0; k <= 80; k++) { const [x, y] = at(k / 40 - 1).map(Math.round); if (ok(x, y)) link.set(x + "," + y, (x + y) % 2); }
   const ring = new Set();
