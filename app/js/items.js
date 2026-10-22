@@ -143,7 +143,7 @@ const GUITAR = [
 ];
 const GUITAR_PAL = { K: OUT, T: "#d9a15e", L: "#eaba7a", H: "#4a2e1c", R: "#7a4a2a", S: "#b07640", F: "#6e4228", N: "#be7d46", D: "#6e4228", P: "#fbeed5" };   // P: the white tuning pegs
 const STRUM_FEET = ["KWKWK", "KWKWK", ".K.K."];          // her two thin legs hanging down; the guitar hides their tops
-const GUITAR_REST = -6;                                  // lying on the grass, nearly flat
+const GUITAR_REST = -68;                                 // put down: stood on its end, leaning in against her
 const GUITAR_BACK = { deg: -20, x: 15, foot: 28 };       // slung on her back: its body out by her left foot, its head up past her right
                                                           // cheek, never lower than her feet
 /* the guitar just turned, the way pixel art is rotated (RotSprite): the level drawing is blown up 8x with Scale2x, which
@@ -203,6 +203,13 @@ function strumPaws(t) {
   const swing = [-6, -5, -3.5, -2, -1, -1, -2, -3.5, -5, -6][Math.floor(t / 45) % 10];   // down across the strings and back up
   const chord = [7, 7, 8.5, 8.5, 10, 8.5][Math.floor(t / 650) % 6];
   return [[-4, swing, STRUM_PAW], [chord, -1.5, FRET_PAW]];
+}
+// the lowest row of the turned guitar, in its own canvas
+function guitarBottom(deg) {
+  const c = guitarTurned(deg); if ("_bot" in c) return c._bot;
+  const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; let b = 0;
+  for (let i = 3; i < d.length; i += 4) if (d[i]) b = Math.floor((i >> 2) / c.width);
+  return (c._bot = b);
 }
 // how far below its middle the turned guitar reaches
 function guitarDrop(deg) {
@@ -528,13 +535,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
         }
         continue;
       }
-      if (img.lying) {                                    // lying down: she has put it down on the grass beside her
-        if (layer === "front") {                          // in front of her, like anything she puts down
-          const r = img.grid.map(r => r.search(/[^B]/)).filter(x => x >= 0), left = Math.min(...r), feet = img.height - 1 - ((pose && pose.yoff) || 0);
-          drawGuitar(g, left - 8, feet - guitarDrop(GUITAR_REST), GUITAR_REST);
-        }
-        continue;
-      }
+      if (img.lying) continue;                              // lying down: it is on the grass beside her (drawn by pet.js)
       const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base && 20 >= INFO[petId].dup ? dy : 0;
       const cache = base ? (ITEM_CACHE["base:" + petId] || (ITEM_CACHE["base:" + petId] = {})) : (img._auto || (img._auto = {}));
       if (!("go" in cache)) {                             // where it hangs on this frame; facing us even with her eyes shut (found by her

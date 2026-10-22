@@ -665,6 +665,16 @@ function drawTeddy(front) {
   ctx.drawImage(im, x, y);
 }
 
+// 하와's guitar, put down while she lies (loaf, sleep): stood up leaning against her side, where she put it, however
+// she moves on the spot, and she picks it up again when she gets up
+let grest = null;
+function drawGuitarRest(pose, box) {
+  const lying = G.pet === "sora" && G.equip && G.equip.guitar && !pose.hidden && pose.img && pose.img.lying;
+  if (!lying || typeof drawGuitar !== "function") { grest = null; return; }
+  if (!grest) grest = { x: box.x - 3, y: FEET - Math.round(pet.z) };
+  const c = guitarTurned(GUITAR_REST);                     // stood on the end of its body, its foot right on the grass
+  ctx.drawImage(c, Math.round(grest.x - c.width / 2), grest.y - 1 - guitarBottom(GUITAR_REST));
+}
 // the next point to head for on the way to (target, tz): she never steps from in front of the sign to behind it (or back)
 // while her body overlaps its post, so she goes round it, crossing that line beside the sign instead
 function aroundSign() {
@@ -896,7 +906,7 @@ function petRender(now) {
   ctx.restore();
   box.y -= Math.round(pet.z);                            // back to screen space, for the Zzz and the speech bubble
   if (pet.z > SIGN_Z + 0.5 && typeof drawSignOver === "function") drawSignOver(ctx, now);   // behind the sign
-  drawTeddy(true); drawWeaponProp(true);
+  drawTeddy(true); drawWeaponProp(true); drawGuitarRest(pose, box);
   if (pet.act === "peek" && pet.peek.phase !== "out" && pet.peek.phase !== "in") {
     const pk = pet.peek, t = now - pk.t0, sora = pk.kind === "sora";
     let img = sora ? soraPeekImg(pk, t) : PEEK_IMG[0], off = 0;
