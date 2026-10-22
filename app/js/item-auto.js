@@ -293,7 +293,9 @@ function autoBangs(grid, pet) {
   // the new hairline, just above her eyes; with her eyes shut the face is found from her cheeks and can sit low,
   // so it never comes down past a few rows above her cheeks
   let pTop = -1; for (let y = y0; y < h && pTop < 0; y++) if (grid[y].includes("P")) pTop = y;
-  const hy = Math.min(Math.round(f.cy - 7), pTop < 0 ? h : pTop - 5), cx = Math.floor(f.cx - 0.5);
+  // and when her eyes show, two rows clear above them (her big eyes on the hop come up higher)
+  const eyes = findEyes(grid), eTop = eyes.length ? Math.min(...eyes.map(e => e.y0)) : h;
+  const hy = Math.min(Math.round(f.cy - 7), pTop < 0 ? h : pTop - 5, eTop - 3), cx = Math.floor(f.cx - 0.5);
   for (let y = y0; y <= hy + 1; y++) for (let x = 0; x < w; x++) {
     const c = at(x, y); if (c === "B" || (c === "K" && edge(x, y))) continue;        // her outline stays
     const mid = x === cx || x === cx + 1;
