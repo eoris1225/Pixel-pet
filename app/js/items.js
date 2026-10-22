@@ -488,12 +488,15 @@ ITEM_AUTO.camera = (grid, pet) => {
     return out;
   }
   const cx = 9 + dx, cy = Math.min(Math.round(f.cy) + 4, y1 - 7);   // just under her mouth, wherever her face is, and not off her feet
-  // the strap: a light blue band out from each side of the camera to her arm, where it goes round behind
-  for (const [x0s, step] of [[cx - 1, -1], [cx + 11, 1]])
-    for (let x = x0s, k = 0; k < 8; x += step, k++) {
-      const y = cy + 2 - (k >= 3 ? 1 : 0);
-      if (!body(x, y) || grid[y][x] === "K" || !body(x, y + 1) || grid[y + 1][x] === "K") break;
-      out.push([x, y, CAMERA_PAL.s], [x, y + 1, CAMERA_PAL.t]);
+  // the strap: from the top corners of the camera up and out under her cheeks to the sides of her head, where it goes
+  // round behind her neck; a light band with its darker underside
+  for (const [sx, step] of [[cx, -1], [cx + 10, 1]])
+    for (let k = 1; k < 14; k++) {
+      const x = sx + step * k, y = cy + 1 - Math.floor((k + 1) / 2);
+      const c = grid[y] && grid[y][x];
+      if (!c || c === "B" || c === "K" || c === "P") break;
+      out.push([x, y, CAMERA_PAL.s]);
+      if (body(x, y + 1) && !"KP".includes(grid[y + 1][x])) out.push([x, y + 1, CAMERA_PAL.t]);
     }
   put(CAMERA, cx, cy, false);
   out.flat = true;
