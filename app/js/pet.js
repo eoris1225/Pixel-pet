@@ -112,6 +112,7 @@ const SORAHOP_IMG = SORAHOP.map(g => gridToCanvas(g, PET.sora.pal));
 const SORA_ONCE = [[-1,120],[0,110],[1,100],[2,100],[3,110],[2,100],[0,120],[1,100],[2,100],[3,110],[2,100],[0,120],[-1,1]];
 const seqLen = q => q.reduce((a, f) => a + f[1], 0);
 function soraHop(seq, t, loop) { if (loop) t %= seqLen(seq); for (const [i, ms] of seq) { if (t < ms) return i; t -= ms; } return -1; }
+const HELD_IMG = Object.fromEntries(Object.entries(HELD).map(([p, g]) => [p, Object.assign(gridToCanvas(g, PET[p].pal), { key: p + "-held:0" })]));
 const SORALOAF_IMG = SORALOAF.map(g => Object.assign(gridToCanvas(g, PET.sora.pal), { lying: true }));   // lying: her guitar goes on the grass
 const sitEase = q => q <= 0 ? 0 : q >= 1 ? 1 : 1 - Math.pow(1 - q, 2);
 function sitPose(a, t, loaf, drop = LOAF_DROP) {
@@ -489,9 +490,8 @@ function petPose(now) {
       a.ear = [0, 0, 1, -1, 1, -1, 0][Math.min(6, Math.floor(t / 110))];
       break;
     }
-    case "held": {
-      if (G.pet === "nori") a.img = JUMP_IMG[[0, 1, 2, 3, 2, 1][Math.floor(t / 130) % 6]];
-      else { a.body = "stretch"; a.face = "happy"; a.ear = Math.floor(t / 220) % 2 ? 1 : -1; a.step = Math.floor(t / 220) % 2 ? 1 : -1; }
+    case "held": {                                       // picked up: dangling from where she is held, swaying a little
+      a.img = HELD_IMG[G.pet]; a.dx = Math.round(Math.sin(t / 260) * 0.8);
       a.yoff = Math.round(pet.hy - FEET + Math.sin(t / 170));
       break;
     }
