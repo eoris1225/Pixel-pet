@@ -542,8 +542,9 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
     spinPole(g, equip, cx, cy, t, len, !!o);
     return;
   }
-  if (petId === "nori" && typeof pet !== "undefined" && pose === pet._pose && o
-      && (pet.act === "pet" || (typeof JUMP_IMG !== "undefined" && JUMP_IMG.includes(img)))) {   // her jump, or its frames as she lands when let go
+  // 욱 holding her pole, on screen: one eased state for it whatever she is doing (held up, let go, landing, jumping,
+  // walking), so it never jumps from one way of holding it to another
+  if (petId === "nori" && typeof pet !== "undefined" && pose === pet._pose && o && pet.act !== "dance") {
     // 욱's jump: when she has a paw up by her head, waving, the pole goes up with it in that one paw, held near its end,
     // reaching up and out and swaying as she waves (and bending, being rubber); otherwise in both paws as usual. Where it
     // is, its tilt and where she grips it all ease from one to the other, so it never jumps
@@ -554,9 +555,9 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
     // reaching up and out; the paw leads and the pole swings after it
     const G7 = 7, flatA = Math.atan2(-6, 44);
     const tgt = hand ? { x: hand[0], y: hand[1], a: -2.3 + (hand[1] - 17) * 0.2 }
-                     : { x: mid + o.dx + Math.cos(flatA) * (G7 - mid), y: arm + 1.5 + o.dy + Math.sin(flatA) * (G7 - mid), a: flatA };
+                     : { x: mid + o.dx + Math.cos(flatA) * (G7 - mid), y: arm + 1.5 + o.dy + Math.sin(flatA) * (G7 - mid), a: flatA + weaponSway() };
     const now = performance.now(), st = NORI_JUMP;
-    if (st.key !== pet.t0 || now - st.t > 300) Object.assign(st, tgt, { key: pet.t0 });
+    if (now - st.t > 300) Object.assign(st, tgt);
     else {
       const kp = 1 - Math.exp(-(now - st.t) / 45), ka = 1 - Math.exp(-(now - st.t) / 95);
       st.x += (tgt.x - st.x) * kp; st.y += (tgt.y - st.y) * kp; st.a += (tgt.a - st.a) * ka;

@@ -501,6 +501,7 @@ function petPose(now) {
     case "held": {                                       // picked up: dangling from where she is held, swaying a little
       const twitch = t % 2600 > 2450, breath = Math.floor(t / 600) % 2;
       a.img = HELD_IMG[G.pet][twitch ? 2 : breath]; a.dx = Math.round(Math.sin(t / 260) * 0.8);
+      if (t < 320) { const q = t / 320; a.sy = 1 + 0.2 * Math.cos(q * Math.PI * 1.5) * (1 - q); a.sx = 2 - a.sy; }   // boing as she is picked up
       a.yoff = Math.round(pet.hy - FEET + Math.sin(t / 170));
       break;
     }
