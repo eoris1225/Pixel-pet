@@ -397,7 +397,7 @@ ITEM_AUTO.shades = (grid, pet) => {
   const cheeks = []; grid.forEach((r, y) => [...r].forEach((c, x) => { if (c !== "P") return;
     const k = cheeks.find(q => q.pts.some(([a, c]) => Math.abs(a - x) <= 2 && Math.abs(c - y) <= 2));
     if (k) { k.pts.push([x, y]); k.n++; k.x = k.pts.reduce((m, p) => m + p[0], 0) / k.n; k.y = k.pts.reduce((m, p) => m + p[1], 0) / k.n; } else cheeks.push({ x, y, n: 1, pts: [[x, y]] }); }));
-  const blush = cheeks.filter(c => c.n <= 14 && c.y > (f ? f.cy - 4 : 0));
+  const blush = cheeks.filter(c => c.n >= 3 && c.n <= 14 && c.y > (f ? f.cy - 4 : 0));   // a lone pink pixel is not a cheek
   let x0 = 1e9, x1 = -1;
   grid.forEach(r => { const q = r.search(/[^B]/); if (q >= 0) { x0 = Math.min(x0, q); x1 = Math.max(x1, r.length - 1 - [...r].reverse().join("").search(/[^B]/)); } });
   const eyes = f ? findEyes(grid) : [], profile = f && eyes.length < 2 && blush.length < 2;
