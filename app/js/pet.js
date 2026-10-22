@@ -109,6 +109,7 @@ const SPIN_STEP = SPIN_SEQ.map(i => i < 0 ? 200 : 100);
 const SPIN_LEN = SPIN_STEP.reduce((a, b) => a + b, 0);
 function spinIndex(t) { for (let k = 0; k < SPIN_SEQ.length; k++) { if (t < SPIN_STEP[k]) return SPIN_SEQ[k]; t -= SPIN_STEP[k]; } return -1; }
 const SORAHOP_IMG = SORAHOP.map(g => gridToCanvas(g, PET.sora.pal));
+const SORAHOP_GAP = SORAHOP.map(g => { let n = 0; while (!/[^B]/.test(g[g.length - 1 - n])) n++; return n; });   // blank rows under her feet
 const SORA_ONCE = [[-1,120],[0,110],[1,100],[2,100],[3,110],[2,100],[0,120],[1,100],[2,100],[3,110],[2,100],[0,120],[-1,1]];
 const seqLen = q => q.reduce((a, f) => a + f[1], 0);
 function soraHop(seq, t, loop) { if (loop) t %= seqLen(seq); for (const [i, ms] of seq) { if (t < ms) return i; t -= ms; } return -1; }
@@ -516,8 +517,12 @@ function petPose(now) {
     case "fall": {
       if (G.pet === "nori") a.img = JUMP_IMG[pet.vy < 0 ? 4 : 8];
       else if (G.pet === "mochi" && pet.skyDrop) { a.hopF = FEET - pet.hy < 14 && pet.vy > 0 ? HOP_NEAR_F : HOP_FALL_F; a.img = MOCHIHOP_IMG[a.hopF]; }
+      else if (G.pet === "sora") {                       // let go, she boings into her hop pose and drops in it
+        const f = pet.vy < 0 ? 1 : 2; a.img = SORAHOP_IMG[f]; a.flip = pet.dir > 0; a.yoff = SORAHOP_GAP[f];
+        if (t < 260) { const q = t / 260; a.sy = 1 + 0.16 * Math.cos(q * Math.PI * 1.5) * (1 - q); a.sx = 2 - a.sy; }
+      }
       else { a.img = heldImg(t, 0); a.dx = Math.round(Math.sin(t / 120) * 0.8); }   // let go, she drops just as she hung
-      a.yoff = Math.round(pet.hy - FEET);
+      a.yoff = (a.yoff || 0) + Math.round(pet.hy - FEET);
       break;
     }
     case "land": {
