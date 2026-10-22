@@ -336,7 +336,7 @@ const ITEM_ART = {
     }, false) },
     // her weeding licence, small and neat like the old note: a pale grey card with a little green crown and the title,
     // her photo (pink ears) at the right and her grade under a thin line
-    pass: { layer: "front", build: () => pixmap(d => {
+    pass: { layer: "front", auto: "pass", build: () => pixmap(d => {   // drawn here for the inventory; in play placed per frame (below)
       d.rect(9, 11, 11, 6, "#eef0f2");
       for (const x of [10, 12, 14]) d.put(x, 12, "#7cc46b"); d.rect(10, 13, 5, 1, "#7cc46b");   // the crown
       d.rect(10, 15, 4, 1, "#9b8e7a");                                                          // the title
@@ -547,6 +547,29 @@ function cameraLying(grid, pet) {
   }
   return out;
 }
+// 욱's licence on every motion: on her forehead just above her eyes, moving with them; side on, the card edge-on
+// in front of her forehead; from behind (or face down) it is out of sight. Facing us it never mirrors
+ITEM_AUTO.pass = (grid, pet) => {
+  if (grid[0].length > 60) return [];
+  const f = faceOf(grid), b = faceOf(SPRITES[pet]);
+  if (!f || !b) return [];
+  const eyes = findEyes(grid), be = findEyes(SPRITES[pet]);
+  const cheeks = []; grid.forEach((r, y) => [...r].forEach((c, x) => { if (c !== "P" || y < f.cy - 4) return;
+    const k = cheeks.find(q => q.pts.some(([a, e]) => Math.abs(a - x) <= 2 && Math.abs(e - y) <= 2)); if (k) k.pts.push([x, y]); else cheeks.push({ pts: [[x, y]] }); }));
+  const profile = eyes.length < 2 && cheeks.filter(c => c.pts.length >= 2 && c.pts.length <= 14).length < 2;
+  const eTop = eyes.length ? Math.min(...eyes.map(e => e.y0)) : Math.round(f.cy - 4), bTop = Math.min(...be.map(e => e.y0));
+  if (profile) {                                               // edge-on: a thin card standing on her forehead
+    let x0 = 1e9, x1 = -1; grid.forEach(r => { const q = r.search(/[^B]/); if (q >= 0) { x0 = Math.min(x0, q); x1 = Math.max(x1, r.length - 1 - [...r].reverse().join("").search(/[^B]/)); } });
+    const s = f.cx > (x0 + x1) / 2 ? 1 : -1, ex = eyes.length ? Math.round(eyes[0].cx) : Math.round(f.cx), out = [];
+    ["KKK", "KGK", "KGK", "KGK", "KGK", "KGK", "KKK"].forEach((r, j) => [...r].forEach((ch, i) => out.push([ex - 1 + i, eTop - 8 + j, ch === "K" ? OUT : "#eef0f2"])));
+    return out;
+  }
+  const mx = eyes.length === 2 ? (eyes[0].cx + eyes[1].cx) / 2 : f.cx - 0.5, bx = (be[0].cx + be[1].cx) / 2;
+  const dx = Math.round(mx - bx), dy = eTop - bTop - 1;          // a row clear of her eyes
+  const out = weaponPixels(pet, "pass").map(([x, y, c]) => [x + dx, y + dy, c]);
+  out.noMirror = true;
+  return out;
+};
 ITEM_AUTO.weapon = (grid, pet) => {
   if (!WEAPON_OF[pet] || grid[0].length > 60) return [];
   const o = weaponOffset(grid, pet);
@@ -897,9 +920,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       continue;
     }
     if (pose && pose.img) continue;
-    const it = itemImg(petId, id), keep = id === "pass" && g.getTransform().a < 0;   // the licence reads the same way when she turns
-    if (keep) { g.save(); g.translate(SPRITES[petId][0].length, 0); g.scale(-1, 1); }
+    const it = itemImg(petId, id);
     g.drawImage(it.img, it.x, it.y + (it.y >= INFO[petId].dup ? dy : 0));   // one piece, moving with where it is worn
-    if (keep) g.restore();
   }
 }
