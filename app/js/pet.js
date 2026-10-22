@@ -112,7 +112,15 @@ const SORAHOP_IMG = SORAHOP.map(g => gridToCanvas(g, PET.sora.pal));
 const SORA_ONCE = [[-1,120],[0,110],[1,100],[2,100],[3,110],[2,100],[0,120],[1,100],[2,100],[3,110],[2,100],[0,120],[-1,1]];
 const seqLen = q => q.reduce((a, f) => a + f[1], 0);
 function soraHop(seq, t, loop) { if (loop) t %= seqLen(seq); for (const [i, ms] of seq) { if (t < ms) return i; t -= ms; } return -1; }
-const HELD_IMG = Object.fromEntries(Object.entries(HELD).map(([p, g]) => [p, Object.assign(gridToCanvas(g, PET[p].pal), { key: p + "-held:0" })]));
+// held, she breathes (her body a row longer, then back) and now and then gives a little twitch (her feet drawn up a row)
+function heldBreath(g) {                            // a row of her middle doubled
+  const y = Math.round(g.length * 0.6); return [...g.slice(0, y + 1), ...g.slice(y)];
+}
+function heldTwitch(g) {                            // a row low on her body taken out, so her feet come up
+  const y = Math.round(g.length * 0.82); return [...g.slice(0, y), ...g.slice(y + 1)];
+}
+const HELD_IMG = Object.fromEntries(Object.entries(HELD).map(([p, g]) => [p, [g, heldBreath(g), heldTwitch(g)]
+  .map((v, i) => Object.assign(gridToCanvas(v, PET[p].pal), { key: p + "-held:" + i }))]));
 const SORALOAF_IMG = SORALOAF.map(g => Object.assign(gridToCanvas(g, PET.sora.pal), { lying: true }));   // lying: her guitar goes on the grass
 const sitEase = q => q <= 0 ? 0 : q >= 1 ? 1 : 1 - Math.pow(1 - q, 2);
 function sitPose(a, t, loaf, drop = LOAF_DROP) {
@@ -491,7 +499,8 @@ function petPose(now) {
       break;
     }
     case "held": {                                       // picked up: dangling from where she is held, swaying a little
-      a.img = HELD_IMG[G.pet]; a.dx = Math.round(Math.sin(t / 260) * 0.8);
+      const twitch = t % 2600 > 2450, breath = Math.floor(t / 600) % 2;
+      a.img = HELD_IMG[G.pet][twitch ? 2 : breath]; a.dx = Math.round(Math.sin(t / 260) * 0.8);
       a.yoff = Math.round(pet.hy - FEET + Math.sin(t / 170));
       break;
     }

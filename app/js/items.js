@@ -542,7 +542,8 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
     spinPole(g, equip, cx, cy, t, len, !!o);
     return;
   }
-  if (petId === "nori" && typeof pet !== "undefined" && pet.act === "pet" && pose === pet._pose && o) {
+  if (petId === "nori" && typeof pet !== "undefined" && pose === pet._pose && o
+      && (pet.act === "pet" || (typeof JUMP_IMG !== "undefined" && JUMP_IMG.includes(img)))) {   // her jump, or its frames as she lands when let go
     // 욱's jump: when she has a paw up by her head, waving, the pole goes up with it in that one paw, held near its end,
     // reaching up and out and swaying as she waves (and bending, being rubber); otherwise in both paws as usual. Where it
     // is, its tilt and where she grips it all ease from one to the other, so it never jumps
