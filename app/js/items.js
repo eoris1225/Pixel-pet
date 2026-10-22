@@ -143,6 +143,7 @@ const GUITAR = [
 ];
 const GUITAR_PAL = { K: OUT, T: "#d9a15e", L: "#eaba7a", H: "#4a2e1c", R: "#7a4a2a", S: "#b07640", F: "#6e4228", N: "#be7d46", D: "#6e4228" };
 const STRUM_FEET = ["KWKWK", "KWKWK", ".K.K."];          // her two thin legs hanging down; the guitar hides their tops
+const GUITAR_REST = -6;                                  // lying on the grass, nearly flat
 const GUITAR_BACK = { deg: -40, x: 12, foot: 28 };       // slung on her back: turned up to her right shoulder, no lower than her feet
 /* the guitar just turned, the way pixel art is rotated (RotSprite): the level drawing is blown up 8x with Scale2x, which
    rounds its stair-steps into smooth lines, turned, and each pixel then takes the colour at its own middle. Kept per angle */
@@ -506,6 +507,13 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
           drawGuitar(g, p.x, p.y, p.ga);
           const r = p.ga * Math.PI / 180, c = Math.cos(r), sn = Math.sin(r), t = typeof pet !== "undefined" ? performance.now() - pet.t0 : 0;
           for (const [u, v, rows] of strumPaws(t)) put(rows, Math.round(p.x + c * u - sn * v - rows[0].length / 2), Math.round(p.y + sn * u + c * v - rows.length / 2));
+        }
+        continue;
+      }
+      if (img.lying) {                                    // lying down: she has put it down on the grass beside her
+        if (layer === "back") {
+          const r = img.grid.map(r => r.search(/[^B]/)).filter(x => x >= 0), left = Math.min(...r), feet = img.height - 1 - ((pose && pose.yoff) || 0);
+          drawGuitar(g, left - 6, feet - guitarDrop(GUITAR_REST), GUITAR_REST);
         }
         continue;
       }

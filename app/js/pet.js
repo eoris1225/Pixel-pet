@@ -112,7 +112,7 @@ const SORAHOP_IMG = SORAHOP.map(g => gridToCanvas(g, PET.sora.pal));
 const SORA_ONCE = [[-1,120],[0,110],[1,100],[2,100],[3,110],[2,100],[0,120],[1,100],[2,100],[3,110],[2,100],[0,120],[-1,1]];
 const seqLen = q => q.reduce((a, f) => a + f[1], 0);
 function soraHop(seq, t, loop) { if (loop) t %= seqLen(seq); for (const [i, ms] of seq) { if (t < ms) return i; t -= ms; } return -1; }
-const SORALOAF_IMG = SORALOAF.map(g => gridToCanvas(g, PET.sora.pal));
+const SORALOAF_IMG = SORALOAF.map(g => Object.assign(gridToCanvas(g, PET.sora.pal), { lying: true }));   // lying: her guitar goes on the grass
 const sitEase = q => q <= 0 ? 0 : q >= 1 ? 1 : 1 - Math.pow(1 - q, 2);
 function sitPose(a, t, loaf, drop = LOAF_DROP) {
   if (t < 140) { const q = sitEase(t / 140); a.img = null; a.body = "base"; a.sy = 1 - 0.2 * q; a.sx = 1 + 0.12 * q; return; }
@@ -142,6 +142,20 @@ const STRUM_IMG = STRUM_SEQ.map(([f, , x, y, ga, fx, fy], i) => {
 });
 const STRUM_AT = STRUM_SEQ.reduce((a, f) => (a.push(a[a.length - 1] + f[1]), a), [0]), STRUM_LEN = STRUM_AT[STRUM_AT.length - 1];
 const strumFrame = t => { let i = 0; while (i < STRUM_SEQ.length - 1 && STRUM_AT[i + 1] <= t) i++; return i; };
+// she gets her guitar round with a boing: a squash, then she pops up already playing, bouncing a little; the same
+// back again at the end
+const STRUM_IN = 280, STRUM_ALL = STRUM_IN + STRUM_LEN + STRUM_IN;
+function strumPose(a, t) {
+  const pop = (q, img) => { a.img = img; a.sy = 1 + 0.16 * Math.cos(q * Math.PI * 1.5) * (1 - q); a.sx = 2 - a.sy; };
+  const squash = (q, img) => { a.img = img; a.sy = 1 - 0.16 * q; a.sx = 1 + 0.1 * q; };
+  const last = STRUM_IMG[STRUM_IMG.length - 1];
+  if (t < STRUM_IN * 0.35) squash(t / (STRUM_IN * 0.35), null);
+  else if (t < STRUM_IN) pop((t - STRUM_IN * 0.35) / (STRUM_IN * 0.65), STRUM_IMG[0]);
+  else if (t < STRUM_IN + STRUM_LEN) a.img = STRUM_IMG[strumFrame(t - STRUM_IN)];
+  else if (t < STRUM_IN + STRUM_LEN + STRUM_IN * 0.35) squash((t - STRUM_IN - STRUM_LEN) / (STRUM_IN * 0.35), last);
+  else pop(Math.min(1, (t - STRUM_IN - STRUM_LEN - STRUM_IN * 0.35) / (STRUM_IN * 0.65)), null);
+  if (!a.img) a.body = "base";
+}
 const MOCHIWAVE_IMG = tagFrames(MOCHIWAVE.map(g => gridToCanvas(g, PET.mochi.pal)), "mochi-wave");
 const WAVE_MS = 100, WAVE_LEN = MOCHIWAVE.length * WAVE_MS;
 const waveFrame = t => Math.max(0, Math.min(MOCHIWAVE.length - 1, Math.floor((t % WAVE_LEN) / WAVE_MS)));
@@ -211,7 +225,7 @@ function dashDust(box, front) {
   const cs = D.c.filter(c => !!c[3] === front).map(([x, y, r]) => ({ x: box.x + (flip ? img.width - x : x), y: box.y + y, r: Math.max(2.3, r * 1.55) }));
   drawCloud(cs, D.a);
 }
-const SORASLEEP_IMG = SORASLEEP.map(g => gridToCanvas(g, PET.sora.pal));
+const SORASLEEP_IMG = SORASLEEP.map(g => Object.assign(gridToCanvas(g, PET.sora.pal), { lying: true }));
 function loafPose(a, t) {
   for (const [i, ms] of LOAF_SEQ) {
     if (t < ms) {
@@ -500,7 +514,7 @@ function petPose(now) {
       break;
     }
     case "dance": { a.img = danceImg(t); break; }
-    case "strum": { a.img = STRUM_IMG[strumFrame(t)]; break; }
+    case "strum": { strumPose(a, t); break; }
     case "wave": { a.img = MOCHIWAVE_IMG[waveFrame(t)]; break; }
     case "skyland": { skylandPose(a, t); break; }
     case "dash": {
@@ -676,7 +690,7 @@ function pickWalk() {
 function petUpdate(now, dt) {
   updateParts(dt);
   const dur = { skyland:SKYLAND_LEN, gloom:GLOOM_LEN, dash:DASH_LEN, wave:WAVE_LEN,
-    pet:(G.pet === "nori" ? JUMP_LEN : G.pet === "sora" ? seqLen(SORA_ONCE) : 520), dance:DANCE_LEN, strum:STRUM_LEN, lie:LIE_DUR,
+    pet:(G.pet === "nori" ? JUMP_LEN : G.pet === "sora" ? seqLen(SORA_ONCE) : 520), dance:DANCE_LEN, strum:STRUM_ALL, lie:LIE_DUR,
     lieDown:(G.pet === "nori" ? seqDur(LIE_DOWN) : G.pet === "sora" ? SIT_LEN : 1), getUp:(G.pet === "nori" ? seqDur(GET_UP) : G.pet === "sora" ? STAND_LEN : 1),
     spin:SPIN_LEN, twirl:TWIRL_LEN, land:460, loaf:LOAF_LEN }[pet.act];
   if (dur && now - pet.t0 >= dur) { pet.act = "idle"; pet.nextThink = now + 1500; }
@@ -697,11 +711,11 @@ function petUpdate(now, dt) {
     pet.noteF = f;
   }
   if (G.pet === "sora" && pet.act === "strum") {                        // a note floats up off the headstock now and then
-    const k = Math.floor((now - pet.t0) / 700);
+    const ts = now - pet.t0 - STRUM_IN, k = Math.floor(ts / 700);
     if (pet.noteT0 !== pet.t0) { pet.noteT0 = pet.t0; pet.noteF = 0; }
-    if (k > pet.noteF) {
+    if (k > pet.noteF && ts < STRUM_LEN) {
       pet.noteF = k;
-      const im = STRUM_IMG[strumFrame(now - pet.t0)], r = im.play.ga * Math.PI / 180;
+      const im = STRUM_IMG[strumFrame(ts)], r = im.play.ga * Math.PI / 180;
       note(Math.round(pet.x) - (im.width >> 1) + Math.round(im.play.x + Math.cos(r) * 13), FEET - im.height + Math.round(im.play.y + Math.sin(r) * 13) - 3, 2 + Math.random() * 2, -4, 9, "YVT"[k % 3]);
     }
   }
