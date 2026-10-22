@@ -542,29 +542,8 @@ ITEM_AUTO.camera = (grid, pet) => {
   out.noMirror = true; out.box = { cx, cy };
   return out;
 };
-// 하와 playing her guitar takes her camera off first: it swings off her neck in a little arc and is set down on the grass
-// beside her (away from the guitar's neck), standing with its strap lying in a loop behind it; when she stops it goes back
-// up the same way. Worked out on the screen (her strum frames are drawn from other origins and squash as she pops up)
+// where 하와's camera hangs on the screen, kept up to date while she wears it (pet.js takes it off from there for her guitar)
 const CAMS = { neck: null };
-function strumCamera(g) {
-  const now = performance.now(), t = now - pet.t0, gx = Math.round(pet.x) - 21, gy = FEET - Math.round(pet.z || 0);
-  const n = CAMS.neck || { x: pet.x, y: gy - 16 }, smooth = q => q * q * (3 - 2 * q);
-  const out = t - STRUM_IN - STRUM_LEN, q = out > 0 ? 1 - smooth(Math.min(1, out / STRUM_IN)) : smooth(Math.min(1, t / STRUM_IN));
-  // q: 0 at her neck, 1 on the grass. Its centre top goes along an arc between the two
-  const x = Math.round(n.x + (gx + 5.5 - n.x) * q - 5.5), y = Math.round(n.y + (gy - 9 - n.y) * q - Math.sin(q * Math.PI) * 7);
-  g.save(); g.setTransform(1, 0, 0, 1, 0, 0);
-  const ox = g.worldX || 0, oy = g.worldY || 0, dot = (px, py, c) => { g.fillStyle = c; g.fillRect(px - ox, py - oy, 1, 1); };
-  if (q > 0.9) { g.fillStyle = "rgba(40,60,40,0.25)"; g.fillRect(x - ox, gy - oy, 11, 1); }   // its shadow on the grass
-  // the strap: a loop from its top corners, up a little behind it (flat on the grass once it is down)
-  const h = Math.round(5 - 2 * q), seen = new Set();
-  for (let k = 0; k <= 30; k++) {
-    const u = k / 30, px = Math.round(x + 1 + 8 * u), py = Math.round(y + 1 - h * Math.sin(u * Math.PI));
-    if (seen.has(px + "," + py)) continue; seen.add(px + "," + py);
-    dot(px, py, CAMERA_PAL.s); dot(px, py + 1, CAMERA_PAL.t);
-  }
-  CAMERA.forEach((r, j) => [...r].forEach((ch, i) => { if (CAMERA_PAL[ch]) dot(x + i, y + j, CAMERA_PAL[ch]); }));
-  g.restore();
-}
 // lying down, her camera has fallen on the grass in front of her, face down: seen from above, its light top edge, its
 // dark back with the little screen and viewfinder, a shadow under it; its strap runs from it up to her neck
 const CAMERA_LIE = [
@@ -838,7 +817,7 @@ function weaponSway() {
 // her little paws on the handle wherever she is gripping it (the fork only), in her own colour or her onesie's
 // a paw raised by her head, waving (욱's jump): the outermost pixel of her on her left, from her ears down to her eyes,
 // when it sticks right out to the frame's edge
-const NORI_JUMP = { t: 0 };
+const NORI_JUMP = { t: 0, r: 0 };
 function waveHand(grid) {
   const f = faceOf(grid); if (!f) return null;
   const edge = y => (grid[y] || "").search(/[^B]/);
@@ -910,23 +889,29 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}, stage = "all") {
     // with her right, lifts her left by her head and the pole comes up with it, swung round in that paw, the long end
     // reaching up and out; the paw leads and the pole swings after it
     const G7 = 7, flatA = Math.atan2(-6, 44);
-    const tgt = hand ? { x: hand[0], y: hand[1], a: -2.3 + (hand[1] - 17) * 0.2 }
-                     : { x: mid + o.dx + Math.cos(flatA) * (G7 - mid), y: arm + 1.5 + o.dy + Math.sin(flatA) * (G7 - mid), a: flatA + weaponSway() };
-    // eased on the screen, not in the frame's own pixels: the jump's frames are drawn from different origins (her feet
-    // off the ground, squashed), so in-frame numbers would make the pole lag off her body. Its grip stays close on her
-    // paw; its tilt swings after it on a loose spring (a little overshoot, then it settles)
+    // Worked out on the screen, not in the frame's own pixels (the jump's frames are drawn from different origins: her
+    // feet off the ground, squashed). Whether the pole is up is one smooth amount r (0 level in both paws, 1 up in her
+    // raised paw): it only changes once her paw has been up (or down) for a moment, and then eases over without any
+    // overshoot, the grip and the tilt together, so it goes up once and comes down once instead of flapping like a wiper
     const tr = g.getTransform(), fx = tr.a < 0 ? -1 : 1, ox = (g.worldX || 0) + tr.e, oy = (g.worldY || 0) + tr.f;
-    const TX = ox + fx * tgt.x, TY = oy + tgt.y + shift;
-    const now = performance.now(), st = NORI_JUMP;
-    if (now - st.t > 300 || st.fx !== fx) Object.assign(st, { X: TX, Y: TY, a: tgt.a, va: 0, fx });
-    else {
-      let left = Math.min(0.05, (now - st.t) / 1000);
-      const kp = 1 - Math.exp(-left / 0.018);
-      st.X += (TX - st.X) * kp; st.Y += (TY - st.Y) * kp;
-      for (; left > 0; left -= 0.004) { const h = Math.min(0.004, left); st.va += (520 * (tgt.a - st.a) - 30 * st.va) * h; st.a += st.va * h; }
+    const scr = (x, y) => [ox + fx * x, oy + y + shift];
+    const [LX, LY] = scr(mid + o.dx + Math.cos(flatA) * (G7 - mid), arm + 1.5 + o.dy + Math.sin(flatA) * (G7 - mid));
+    const now = performance.now(), st = NORI_JUMP, UP = -2.1, raw = hand ? 1 : 0;
+    if (hand) [st.hx, st.hy] = scr(hand[0], hand[1]);
+    if (now - st.t > 300) Object.assign(st, { r: raw, vr: 0, want: raw, raw, since: now, fx, hx: st.hx || LX, hy: st.hy || LY });
+    else {                                                   // (turned round as a frame changes: it carries on easing)
+      if (raw !== st.raw) Object.assign(st, { raw, since: now });
+      if (now - st.since >= 60) st.want = st.raw;
+      for (let left = Math.min(0.05, (now - st.t) / 1000); left > 0; left -= 0.004) {
+        const h = Math.min(0.004, left), w = 15;
+        st.vr += (w * w * (st.want - st.r) - 2 * w * st.vr) * h; st.r += st.vr * h;
+      }
+      st.r = Math.max(0, Math.min(1, st.r));
     }
-    st.t = now;
-    const x = (st.X - ox) * fx, y = st.Y - oy;
+    st.t = now; st.fx = fx;
+    const r = st.r, e = r * r * (3 - 2 * r);
+    st.a = flatA + weaponSway() * (1 - e) + (UP - flatA) * e;
+    const x = (LX + (st.hx - LX) * e - ox) * fx, y = LY + (st.hy - LY) * e - oy;
     const f = rubberStaff(rubberBend(oy + y), null, true), row = ANCHOR.nori.arm + 1.5;
     g.save(); g.translate(Math.round(x), Math.round(y)); g.rotate(st.a);
     g.drawImage(f.img, f.x - G7, f.y - row);
@@ -997,7 +982,7 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}, stage = "all") {
 function drawItems(g, petId, equip, layer, dy, pose, img) {
   const art = ITEM_ART[petId];
   // the onesie goes on first; her camera hangs on her under what she holds (her trident goes over it)
-  const rank = id => (art[id] || {}).under ? 0 : id === "pudding" || id === "teddy" ? 2 : id === "camera" ? 0.5 : 1;   // (what is in her other paw shows in front of her weapon; her trident goes over her camera)
+  const rank = id => (art[id] || {}).under ? 0 : id === "pudding" || id === "teddy" ? 2 : 1;   // (what is in her other paw shows in front of her weapon; her camera, over her guitar strap, and then her trident over it, in list order)
   // her weapon takes her arm away before what she wears under it goes on (her pochette, her camera: so they are not
   // cut) and is drawn over them after
   const worn = id => (id === "bag" || id === "camera") && equip[id];
@@ -1072,7 +1057,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       if (!img || !img.grid) continue;
       if (a.auto === "teddy" && typeof teddyHugged === "function" && !teddyHugged()) continue;   // the bear is off in the world
       if (a.auto === "pass" && typeof licenceWorn === "function" && !licenceWorn()) continue;   // the licence is off in the world
-      if (a.auto === "camera" && typeof pet !== "undefined" && pet.act === "strum" && pose === pet._pose) { strumCamera(g); continue; }   // off, on the grass
+      if (a.auto === "camera" && typeof cameraWorn === "function" && !cameraWorn() && pose === pet._pose) continue;   // off, on the grass
       const lie = a.auto === "camera" && img.lying && pose && pose.img;   // lying down: it is on the grass in front of her
       // on the base pose the face is found on the plain sprite, so a blink does not make the item vanish
       const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base ? dy : 0;

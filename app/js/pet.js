@@ -656,18 +656,27 @@ function updateWeaponProp(now) {
   const rest = G.sleeping || G.wantSleep && pet.act === "lieDown" || ["lieDown", "lie", "getUp", "loaf"].includes(pet.act);
   const hands = FEET - (INFO[G.pet].h - ANCHOR[G.pet].arm);
   if (rest && wprop.state === "held") {
-    const side = (pet.x < W / 2 ? 1 : -1) * (teddyOn() && prop.state !== "hug" ? -1 : 1);   // the other side from her bear
-    Object.assign(wprop, { state: "place", t0: now, fx: pet.x, fy: hands, tx: Math.max(16, Math.min(W - 16, pet.x + side * 24)), side, z: pet.z });
+    let side = (pet.x < W / 2 ? 1 : -1) * (teddyOn() && prop.state !== "hug" ? -1 : 1);   // the other side from her bear
+    let tx = pet.x + side * 24;
+    if (G.pet === "sora" && G.equip.camera) {             // 하와's camera lies on the grass at her right as she loafs: the
+      const f = weaponFlat("sora"), butt = WEAPON_MID.sora - f.x;   // trident goes to her left, its butt end clear of her
+      side = -1; tx = pet.x - (INFO.sora.w >> 1) - butt - 3;
+    }
+    Object.assign(wprop, { state: "place", t0: now, fx: pet.x, fy: hands, tx: Math.max(16, Math.min(W - 16, tx)), side, z: pet.z });
   }
   if (rest && wprop.state === "ground") wprop.ready = now + 900;          // she goes back for it once she is up (fetchWeapon)
+  // set down, it has some weight: it swings over in a little arc still at her slant, its far end comes down first, it
+  // lands, hops up a pixel or two and rocks to rest (욱's rubber pole wobbles as it settles)
   if (wprop.state === "place") {
-    const q = Math.min(1, (now - wprop.t0) / 320);
-    wprop.x = wprop.fx + (wprop.tx - wprop.fx) * q; wprop.y = wprop.fy + (FEET - 2 - wprop.fy) * q - Math.sin(q * Math.PI) * 6;
-    if (q >= 1) { wprop.state = "ground"; wprop.ready = now + 900; }
+    const q = Math.min(1, (now - wprop.t0) / 340), e = q * q * (3 - 2 * q);
+    wprop.x = wprop.fx + (wprop.tx - wprop.fx) * e; wprop.y = wprop.fy + (FEET - 2 - wprop.fy) * q * q - Math.sin(q * Math.PI) * 6;
+    wprop.ang = DIAG[G.pet] * (1 - e) + 0.16 * Math.sin(q * Math.PI);
+    if (q >= 1) { wprop.state = "ground"; wprop.ready = now + 900; wprop.tl = now; }
   }
   if (wprop.state === "lift") {
-    const q = Math.min(1, (now - wprop.t0) / 260);
-    wprop.x = wprop.fx + (pet.x - wprop.fx) * q; wprop.y = wprop.fy + (hands - wprop.fy) * q - Math.sin(q * Math.PI) * 8;
+    const q = Math.min(1, (now - wprop.t0) / 260), e = q * q * (3 - 2 * q);
+    wprop.x = wprop.fx + (pet.x - wprop.fx) * e; wprop.y = wprop.fy + (hands - wprop.fy) * e - Math.sin(q * Math.PI) * 8;
+    wprop.ang = DIAG[G.pet] * e;
     if (q >= 1) wprop.state = "held";
   }
 }
@@ -681,8 +690,12 @@ function fetchWeapon(now) {
 }
 function drawWeaponProp(front) {
   if (!weaponOn() || wprop.state === "held" || !front) return;            // set down or moving, it shows in front of her
-  const f = weaponFlat(G.pet), mid = WEAPON_MID[G.pet], arm = ANCHOR[G.pet].arm;
-  ctx.save(); ctx.translate(Math.round(wprop.x), Math.round(wprop.y) - Math.round(wprop.z)); if (wprop.side < 0) ctx.scale(-1, 1);   // pointing away from her
+  const t = wprop.state === "ground" ? performance.now() - (wprop.tl || 0) : 1e9, k = t < 900 ? Math.exp(-t / 170) : 0;
+  const hop = k ? Math.round(Math.abs(Math.sin(t / 60)) * 2.5 * k) : 0, ang = wprop.state === "ground" ? 0.09 * k * Math.sin(t / 45) : wprop.ang || 0;
+  const bend = G.pet === "nori" && k ? Math.round(3.5 * Math.exp(-t / 230) * Math.cos(t / 42)) : 0;
+  const f = G.pet === "nori" ? rubberStaff(bend, null, true) : weaponFlat(G.pet), mid = WEAPON_MID[G.pet], arm = ANCHOR[G.pet].arm;
+  ctx.save(); ctx.translate(Math.round(wprop.x), Math.round(wprop.y) - Math.round(wprop.z) - hop); if (wprop.side < 0) ctx.scale(-1, 1);   // pointing away from her
+  if (ang) ctx.rotate(ang);
   ctx.drawImage(f.img, f.x - mid, f.y - arm);
   ctx.restore();
 }
@@ -875,6 +888,49 @@ function drawGuitarRest(pose, box, now) {
   const c = guitarTurned(deg);
   ctx.drawImage(c, Math.round(x - c.width / 2), Math.round(y - c.height / 2));
 }
+// 하와's camera comes off for her guitar: as she gets the guitar round it swings off her neck in a little arc and is set
+// down on the grass beside her (away from the guitar's neck), standing, its strap lying in a loop behind it. It stays
+// there; when she has finished playing she walks over and picks it up (the boing) and it goes back on round her neck.
+// cprop.state: held / place / ground / lift
+const cprop = { state: "held" }, C_LIFT = 420;
+const cameraOn = () => G.pet === "sora" && !!(G.equip && G.equip.camera) && typeof CAMERA !== "undefined";
+const cameraWorn = () => !cameraOn() || cprop.state === "held";
+function updateCameraProp(now) {
+  if (!cameraOn()) { cprop.state = "held"; return; }
+  if (cprop.state === "held" && pet.act === "strum") {
+    const n = CAMS.neck || { x: pet.x, y: FEET - Math.round(pet.z) - 16 }, gy = FEET - Math.round(pet.z);
+    Object.assign(cprop, { state: "place", t0: now, fx: n.x, fy: n.y, x: Math.max(8, Math.round(pet.x) - 21) + 5.5, y: gy, z: pet.z, dy: n.y - gy, ready: 0 });
+  }
+  if (cprop.state === "place" && now - cprop.t0 >= STRUM_IN) cprop.state = "ground";
+  if (cprop.state === "lift" && now - cprop.t0 >= C_LIFT) cprop.state = "held";
+}
+function fetchCamera(now) {
+  if (!cameraOn() || cprop.state !== "ground" || G.sleeping || G.wantSleep) return false;
+  if (!cprop.ready) cprop.ready = now + 600;                  // a moment after she has finished, then she goes for it
+  if (now < cprop.ready) return true;
+  const dx = cprop.x - pet.x;
+  if (Math.abs(dx) > 12 || Math.abs(cprop.z - pet.z) > 1.5) { pet.act = "walk"; pet.target = cprop.x - Math.sign(dx) * 11; pet.tz = cprop.z; return true; }
+  Object.assign(cprop, { state: "lift", t0: now });
+  pet.dir = Math.sign(dx) || pet.dir; startAct("pickup", now); return true;
+}
+function drawCameraProp(now) {
+  if (!cameraOn() || cprop.state === "held") return;
+  // q: 0 round her neck, 1 on the grass; on the way it goes along an arc
+  const down = cprop.state === "place", sm = q => q * q * (3 - 2 * q);
+  const q = cprop.state === "ground" ? 1 : down ? sm(Math.min(1, (now - cprop.t0) / STRUM_IN)) : 1 - sm(Math.min(1, (now - cprop.t0) / C_LIFT));
+  const nx = down ? cprop.fx : pet.x, ny = down ? cprop.fy : FEET - Math.round(pet.z) + cprop.dy, gy = cprop.y - Math.round(cprop.z);
+  const x = Math.round(nx + (cprop.x - nx) * q - 5.5), y = Math.round(ny + (gy - 9 - ny) * q - Math.sin(q * Math.PI) * 7);
+  const dot = (px, py, c) => { ctx.fillStyle = c; ctx.fillRect(px, py, 1, 1); };
+  if (q > 0.9) { ctx.fillStyle = "rgba(40,60,40,0.25)"; ctx.fillRect(x, gy, 11, 1); }   // its shadow on the grass
+  // the strap: a loop from its top corners, up a little behind it (lower once it lies on the grass)
+  const h = Math.round(5 - 2 * q), seen = new Set();
+  for (let k = 0; k <= 30; k++) {
+    const u = k / 30, px = Math.round(x + 1 + 8 * u), py = Math.round(y + 1 - h * Math.sin(u * Math.PI));
+    if (seen.has(px + "," + py)) continue; seen.add(px + "," + py);
+    dot(px, py, CAMERA_PAL.s); dot(px, py + 1, CAMERA_PAL.t);
+  }
+  CAMERA.forEach((r, j) => [...r].forEach((ch, i) => { if (CAMERA_PAL[ch]) dot(x + i, y + j, CAMERA_PAL[ch]); }));
+}
 function fetchGuitar(now) {
   if (!guitarOn() || gprop.state !== "ground" || G.sleeping || G.wantSleep) return false;
   if (!gprop.ready) gprop.ready = now + 700;                  // a moment after she is up, and before anything else
@@ -953,12 +1009,14 @@ function petUpdate(now, dt) {
 
   updateTeddy(now, dt);
   updateWeaponProp(now);
+  updateCameraProp(now);
   updateLicence(now, dt);
   if (G.still) pet.nextThink = now + 1500;                               // the tutorial is talking: she stands and listens
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && now > prop.ready && fetchTeddy(now)) {}
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && fetchWeapon(now)) {}
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && fetchLicence(now)) {}
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && fetchGuitar(now)) {}
+  else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && fetchCamera(now)) {}
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && now > pet.nextThink) {
     pet.nextThink = now + 2500 + Math.random() * 3500;
     const r = Math.random(), calm = G.studying;          // fewer big moves while you study
@@ -1133,7 +1191,7 @@ function petRender(now) {
   ctx.restore();
   box.y -= Math.round(pet.z);                            // back to screen space, for the Zzz and the speech bubble
   if (pet.z > SIGN_Z + 0.5 && typeof drawSignOver === "function") drawSignOver(ctx, now);   // behind the sign
-  drawTeddy(true); drawWeaponProp(true); drawLicence(true); drawGuitarRest(pose, box, now);
+  drawTeddy(true); drawWeaponProp(true); drawLicence(true); drawGuitarRest(pose, box, now); drawCameraProp(now);
   if (pet.act === "peek" && pet.peek.phase !== "out" && pet.peek.phase !== "in") {
     const pk = pet.peek, t = now - pk.t0, sora = pk.kind === "sora";
     let img = sora ? soraPeekImg(pk, t) : PEEK_IMG[0], off = 0;
