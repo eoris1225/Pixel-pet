@@ -526,11 +526,12 @@ function cameraLying(grid, pet) {
   // the strap: from the far top corner of the camera up to under her chin, a light band with its darker edge
   // (it sags on the grass in front of her and goes up round the side of her face, not to her mouth)
   const ax = side > 0 ? left : left + 11, ay = top + 2, bx = Math.round(fx - side * 7), by = y1 - 4;
-  const n = Math.max(Math.abs(bx - ax), Math.abs(by - ay)) * 2 || 1, seen = new Set();
-  for (let k = 1; k < n; k++) {
+  // sampled along its curve, each step joined to the last pixel by pixel so it never breaks
+  const n = 24, seen = new Set(), dot = (x, y) => { if (seen.has(x + "," + y)) return; seen.add(x + "," + y); out.push([x, y, CAMERA_PAL.s], [x, y + 1, CAMERA_PAL.t]); };
+  let px = ax, py = ay;
+  for (let k = 1; k <= n; k++) {
     const q = k / n, x = Math.round(ax + (bx - ax) * q), y = Math.round(ay + (by - ay) * q * q + Math.sin(q * Math.PI) * 1.5);
-    if (seen.has(x + "," + y)) continue; seen.add(x + "," + y);
-    out.push([x, y, CAMERA_PAL.s], [x, y + 1, CAMERA_PAL.t]);
+    while (px !== x || py !== y) { if (px !== x) px += Math.sign(x - px); else py += Math.sign(y - py); dot(px, py); }
   }
   return out;
 }
