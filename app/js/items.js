@@ -596,9 +596,14 @@ ITEM_AUTO.pudding = (grid, pet) => {
   grid.forEach((r, y) => [...r].forEach((c, x) => { if (c !== "P" || y < f.cy - 4) return;
     const k = cheeks.find(q => q.pts.some(([a, e]) => Math.abs(a - x) <= 2 && Math.abs(e - y) <= 2)); if (k) k.pts.push([x, y]); else cheeks.push({ pts: [[x, y]] }); }));
   const profile = eyes.length < 2 && cheeks.filter(c => c.pts.length >= 2 && c.pts.length <= 14).length < 2;
-  const side = profile && f.cx > mid ? 1 : -1, hy = ANCHOR[pet].arm + 1 + o.dy;
-  const r = grid[hy] || "", q = r.search(/[^B]/), edge = q < 0 ? Math.round(mid) : side < 0 ? q : r.length - 1 - [...r].reverse().join("").search(/[^B]/);
-  const sx = edge + side * 1, gx = sx - 3, gy = hy - 8, out = [];               // the stem at her hand, just off her side
+  const side = profile && f.cx > mid ? 1 : -1, at = (x, y) => (grid[y] && grid[y][x]) || "B";
+  const edge = y => { const r = grid[y] || "", q = r.search(/[^B]/); return q < 0 ? -1 : side < 0 ? q : r.length - 1 - [...r].reverse().join("").search(/[^B]/); };
+  // her hand on this frame: a paw waved up by her head, else the end of her arm (the little stub of outline, arm and
+  // its inner line at her side, lowest one), else where her arm would be
+  let hand = side < 0 ? waveHand(grid) : null;
+  if (!hand) for (let y = Math.round(f.cy); y <= y1 - 2; y++) { const e = edge(y); if (e >= 0 && at(e, y) === "K" && !"KB".includes(at(e - side, y)) && at(e - 2 * side, y) === "K") hand = [e, y]; }
+  if (!hand) { const y = ANCHOR[pet].arm + 1 + o.dy; hand = [edge(y) + side, y]; }
+  const sx = hand[0] + side, hy = hand[1], gx = sx - 3, gy = hy - 8, out = [];   // the stem in her paw
   PUDDING.forEach((row, j) => [...row].forEach((ch, i) => { if (PUDDING_PAL[ch]) out.push([gx + i, gy + j, PUDDING_PAL[ch]]); }));
   HAND.forEach((row, j) => [...row].forEach((ch, i) => { if (ch !== ".") out.push([sx - 1 + i, hy - 1 + j, ch === "K" ? "outline" : "body"]); }));   // her paw round the stem
   return out;
@@ -612,14 +617,23 @@ function puddingWobble(g, cache, grid) {
   if (!("fy" in cache)) { const f = faceOf(grid); cache.fy = f ? f.cy : 0; cache.fx = f ? f.cx : 0; }
   const now = performance.now(), dt = Math.min(0.05, (now - PUDF.t) / 1000), flip = g.getTransform().a < 0 ? -1 : 1;
   const sx = (g.worldX || 0) + SPRITE_PAD + cache.fx * flip, sy = (g.worldY || 0) + SPRITE_PAD + cache.fy;
-  if (PUDF.sx === null || dt <= 0 || now - PUDF.t > 200) { Object.assign(PUDF, { sx, sy, t: now }); return { x: 0, y: 0, flip }; }
+  if (PUDF.sx === null || dt <= 0 || now - PUDF.t > 200) { Object.assign(PUDF, { sx, sy, t: now }); return { x: 0, y: 0, pop: 0, flip }; }
   const mvx = (sx - PUDF.sx) / dt, mvy = (sy - PUDF.sy) / dt;
   const tx = Math.max(-2, Math.min(2, -mvx * 0.03)), ty = Math.max(-1, Math.min(1, mvy * 0.01));
   PUDF.vx += (240 * (tx - PUDF.x) - 7 * PUDF.vx) * dt; PUDF.x += PUDF.vx * dt;
   PUDF.vy += (300 * (ty - PUDF.y) - 9 * PUDF.vy) * dt; PUDF.y += PUDF.vy * dt;
   PUDF.x = Math.max(-2, Math.min(2, PUDF.x)); PUDF.y = Math.max(-1, Math.min(1, PUDF.y));
   Object.assign(PUDF, { sx, sy, t: now });
-  return { x: Math.round(PUDF.x), y: Math.round(PUDF.y), flip };
+  return { x: Math.round(PUDF.x), y: Math.round(PUDF.y), pop: puddingPop(mvy, dt), flip };
+}
+// dropped, the pudding jumps up off its glass (it is lighter than her and she is falling away under it) and comes back
+// down onto it as she lands: it never leaves her, she catches it on the glass
+const PUDL = { r: 0, v: 0 };
+function puddingPop(vb, dt) {
+  const target = vb > 40 ? -Math.min(7, (vb - 40) * 0.04) : 0;
+  PUDL.v += (180 * (target - PUDL.r) - 10 * PUDL.v) * dt; PUDL.r += PUDL.v * dt;
+  PUDL.r = Math.max(-7, Math.min(1, PUDL.r));
+  return Math.round(PUDL.r);
 }
 const CAMF = { r: 0, v: 0, y: null, t: 0 };
 function cameraFloat(g, img, cache, grid) {
@@ -979,7 +993,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
         const x0 = (keepSide ? fw - xs : xs) + (wk ? Math.round(wob.x * wob.flip * wk) : 0), x = x0 + (each && y < tip ? ear : 0);
         // a stretch doubles the row at dup: the onesie covers both copies
         if (each && y === dup && shift > 0 && c !== "clear" && on(x, y)) { g.fillStyle = c === "body" ? body : c === "outline" ? OUT : c; g.fillRect(x, y, 1, 1); }
-        const yy = y + (each ? (y >= dup ? shift : 0) : whole) + (lift && c !== CAMERA_PAL.s && c !== CAMERA_PAL.t ? lift : 0) + (wk === 1 && wr <= 1 ? wob.y : 0);
+        const yy = y + (each ? (y >= dup ? shift : 0) : whole) + (lift && c !== CAMERA_PAL.s && c !== CAMERA_PAL.t ? lift : 0) + (wk === 1 && wr <= 1 ? wob.y : 0) + (wob && p0(c) && wr <= 3 ? wob.pop : 0);
         if (each && !on(x, yy)) continue;
         if (c === "clear") { g.clearRect(x, yy, 1, 1); continue; }   // her arm, now round the bear
         g.fillStyle = c === "body" ? body : c === "outline" ? OUT : c; g.fillRect(x, yy, 1, 1);
