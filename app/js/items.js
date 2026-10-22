@@ -551,6 +551,9 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
         cache.go = o && { dx: Math.max(-4, Math.min(4, o.dx)), dy: Math.max(-2, Math.min(3, o.dy)) };
       }
       const o = cache.go;
+      // like the pochette: when her plain sprite is just turned the other way to walk back, it stays on the same side
+      const keep = base && g.getTransform().a < 0;
+      if (keep) { g.save(); g.translate(grid[0].length, 0); g.scale(-1, 1); }
       if (o && layer === "back") {                         // it hangs on her loosely: it follows her a moment late and sways as she moves
         const s = guitarSway(GUITAR_BACK.x + o.dx, GUITAR_BACK.foot - guitarDrop(GUITAR_BACK.deg) + o.dy + shift, GUITAR_BACK.deg);
         drawGuitar(g, s.x, Math.min(s.y, soles(grid) + shift - guitarDrop(s.deg)), s.deg);
@@ -574,6 +577,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
         const s = guitarSway(Math.round(cx * 2) - (GUITAR_BACK.x + Math.round(cx - 14)), GUITAR_BACK.foot - guitarDrop(180 - GUITAR_BACK.deg) + oy, 180 - GUITAR_BACK.deg);
         drawGuitar(g, s.x, Math.min(s.y, soles(grid) - guitarDrop(s.deg)), s.deg);
       }
+      if (keep) g.restore();
       continue;
     }
     if (equip[id] && a && a.auto === "weapon") { if (img && img.grid) drawWeapon(g, petId, layer, dy, pose, img, equip); continue; }

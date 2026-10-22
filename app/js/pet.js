@@ -515,6 +515,7 @@ function petPose(now) {
     }
     case "dance": { a.img = danceImg(t); break; }
     case "strum": { strumPose(a, t); break; }
+    case "pickup": { a.body = t < 90 || t > 260 ? "base" : "squash"; break; }   // a little dip as she bends for it
     case "wave": { a.img = MOCHIWAVE_IMG[waveFrame(t)]; break; }
     case "skyland": { skylandPose(a, t); break; }
     case "dash": {
@@ -670,8 +671,7 @@ function drawTeddy(front) {
 // picks it up again, as with 치카's bear. gprop.state: held (on her back) / place / ground / lift
 const gprop = { state: "held" }, G_PLACE = 380, G_LIFT = 300;
 const guitarOn = () => G.pet === "sora" && !!(G.equip && G.equip.guitar) && typeof drawGuitar === "function";
-const backGuitarAt = () => { const d = pet.dir < 0 ? -1 : 1;   // where it hangs on her back, on the grass's coordinates
-  return { x: pet.x + (GUITAR_BACK.x - 13.5) * d, y: FEET - Math.round(pet.z) - 1 - guitarDrop(GUITAR_BACK.deg), deg: d < 0 ? 180 - GUITAR_BACK.deg : GUITAR_BACK.deg }; };
+const backGuitarAt = () => ({ x: pet.x + GUITAR_BACK.x - 13.5, y: FEET - Math.round(pet.z) - 1 - guitarDrop(GUITAR_BACK.deg), deg: GUITAR_BACK.deg });   // on her back (it keeps its side as she turns)
 const restAt = () => ({ x: gprop.x, y: gprop.y - guitarBottom(GUITAR_REST, true) + guitarTurned(GUITAR_REST, true).height / 2 });
 function drawGuitarRest(pose, box, now) {
   if (!guitarOn()) { gprop.state = "held"; return; }
@@ -703,7 +703,7 @@ function fetchGuitar(now) {
   const dx = gprop.x - pet.x;
   if (Math.abs(dx) > 12) { pet.act = "walk"; pet.target = gprop.x - Math.sign(dx) * 11; pet.tz = pet.z; return true; }
   Object.assign(gprop, { state: "lift", t0: now });
-  pet.dir = Math.sign(dx) || pet.dir; startAct("pet", now); return true;
+  pet.dir = Math.sign(dx) || pet.dir; startAct("pickup", now); return true;
 }
 // the next point to head for on the way to (target, tz): she never steps from in front of the sign to behind it (or back)
 // while her body overlaps its post, so she goes round it, crossing that line beside the sign instead
@@ -727,7 +727,7 @@ function pickWalk() {
 function petUpdate(now, dt) {
   updateParts(dt);
   const dur = { skyland:SKYLAND_LEN, gloom:GLOOM_LEN, dash:DASH_LEN, wave:WAVE_LEN,
-    pet:(G.pet === "nori" ? JUMP_LEN : G.pet === "sora" ? seqLen(SORA_ONCE) : 520), dance:DANCE_LEN, strum:STRUM_ALL, lie:LIE_DUR,
+    pet:(G.pet === "nori" ? JUMP_LEN : G.pet === "sora" ? seqLen(SORA_ONCE) : 520), dance:DANCE_LEN, strum:STRUM_ALL, pickup:360, lie:LIE_DUR,
     lieDown:(G.pet === "nori" ? seqDur(LIE_DOWN) : G.pet === "sora" ? SIT_LEN : 1), getUp:(G.pet === "nori" ? seqDur(GET_UP) : G.pet === "sora" ? STAND_LEN : 1),
     spin:SPIN_LEN, twirl:TWIRL_LEN, land:460, loaf:LOAF_LEN }[pet.act];
   if (dur && now - pet.t0 >= dur) { pet.act = "idle"; pet.nextThink = now + 1500; }
