@@ -192,14 +192,14 @@ function strumClean(img) {
   return (img._clean = patch);
 }
 // her paws while she plays, along the guitar (from its middle: along the neck, across it; minus is up). Her right paw
-// hangs over the top by the sound hole and strums down and up across the strings; her left grips the neck and
+// hangs over the top just past the sound hole and strums down and up across the strings; her left grips the neck and
 // shifts along it now and then, like changing chords
 const STRUM_PAW = [".KKK.", "KWWWK", "KWWWK", ".KKK."];
 const FRET_PAW = [".KK.", "KWWK", "KWWK", ".KK."];
 function strumPaws(t) {
   const swing = [-6, -5, -3.5, -2, -1, -1, -2, -3.5, -5, -6][Math.floor(t / 45) % 10];   // down across the strings and back up
   const chord = [7, 7, 8.5, 8.5, 10, 8.5][Math.floor(t / 650) % 6];
-  return [[-0.5, swing, STRUM_PAW], [chord, -1.5, FRET_PAW]];
+  return [[-4, swing, STRUM_PAW], [chord, -1.5, FRET_PAW]];
 }
 // how far below its middle the turned guitar reaches
 function guitarDrop(deg) {
