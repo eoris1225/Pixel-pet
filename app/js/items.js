@@ -410,7 +410,10 @@ ITEM_AUTO.shades = (grid, pet) => {
     [...r].forEach((c, x) => { if (c === "W") { tx += x; tn++; } }); });
   const lying = x1 - x0 + 1 > (y1 - y0 + 1) * 1.15;
   const tailRight = tn ? tx / tn > (x0 + x1) / 2 : true;
-  const F = f || (lying ? { cx: tailRight ? x0 + 9.5 : x1 - 8.5, cy: y1 - 5.25, rx: 8.7, ry: 6 } : { cx: (x0 + x1) / 2 + 0.5, cy: y1 - 14.5, rx: 9.2, ry: 6 });
+  // from behind: her nape is a set way down from the top of her head (where it gets wide, below her ears), whatever her legs do
+  const wid = grid.map(r => { const q = r.search(/[^B]/); return q < 0 ? 0 : r.length - [...r].reverse().join("").search(/[^B]/) - q; });
+  const headTop = wid.findIndex(v => v >= Math.max(...wid) * 0.6);
+  const F = f || (lying ? { cx: tailRight ? x0 + 9.5 : x1 - 8.5, cy: y1 - 5.25, rx: 8.7, ry: 6 } : { cx: (x0 + x1) / 2 + 0.5, cy: headTop + 8.5, rx: 9.2, ry: 6 });
   const [ux, uy] = !lying ? [0, 1] : x1 - F.cx > F.cx - x0 ? [1, 0] : [-1, 0];
   // from behind, the back of it sits up at her nape and its sides drop away round to the front
   const back = !f && !lying, D = back ? 1.5 : uy ? F.ry + 1.5 : F.rx + 2, W = 10, sag = back ? -2.5 : 2.5;
@@ -421,7 +424,7 @@ ITEM_AUTO.shades = (grid, pet) => {
     at = t => { const q = (t + 1) / 2; return [ax + (bx - ax) * q, ay + (by - ay) * q + 2 * Math.sin(q * Math.PI)]; };
   }
   const face = (x, y) => f && ((x + 0.5 - f.cx) / (f.rx + 1)) ** 2 + ((y + 0.5 - f.cy) / (f.ry + 1)) ** 2 <= 1;
-  const ok = (x, y) => body(x, y) && !face(x, y);
+  const ok = (x, y) => body(x, y) && grid[y][x] !== "W" && !face(x, y);   // never over her face or her white tail
   const link = new Map();
   for (let k = 0; k <= 80; k++) { const [x, y] = at(k / 40 - 1).map(Math.round); if (ok(x, y)) link.set(x + "," + y, (x + y) % 2); }
   const ring = new Set();
