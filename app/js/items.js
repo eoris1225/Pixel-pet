@@ -551,7 +551,13 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       if (o && layer === "front") {                       // its strap across her chest, from her right shoulder to her left hip
         const row = y => { const r = grid[y] || ""; const q = r.search(/[^B]/); return q < 0 ? null : [q, r.length - 1 - [...r].reverse().join("").search(/[^B]/)]; };
         const fy = faceOf(SPRITES[petId]).cy + o.dy, sy = Math.round(fy + 4), hy = Math.round(fy + 10), a1 = row(sy), a2 = row(hy);
-        if (a1 && a2) for (const [x, y, c] of pixList("gstrap:" + [a1[1], sy, a2[0], hy], d => d.line(a1[1], sy, a2[0], hy, "#9a6a3e"))) { g.fillStyle = c; g.fillRect(x, y + shift, 1, 1); }
+        // it starts just inside her shoulder, sags a little across her chest and runs to her left side, where it meets the guitar
+        const x0 = a1 && a1[1] - 1, x1 = a2 && a2[0];
+        if (a1 && a2) {                                   // a thin band: the strap, and its darker underside
+          const n = Math.abs(x0 - x1), pts = new Map();
+          for (let k = 0; k <= n; k++) { const t = k / n; pts.set(Math.round(x0 + (x1 - x0) * t), Math.round(sy + (hy - sy) * t + 1.6 * 4 * t * (1 - t))); }
+          for (const [x, y] of pts) { g.fillStyle = "#a8743f"; g.fillRect(x, y + shift, 1, 1); g.fillStyle = "#5e3a22"; g.fillRect(x, y + 1 + shift, 1, 1); }
+        }
       }
       if (!o && layer === "front") {                      // from behind it lies over her back, mirrored about her middle
         let x0 = 1e9, x1 = -1, bottom = grid.length - 1;
