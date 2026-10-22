@@ -542,6 +542,29 @@ ITEM_AUTO.camera = (grid, pet) => {
   out.noMirror = true; out.box = { cx, cy };
   return out;
 };
+// 하와 playing her guitar takes her camera off first: it swings off her neck in a little arc and is set down on the grass
+// beside her (away from the guitar's neck), standing with its strap lying in a loop behind it; when she stops it goes back
+// up the same way. Worked out on the screen (her strum frames are drawn from other origins and squash as she pops up)
+const CAMS = { neck: null };
+function strumCamera(g) {
+  const now = performance.now(), t = now - pet.t0, gx = Math.round(pet.x) - 21, gy = FEET - Math.round(pet.z || 0);
+  const n = CAMS.neck || { x: pet.x, y: gy - 16 }, smooth = q => q * q * (3 - 2 * q);
+  const out = t - STRUM_IN - STRUM_LEN, q = out > 0 ? 1 - smooth(Math.min(1, out / STRUM_IN)) : smooth(Math.min(1, t / STRUM_IN));
+  // q: 0 at her neck, 1 on the grass. Its centre top goes along an arc between the two
+  const x = Math.round(n.x + (gx + 5.5 - n.x) * q - 5.5), y = Math.round(n.y + (gy - 9 - n.y) * q - Math.sin(q * Math.PI) * 7);
+  g.save(); g.setTransform(1, 0, 0, 1, 0, 0);
+  const ox = g.worldX || 0, oy = g.worldY || 0, dot = (px, py, c) => { g.fillStyle = c; g.fillRect(px - ox, py - oy, 1, 1); };
+  if (q > 0.9) { g.fillStyle = "rgba(40,60,40,0.25)"; g.fillRect(x - ox, gy - oy, 11, 1); }   // its shadow on the grass
+  // the strap: a loop from its top corners, up a little behind it (flat on the grass once it is down)
+  const h = Math.round(5 - 2 * q), seen = new Set();
+  for (let k = 0; k <= 30; k++) {
+    const u = k / 30, px = Math.round(x + 1 + 8 * u), py = Math.round(y + 1 - h * Math.sin(u * Math.PI));
+    if (seen.has(px + "," + py)) continue; seen.add(px + "," + py);
+    dot(px, py, CAMERA_PAL.s); dot(px, py + 1, CAMERA_PAL.t);
+  }
+  CAMERA.forEach((r, j) => [...r].forEach((ch, i) => { if (CAMERA_PAL[ch]) dot(x + i, y + j, CAMERA_PAL[ch]); }));
+  g.restore();
+}
 // lying down, her camera has fallen on the grass in front of her, face down: seen from above, its light top edge, its
 // dark back with the little screen and viewfinder, a shadow under it; its strap runs from it up to her neck
 const CAMERA_LIE = [
@@ -973,12 +996,17 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}, stage = "all") {
 // Auto items are placed on this exact frame (cached on the frame); hand-placed ones only on base-sprite frames.
 function drawItems(g, petId, equip, layer, dy, pose, img) {
   const art = ITEM_ART[petId];
-  // the onesie goes on first; what hangs in front (her camera) goes on after what she holds (it hangs over the shaft)
-  const rank = id => (art[id] || {}).under ? 0 : id === "camera" || id === "pudding" || id === "teddy" ? 2 : 1;   // (and what is in her other paw shows in front of her weapon)
-  // her weapon takes her arm away before her pochette goes on (so the bag is not cut) and is drawn over it after
-  const pouch = equip.bag && WEAPON_OF[petId] && equip[WEAPON_OF[petId]];
+  // the onesie goes on first; her camera hangs on her under what she holds (her trident goes over it)
+  const rank = id => (art[id] || {}).under ? 0 : id === "pudding" || id === "teddy" ? 2 : id === "camera" ? 0.5 : 1;   // (what is in her other paw shows in front of her weapon; her trident goes over her camera)
+  // her weapon takes her arm away before what she wears under it goes on (her pochette, her camera: so they are not
+  // cut) and is drawn over them after
+  const worn = id => (id === "bag" || id === "camera") && equip[id];
+  const pouch = WEAPON_OF[petId] && equip[WEAPON_OF[petId]] && ITEM_LIST[petId].some(p => worn(p[1]));
   const order = ITEM_LIST[petId].slice().sort((p, q) => rank(p[1]) - rank(q[1]));
-  if (pouch) { const i = order.findIndex(p => p[1] === "bag"); order.splice(i, 0, [, WEAPON_OF[petId], , , "arms"]); order.splice(i + 2, 0, [, WEAPON_OF[petId], , , "draw"]); }
+  if (pouch) {
+    const i = order.findIndex(p => worn(p[1])), j = order.length - 1 - order.slice().reverse().findIndex(p => worn(p[1]));
+    order.splice(j + 1, 0, [, WEAPON_OF[petId], , , "draw"]); order.splice(i, 0, [, WEAPON_OF[petId], , , "arms"]);
+  }
   for (const [, id, , , stage] of order) {
     const a = art[id];
     if (equip[id] && a && a.auto === "guitar") {           // slung on her back: behind her from the front, over her back from behind
@@ -1044,6 +1072,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       if (!img || !img.grid) continue;
       if (a.auto === "teddy" && typeof teddyHugged === "function" && !teddyHugged()) continue;   // the bear is off in the world
       if (a.auto === "pass" && typeof licenceWorn === "function" && !licenceWorn()) continue;   // the licence is off in the world
+      if (a.auto === "camera" && typeof pet !== "undefined" && pet.act === "strum" && pose === pet._pose) { strumCamera(g); continue; }   // off, on the grass
       const lie = a.auto === "camera" && img.lying && pose && pose.img;   // lying down: it is on the grass in front of her
       // on the base pose the face is found on the plain sprite, so a blink does not make the item vanish
       const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base ? dy : 0;
@@ -1086,6 +1115,10 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
         if (each && !on(x, yy)) continue;
         if (c === "clear") { g.clearRect(x, yy, 1, 1); continue; }   // her arm, now round the bear
         g.fillStyle = c === "body" ? body : c === "outline" ? OUT : c; g.fillRect(x, yy, 1, 1);
+      }
+      if (a.auto === "camera" && px.box && typeof pet !== "undefined" && pose === pet._pose) {   // where it hangs on the screen
+        const m = g.getTransform(), lx = (keepSide ? fw - px.box.cx - 5 : px.box.cx + 5) + 0.5, ly = px.box.cy + whole + lift;
+        CAMS.neck = { x: (g.worldX || 0) + m.a * lx + m.e, y: (g.worldY || 0) + m.d * ly + m.f };
       }
       if (a.auto === "camera" && base && px.box && !lie && !equip.trident) {   // (her trident takes her paws)        // standing or walking she holds it in both paws (her arms go round to it)
         const k = cache.camHold || (cache.camHold = (() => { const { cx, cy } = px.box, o = [];
