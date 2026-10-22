@@ -70,7 +70,7 @@ function headHat(p, main, rib) {
 // towards the way she faces, her two little hands on the handle.
 const PRONG = [[0, 0], [1, -1], [2, -2], [3, -3], [4, -4], [5, -4], [6, -5], [7, -5], [8, -5], [9, -5], [10, -5], [11, -6], [12, -7]];
 const HAND = [".KK.", "KWWK", ".KK."];                   // a little paw over the handle
-function fork(p, main, light, flat = false, paw = "#fffaf0") {
+function fork(p, main, light, flat = false, paw = PET[p].pal[PET[p].body]) {
   const y = ANCHOR[p].arm, x0 = -6, x1 = 26, y0 = flat ? y : y + 4, y1 = flat ? y : y - 3;
   const at = x => Math.round(y0 + (x - x0) * (y1 - y0) / (x1 - x0));
   return pixmap(d => {

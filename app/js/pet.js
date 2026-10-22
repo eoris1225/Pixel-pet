@@ -27,9 +27,9 @@ const tagFrames = (imgs, set) => { imgs.forEach((c, i) => c.key = set + ":" + i)
 function px(x, y, w, h, col) { ctx.fillStyle = col; ctx.fillRect(Math.round(x), Math.round(y), w, h); }
 
 const PETS = [
-  { id:"nori",  body:"Y", tip:5, pal:{K:OUT, Y:"#ffe9b0", P:"#ff9db4", W:"#ffffff"} },
-  { id:"mochi", body:"W", tip:2, pal:{K:OUT, W:"#fffaf0", P:"#ff9db4", L:"#e2e9eb", N:"#ccd6dc", Q:"#b8c8d0", M:"#c496a2"} },
-  { id:"sora",  body:"W", tip:2, pal:{K:OUT, W:"#fffaf0", S:"#9fd3f5", P:"#ff9db4", R:"#f07070"} },
+  { id:"nori",  body:"Y", tip:5, pal:{K:OUT, Y:"#fcf4ca", P:"#f9a7a5", W:"#ffffff"} },
+  { id:"mochi", body:"W", tip:2, pal:{K:OUT, W:"#ffffff", P:"#f9c1ce", L:"#e2e9eb", N:"#ccd6dc", Q:"#b8c8d0", M:"#c496a2"} },
+  { id:"sora",  body:"W", tip:2, pal:{K:OUT, W:"#ffffff", S:"#7ca8c7", P:"#f8c3ce", R:"#f07070"} },
 ];
 const PET = Object.fromEntries(PETS.map(p => [p.id, p]));
 

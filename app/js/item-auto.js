@@ -201,10 +201,10 @@ const PAJAMA = {
   sora:  { main: "#acdaf8", shade: "#84bfeb", rim: "#d6eefd", up: 4, bangs: "S", bang: "#5eaee6" },
   nori:  { main: "#ffd766", shade: "#efb53a", rim: "#ffe07e", keep: "W", up: 3 },   // her rim must not match her own face colour
 };
-// 치카's gloom shadow, in three strengths, as her own white body (#fffaf0) looks under it; the suit is dimmed by the same amount
+// 치카's gloom shadow, in three strengths, as her own white body (#ffffff) looks under it; the suit is dimmed by the same amount
 const GLOOM = { L: "#e2e9eb", N: "#ccd6dc", Q: "#b8c8d0" };
 function dim(col, shadow) {
-  const a = [1, 3, 5].map(i => parseInt(col.substr(i, 2), 16)), b = [1, 3, 5].map(i => parseInt(shadow.substr(i, 2), 16)), w = [255, 250, 240];
+  const a = [1, 3, 5].map(i => parseInt(col.substr(i, 2), 16)), b = [1, 3, 5].map(i => parseInt(shadow.substr(i, 2), 16)), w = [255, 255, 255];
   return "#" + a.map((v, i) => Math.round(Math.min(255, v * b[i] / w[i])).toString(16).padStart(2, "0")).join("");
 }
 function autoPajama(grid, pet) {
@@ -283,7 +283,7 @@ function autoPajama(grid, pet) {
 
 // 하와's Lv2 look: her bangs restyled, not a hat. Her blue hair comes down to just above her eyes in one straight edge,
 // with a little notch rising to a point in the middle (like the anime), over her own sprite on every frame where she faces us
-const BANGS = { sora: "#9fd3f5" };
+const BANGS = { sora: "#7ca8c7" };   // her own hair colour
 function autoBangs(grid, pet) {
   const col = BANGS[pet], f = faceOf(grid);
   if (!col || !f || f.rx <= 7 || grid[0].length > 60) return [];                    // facing us (two eyes) only
