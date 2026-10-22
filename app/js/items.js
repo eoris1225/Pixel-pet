@@ -124,46 +124,59 @@ const POCHETTE = [
 ];
 const bagStrap = d => d.line(4, 17, 17, 21, "#fff7ea");                  // the strap, from her shoulder to her hip
 const bagFace = d => d.grid(POCHETTE, { P: "#f7a8bd", p: "#ec8fab", W: "#fffaf0", D: "#5a4636" }, 16, 20);
-// 하와's guitar, drawn level like the teddy (its outline taken from the anime, 24 px long at her size): a round lower bout, a smaller upper bout,
+// 하와's guitar, drawn level like the teddy (its outline taken from the anime, 26 px long at her size): a round lower bout, a smaller upper bout,
 // a dark sound hole with the strings over it, the bridge, a short neck and a headstock with pegs
 const GUITAR = [
-  "...KKKK.................",
-  ".KKTTTTKK..KKKK.........",
-  "KTTTTTTTTKKTTTTK....P.P.",
-  "KTTTTTTTTTTTTTTTK..KKKKK",
-  "KTTRTTTHHTTTTTTTKKKNNNNK",
-  "KTTRSSHHHHSSSSSSFFFNDDNK",
-  "KTTRSSHHHHSSSSSSFFFNDDNK",
-  "KTTRTTTHHTTTTTTTKKKNNNNK",
-  "KTLTTTTTTTTTTTTTK..KKKKK",
-  "KTLLTTTTTKKTTTTK....P.P.",
-  ".KKLLTTKK..KKKK.........",
-  "...KKKK.................",
+  "....KKKK..................",
+  "..KKTTTTKK................",
+  ".KTTTTTTTTK.KKKK......P.P.",
+  ".KTTTTTTTTTKTTTTKK...KKKKK",
+  "KTTTTTTHHTTTTTTTTTKKKKNNNK",
+  "KTRSSSHHHHSSSSSSSSFFFNDDNK",
+  "KTRTTTHHHHTTTTTTTTFFFNDDNK",
+  "KTRSSSHHHHSSSSSSSSFFFNDDNK",
+  "KTTTTTTHHTTTTTTTTTKKKKNNNK",
+  ".KLTTTTTTTTKTTTTKK...KKKKK",
+  ".KLLTTTTTTK.KKKK......P.P.",
+  "..KKLLTTKK................",
+  "....KKKK..................",
 ];
 const GUITAR_PAL = { K: OUT, T: "#d9a15e", L: "#eaba7a", H: "#4a2e1c", R: "#7a4a2a", S: "#b07640", F: "#6e4228", N: "#be7d46", D: "#6e4228", P: "#fbeed5" };
+// her paws while she plays, as in the anime: one curled over the top of the body by her side, one round the neck,
+// at these spots along the guitar (from its middle, along the neck / across it) so they tip with it
+const STRUM_HANDS = [
+  [-7.5, -5.5, [".KKK.", "KWWWK", "KWWWK", ".KKK."]],
+  [6.5, 0, [".KKK.", "KWWWK", "KWWWK", "KWWWK", ".KKK."]],
+];
+const STRUM_FEET = ["KWWKWWK", "KWWKWWK", ".KK.KK."];
 const GUITAR_BACK = { deg: -40, x: 12, y: 19 };          // slung on her back: turned up to her right shoulder, centred here on her
-/* the guitar just turned: the level drawing rotated as a picture. Each pixel looks
-   at 4x4 points of the turned drawing and takes the colour most of them land on (the outline and the small dark parts
-   count a little extra, so the edge stays joined and the sound hole doesn't vanish). Kept per angle */
+/* the guitar just turned, the way pixel art is rotated (RotSprite): the level drawing is blown up 8x with Scale2x, which
+   rounds its stair-steps into smooth lines, turned, and each pixel then takes the colour at its own middle. Kept per angle */
+function scale2x(src) {
+  const h = src.length, w = src[0].length, out = Array.from({ length: h * 2 }, () => Array(w * 2).fill(null));
+  const at = (x, y) => (src[y] && x >= 0 && x < w ? src[y][x] : null);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const P = src[y][x], A = at(x, y - 1), B = at(x + 1, y), C = at(x - 1, y), D = at(x, y + 1);
+    out[2 * y][2 * x] = C === A && C !== D && A !== B ? A : P;
+    out[2 * y][2 * x + 1] = A === B && A !== C && B !== D ? B : P;
+    out[2 * y + 1][2 * x] = D === C && D !== B && C !== A ? C : P;
+    out[2 * y + 1][2 * x + 1] = B === D && B !== A && D !== C ? D : P;
+  }
+  return out;
+}
+const GUITAR_BIG = (() => { let g = GUITAR.map(r => [...r].map(ch => GUITAR_PAL[ch] || null)); for (let i = 0; i < 3; i++) g = scale2x(g); return g; })();
 const GUITAR_TURNED = {};
 function guitarTurned(deg) {
   if (GUITAR_TURNED[deg]) return GUITAR_TURNED[deg];
-  const src = GUITAR.map(r => [...r].map(ch => GUITAR_PAL[ch] || null));
-  const h = src.length, w = src[0].length, D = Math.ceil(Math.hypot(w, h)) + 2, S = 4;
+  const h = GUITAR.length, w = GUITAR[0].length, D = Math.ceil(Math.hypot(w, h)) + 2;
   const r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
-  const heavy = col => col === OUT ? 1.5 : col === GUITAR_PAL.H || col === GUITAR_PAL.R || col === GUITAR_PAL.D ? 1.6 : 1;
   const cv = document.createElement("canvas"); cv.width = D; cv.height = D;
   const g = cv.getContext("2d");
   for (let y = 0; y < D; y++) for (let x = 0; x < D; x++) {
-    const votes = new Map(); let n = 0;
-    for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
-      const X = x + (i + .5) / S - D / 2, Y = y + (j + .5) / S - D / 2;
-      const u = Math.floor(c * X + s * Y + w / 2), v = Math.floor(-s * X + c * Y + h / 2), col = src[v] && src[v][u];
-      if (col) { votes.set(col, (votes.get(col) || 0) + heavy(col)); n++; }
-    }
-    if (n * 8 < S * S * 3) continue;
-    let best = null, bv = 0; for (const [col, k] of votes) if (k > bv) { best = col; bv = k; }
-    g.fillStyle = best; g.fillRect(x, y, 1, 1);
+    const X = x + 0.5 - D / 2, Y = y + 0.5 - D / 2;
+    const u = Math.floor((c * X + s * Y + w / 2) * 8), v = Math.floor((-s * X + c * Y + h / 2) * 8);
+    const col = GUITAR_BIG[v] && GUITAR_BIG[v][u];
+    if (col) { g.fillStyle = col; g.fillRect(x, y, 1, 1); }
   }
   return (GUITAR_TURNED[deg] = cv);
 }
@@ -457,7 +470,18 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
     if (equip[id] && a && a.auto === "guitar") {           // slung on her back: behind her from the front, over her back from behind
       if (!img || !img.grid) continue;
       if (img.play) {                                     // playing it: where hers is on this frame, her paws back over it
-        if (layer === "front") { drawGuitar(g, img.play.x, img.play.y, img.play.ga); g.drawImage(img.play.paws, 0, 0); }
+        if (layer === "front") {
+          drawGuitar(g, img.play.x, img.play.y, img.play.ga);
+          const paw = equip.pajama && typeof PAJAMA !== "undefined" ? PAJAMA[petId].main : PET[petId].pal[PET[petId].body];
+          const r = img.play.ga * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+          for (const [u, v, rows] of STRUM_HANDS) {
+            const x = Math.round(img.play.x + c * u - s * v - rows[0].length / 2), y = Math.round(img.play.y + s * u + c * v - rows.length / 2);
+            rows.forEach((row, j) => [...row].forEach((ch, k) => { if (ch !== ".") { g.fillStyle = ch === "K" ? OUT : paw; g.fillRect(x + k, y + j, 1, 1); } }));
+          }
+          STRUM_FEET.forEach((row, j) => [...row].forEach((ch, k) => {   // her feet hanging down from under it
+            if (ch !== ".") { g.fillStyle = ch === "K" ? OUT : paw; g.fillRect(img.play.fx + k, img.play.fy + j, 1, 1); }
+          }));
+        }
         continue;
       }
       const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base && 20 >= INFO[petId].dup ? dy : 0;

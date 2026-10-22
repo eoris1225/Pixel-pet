@@ -132,12 +132,11 @@ const DANCE_MS = 83, DANCE_LEN = SORADANCE.length * DANCE_MS;
 const NOTE_ICON = { Y: "noteEE", V: "noteV", T: "noteU" };
 const danceFrame = t => Math.max(0, Math.min(SORADANCE.length - 1, Math.floor(t / DANCE_MS)));
 const danceImg = t => SORADANCE_IMG[danceFrame(t)];
-// 하와 playing her guitar (only when she has it; frames in strum.js). Each frame knows where the guitar goes and which of
-// her pixels are her paws on it, drawn again over the guitar
+// 하와 playing her guitar (only when she has it; frames in strum.js). Each frame knows where the guitar goes
 const STRUM_IMG = SORASTRUM.map((g, i) => {
-  const c = gridToCanvas(g, PET.sora.pal), [, , x, y, ga] = STRUM_SEQ[i];
+  const c = gridToCanvas(g, PET.sora.pal), [, , x, y, ga, fx, fy] = STRUM_SEQ[i];
   c.key = "sora-strum:" + i;
-  c.play = { x, y, ga, paws: gridToCanvas(g.map((r, j) => [...r].map((ch, k) => STRUM_PAWS[i][j][k] === "P" ? ch : "B").join("")), PET.sora.pal) };
+  c.play = { x, y, ga, fx, fy };
   return c;
 });
 const STRUM_AT = STRUM_SEQ.reduce((a, f) => (a.push(a[a.length - 1] + f[1]), a), [0]), STRUM_LEN = STRUM_AT[STRUM_AT.length - 1];
