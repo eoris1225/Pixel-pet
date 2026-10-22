@@ -174,30 +174,32 @@ function guitarTurned(deg) {
   }
   return (GUITAR_TURNED[deg] = cv);
 }
-/* for a play frame, worked out once against where the guitar lies on it:
-   patch - her own inner lines right beside the guitar, painted over in her colour so its edge isn't doubled
-   arm   - her arm over the guitar (from the clip), and edge - its outline, only where it lies on the guitar */
+/* her lines right beside the guitar on a play frame, worked out once: painted over in her colour so its edge isn't
+   doubled (she and the guitar make one shape; only its outside edge keeps a line) */
 function strumClean(img) {
   if (img._clean) return img._clean;
   const p = img.play, gc = guitarTurned(p.ga), gx = Math.round(p.x - gc.width / 2), gy = Math.round(p.y - gc.height / 2);
   const d = gc.getContext("2d").getImageData(0, 0, gc.width, gc.height).data;
   const on = (x, y) => { const u = x - gx, v = y - gy; return u >= 0 && v >= 0 && u < gc.width && v < gc.height && d[(v * gc.width + u) * 4 + 3] > 0; };
   const grid = img.grid, at = (x, y) => (grid[y] && grid[y][x]) || "B", N4 = [[1,0],[-1,0],[0,1],[0,-1]];
-  const patch = [], arm = [], edge = [];
-  // she and the guitar together make one shape: next to the guitar, her lines that aren't on its outside edge (and any
-  // gap left between her and it) become her colour
-  const inShape = (x, y) => at(x, y) !== "B" || on(x, y);
+  const inShape = (x, y) => at(x, y) !== "B" || on(x, y), patch = [];
   for (let y = 0; y < grid.length; y++) for (let x = 0; x < grid[0].length; x++) {
     const c = at(x, y);
     if (c === "W" || c === "S" || c === "P" || on(x, y) || !N4.every(([i, j]) => inShape(x + i, y + j))) continue;
     let near = false; for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (on(x + i, y + j)) near = true;
     if (near) patch.push([x, y]);
   }
-  const A = new Set();
-  p.arms.forEach((r, y) => [...r].forEach((ch, x) => { if (ch === "W") { A.add(x + "," + y); arm.push([x, y]); } }));
-  const E = new Set();
-  for (const [x, y] of arm) for (const [i, j] of N4) { const k = (x + i) + "," + (y + j); if (!A.has(k) && !E.has(k) && on(x + i, y + j)) { E.add(k); edge.push([x + i, y + j]); } }
-  return (img._clean = { patch, arm, edge });
+  return (img._clean = patch);
+}
+// her paws while she plays, along the guitar (from its middle: along the neck, across it; minus is up). Her right paw
+// hangs over the top by the sound hole and strums down and up across the strings; her left grips the neck and
+// shifts along it now and then, like changing chords
+const STRUM_PAW = [".KKK.", "KWWWK", "KWWWK", ".KKK."];
+const FRET_PAW = [".KK.", "KWWK", "KWWK", ".KK."];
+function strumPaws(t) {
+  const swing = [-6, -5, -3.5, -2, -1, -1, -2, -3.5, -5, -6][Math.floor(t / 45) % 10];   // down across the strings and back up
+  const chord = [7, 7, 8.5, 8.5, 10, 8.5][Math.floor(t / 650) % 6];
+  return [[-0.5, swing, STRUM_PAW], [chord, -1.5, FRET_PAW]];
 }
 // how far below its middle the turned guitar reaches
 function guitarDrop(deg) {
@@ -499,12 +501,11 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
         if (layer === "front") {
           const p = img.play, paw = equip.pajama && typeof PAJAMA !== "undefined" ? PAJAMA[petId].main : PET[petId].pal[PET[petId].body];
           const put = (rows, x, y) => rows.forEach((row, j) => [...row].forEach((ch, k) => { if (ch !== ".") { g.fillStyle = ch === "K" ? OUT : paw; g.fillRect(x + k, y + j, 1, 1); } }));
-          const k = strumClean(img);
-          g.fillStyle = paw; for (const [x, y] of k.patch) g.fillRect(x, y, 1, 1);
+          g.fillStyle = paw; for (const [x, y] of strumClean(img)) g.fillRect(x, y, 1, 1);
           put(STRUM_FEET, p.fx + 1, p.fy);
           drawGuitar(g, p.x, p.y, p.ga);
-          g.fillStyle = OUT; for (const [x, y] of k.edge) g.fillRect(x, y, 1, 1);
-          g.fillStyle = paw; for (const [x, y] of k.arm) g.fillRect(x, y, 1, 1);
+          const r = p.ga * Math.PI / 180, c = Math.cos(r), sn = Math.sin(r), t = typeof pet !== "undefined" ? performance.now() - pet.t0 : 0;
+          for (const [u, v, rows] of strumPaws(t)) put(rows, Math.round(p.x + c * u - sn * v - rows[0].length / 2), Math.round(p.y + sn * u + c * v - rows.length / 2));
         }
         continue;
       }
