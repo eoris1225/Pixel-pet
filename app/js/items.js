@@ -601,9 +601,10 @@ ITEM_AUTO.pudding = (grid, pet) => {
   // her hand on this frame: a paw waved up by her head, else the end of her arm (the little stub of outline, arm and
   // its inner line at her side, lowest one), else where her arm would be
   let hand = side < 0 ? waveHand(grid) : null;
-  if (!hand) for (let y = Math.round(f.cy); y <= y1 - 2; y++) { const e = edge(y); if (e >= 0 && at(e, y) === "K" && !"KB".includes(at(e - side, y)) && at(e - 2 * side, y) === "K") hand = [e, y]; }
-  if (!hand) { const y = ANCHOR[pet].arm + 1 + o.dy; hand = [edge(y) + side, y]; }
-  const sx = hand[0] + side, hy = hand[1], gx = sx - 3, gy = hy - 8, out = [];   // the stem in her paw
+  // (only as low as her arms go, so it is never her foot; the top of the stub, a little raised, where her paw is)
+  if (!hand) for (let y = Math.round(f.cy); y <= ANCHOR[pet].arm + 2 + o.dy && !hand; y++) { const e = edge(y); if (e >= 0 && at(e, y) === "K" && !"KB".includes(at(e - side, y)) && at(e - 2 * side, y) === "K") hand = [e, y]; }
+  if (!hand) { const y = ANCHOR[pet].arm + o.dy; hand = [edge(y) + side, y]; }
+  const sx = hand[0] + side, hy = hand[1] - 1, gx = sx - 3, gy = hy - 8, out = [];   // the stem in her paw
   PUDDING.forEach((row, j) => [...row].forEach((ch, i) => { if (PUDDING_PAL[ch]) out.push([gx + i, gy + j, PUDDING_PAL[ch]]); }));
   HAND.forEach((row, j) => [...row].forEach((ch, i) => { if (ch !== ".") out.push([sx - 1 + i, hy - 1 + j, ch === "K" ? "outline" : "body"]); }));   // her paw round the stem
   return out;
