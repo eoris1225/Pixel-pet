@@ -643,7 +643,7 @@ function fetchWeapon(now) {
   pet.dir = Math.sign(dx) || pet.dir; startAct("pet", now); return true;
 }
 function drawWeaponProp(front) {
-  if (!weaponOn() || wprop.state === "held" || (wprop.state === "ground") === front) return;   // on the ground behind her, moving in front
+  if (!weaponOn() || wprop.state === "held" || !front) return;            // set down or moving, it shows in front of her
   const f = weaponFlat(G.pet), mid = WEAPON_MID[G.pet], arm = ANCHOR[G.pet].arm;
   ctx.save(); ctx.translate(Math.round(wprop.x), Math.round(wprop.y) - Math.round(wprop.z)); if (wprop.side < 0) ctx.scale(-1, 1);   // pointing away from her
   ctx.drawImage(f.img, f.x - mid, f.y - arm);
@@ -659,10 +659,7 @@ function fetchTeddy(now) {
 }
 function drawTeddy(front) {
   if (!teddyOn() || prop.state === "hug") return;
-  // on the ground it is behind her and in the air in front; but when she trips or tumbles, the bear she dropped stays in
-  // front of her
-  const tumble = ["dash", "fall", "land", "skyland"].includes(pet.act);
-  if ((prop.state === "ground" && !tumble) === front) return;
+  if (!front) return;                                                     // set down or in the air, it shows in front of her
   const im = teddyImg(prop.rot), x = Math.round(prop.x - im.width / 2), y = Math.round(prop.y - im.height) - Math.round(prop.z);
   if (prop.state === "ground") groundShadow(ctx, prop.x, Math.round(prop.y) - Math.round(prop.z) - 1, im.width - 2, 1);
   ctx.drawImage(im, x, y);

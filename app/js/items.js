@@ -209,6 +209,16 @@ function guitarDrop(deg) {
   for (let i = 3; i < d.length; i += 4) if (d[i]) b = Math.floor((i >> 2) / c.width);
   return (c._drop = b - Math.round(c.height / 2) + 0.5);
 }
+// the guitar on her back eases after where her frame puts it (so it never jumps with her outline from frame to frame)
+// and tips a few degrees with her sway (walking, dancing, waving)
+const GSW = {};
+function guitarSway(key, x, y) {
+  const now = performance.now(), st = GSW[key];
+  if (!st || now - st.t > 300) GSW[key] = { x, y, t: now };
+  else { const k = 1 - Math.exp(-(now - st.t) / 120); st.x += (x - st.x) * k; st.y += (y - st.y) * k; st.t = now; }
+  const sw = typeof weaponSway === "function" ? weaponSway() * 180 / Math.PI * 0.6 : 0;
+  return { x: Math.round(GSW[key].x), y: Math.round(GSW[key].y), deg: Math.round(sw) };
+}
 function drawGuitar(g, x, y, deg) { const c = guitarTurned(deg); g.drawImage(c, Math.round(x - c.width / 2), Math.round(y - c.height / 2)); }
 function guitarArt() { return pixmap(d => d.grid(GUITAR, GUITAR_PAL, 0, 8), false); }
 const ITEM_ART = {
@@ -511,9 +521,9 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
         continue;
       }
       if (img.lying) {                                    // lying down: she has put it down on the grass beside her
-        if (layer === "back") {
+        if (layer === "front") {                          // in front of her, like anything she puts down
           const r = img.grid.map(r => r.search(/[^B]/)).filter(x => x >= 0), left = Math.min(...r), feet = img.height - 1 - ((pose && pose.yoff) || 0);
-          drawGuitar(g, left - 6, feet - guitarDrop(GUITAR_REST), GUITAR_REST);
+          drawGuitar(g, left - 8, feet - guitarDrop(GUITAR_REST), GUITAR_REST);
         }
         continue;
       }
@@ -521,7 +531,10 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       const cache = base ? (ITEM_CACHE["base:" + petId] || (ITEM_CACHE["base:" + petId] = {})) : (img._auto || (img._auto = {}));
       if (!("wo" in cache)) cache.wo = weaponOffset(grid, petId);
       const o = cache.wo;
-      if (o && layer === "back") drawGuitar(g, GUITAR_BACK.x + o.dx, GUITAR_BACK.foot - guitarDrop(GUITAR_BACK.deg) + o.dy + shift, GUITAR_BACK.deg);
+      if (o && layer === "back") {                         // it hangs on her loosely: it follows her a moment late and sways as she moves
+        const s = guitarSway("front", GUITAR_BACK.x + o.dx, GUITAR_BACK.foot - guitarDrop(GUITAR_BACK.deg) + o.dy + shift);
+        drawGuitar(g, s.x, s.y, GUITAR_BACK.deg + s.deg);
+      }
       if (o && layer === "front") {                       // its strap across her chest, from her right shoulder to her left hip
         const row = y => { const r = grid[y] || ""; const q = r.search(/[^B]/); return q < 0 ? null : [q, r.length - 1 - [...r].reverse().join("").search(/[^B]/)]; };
         const f = faceOf(grid), sy = Math.round(f.cy + 4), hy = Math.round(f.cy + 10), a1 = row(sy), a2 = row(hy);
@@ -532,7 +545,8 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
         grid.forEach(r => { const q = r.search(/[^B]/); if (q >= 0) { x0 = Math.min(x0, q); x1 = Math.max(x1, r.length - 1 - [...r].reverse().join("").search(/[^B]/)); } });
         while (bottom > 0 && !/[^B]/.test(grid[bottom])) bottom--;
         const cx = (x0 + x1) / 2, oy = bottom - (SPRITES[petId].length - 1);
-        drawGuitar(g, Math.round(cx * 2) - (GUITAR_BACK.x + Math.round(cx - 14)), GUITAR_BACK.foot - guitarDrop(180 - GUITAR_BACK.deg) + oy, 180 - GUITAR_BACK.deg);
+        const s = guitarSway("back", Math.round(cx * 2) - (GUITAR_BACK.x + Math.round(cx - 14)), GUITAR_BACK.foot - guitarDrop(180 - GUITAR_BACK.deg) + oy);
+        drawGuitar(g, s.x, s.y, 180 - GUITAR_BACK.deg - s.deg);
       }
       continue;
     }
