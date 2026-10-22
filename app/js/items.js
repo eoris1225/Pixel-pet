@@ -624,27 +624,28 @@ function puddingWobble(g, cache, grid) {
   PUDF.vy += (300 * (ty - PUDF.y) - 9 * PUDF.vy) * dt; PUDF.y += PUDF.vy * dt;
   PUDF.x = Math.max(-2, Math.min(2, PUDF.x)); PUDF.y = Math.max(-1, Math.min(1, PUDF.y));
   Object.assign(PUDF, { sx, sy, t: now });
-  return { x: Math.round(PUDF.x), y: Math.round(PUDF.y), pop: puddingPop(mvy, dt), flip };
+  return { x: Math.round(PUDF.x), y: Math.round(PUDF.y), pop: puddingPop(), flip };
 }
 // dropped, the pudding jumps up off its glass (it is lighter than her and she is falling away under it) and comes back
 // down onto it as she lands: it never leaves her, she catches it on the glass
 const PUDL = { r: 0, v: 0 };
-function puddingPop(vb, dt) {
-  const target = vb > 40 ? -Math.min(7, (vb - 40) * 0.04) : 0;
-  PUDL.v += (180 * (target - PUDL.r) - 10 * PUDL.v) * dt; PUDL.r += PUDL.v * dt;
-  PUDL.r = Math.max(-7, Math.min(1, PUDL.r));
-  return Math.round(PUDL.r);
+// driven by how fast she is really falling (not by her picture, which jumps from frame to frame), stepped in small
+// even steps so it rises and comes down smoothly
+function puddingPop() {
+  const now = performance.now(); let dt = Math.min(0.05, (now - (PUDL.t || now)) / 1000); PUDL.t = now;
+  const vb = typeof pet !== "undefined" && pet.act === "fall" ? Math.max(0, pet.vy) : 0;
+  const target = -Math.min(7, vb * 0.03);
+  while (dt > 0) { const h = Math.min(dt, 0.008); PUDL.v += (90 * (target - PUDL.r) - 17 * PUDL.v) * h; PUDL.r += PUDL.v * h; dt -= h; }
+  if (PUDL.r > 0.6) { PUDL.r = 0.6; PUDL.v = -PUDL.v * 0.3; }      // it lands back on the glass with a little bounce
+  return Math.round(Math.max(-7, PUDL.r));
 }
 const CAMF = { r: 0, v: 0, y: null, t: 0 };
-function cameraFloat(g, img, cache, grid) {
-  if (!("fy" in cache)) { const f = faceOf(grid); cache.fy = f ? f.cy : 0; }
-  const now = performance.now(), y = (g.worldY || 0) + SPRITE_PAD + cache.fy, dt = Math.min(0.05, (now - CAMF.t) / 1000);
-  if (CAMF.y === null || dt <= 0 || now - CAMF.t > 200) { CAMF.y = y; CAMF.t = now; return Math.round(CAMF.r); }
-  const vb = (y - CAMF.y) / dt, target = vb > 20 ? -Math.min(6, (vb - 20) * 0.035) : 0;
-  CAMF.v += (220 * (target - CAMF.r) - 11 * CAMF.v) * dt; CAMF.r += CAMF.v * dt;   // a looser spring: it bobs back down past her and settles
-  CAMF.r = Math.max(-6, Math.min(2, CAMF.r));
-  CAMF.y = y; CAMF.t = now;
-  return Math.round(CAMF.r);
+function cameraFloat() {                                        // (on how fast she really falls, in small even steps: smooth)
+  const now = performance.now(); let dt = Math.min(0.05, (now - (CAMF.t || now)) / 1000); CAMF.t = now;
+  const vb = typeof pet !== "undefined" && pet.act === "fall" ? Math.max(0, pet.vy) : 0, target = -Math.min(6, vb * 0.028);
+  while (dt > 0) { const h = Math.min(dt, 0.008); CAMF.v += (110 * (target - CAMF.r) - 15 * CAMF.v) * h; CAMF.r += CAMF.v * h; dt -= h; }
+  if (CAMF.r > 1) { CAMF.r = 1; CAMF.v = -CAMF.v * 0.3; }        // it drops back onto her and bumps once
+  return Math.round(Math.max(-6, CAMF.r));
 }
 ITEM_AUTO.weapon = (grid, pet) => {
   if (!WEAPON_OF[pet] || grid[0].length > 60) return [];
@@ -977,7 +978,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       // in her arms) moves as one piece with the part of her that holds it, so it never comes apart
       const dup = INFO[petId].dup, top = px.reduce((m, p) => Math.min(m, p[1]), 1e9), whole = top >= dup ? shift : 0;
       const each = a.auto === "pajama";
-      const lift = a.auto === "camera" && !lie && typeof pet !== "undefined" && pose === pet._pose ? cameraFloat(g, img, cache, grid) : 0;   // light, it floats a little
+      const lift = a.auto === "camera" && !lie && typeof pet !== "undefined" && pose === pet._pose ? cameraFloat() : 0;   // light, it floats a little
       const wob = a.auto === "pudding" && typeof pet !== "undefined" && pose === pet._pose ? puddingWobble(g, cache, grid) : null;   // it wobbles
       const ptop = wob ? px.reduce((m, p) => Math.min(m, p[1]), 1e9) : 0;
       const body = equip.pajama && typeof PAJAMA !== "undefined" ? PAJAMA[petId].main : PET[petId].pal[PET[petId].body];   // her paws: her own colour, or her onesie's
