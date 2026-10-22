@@ -514,19 +514,25 @@ const CAMERA_LIE = [
   "KDKKKKKDDDDK",
   ".KKKKKKKKKK.",
 ];
-function cameraLying(grid, pet) {
-  const out = [];
+function lyingBox(grid) {
   let x0 = 1e9, x1 = -1, y1 = -1;
   grid.forEach((r, y) => { const q = r.search(/[^B]/); if (q >= 0) { x0 = Math.min(x0, q); x1 = Math.max(x1, r.length - 1 - [...r].reverse().join("").search(/[^B]/)); y1 = y; } });
-  const f = faceOf(grid), fx = f ? f.cx : (x0 + x1) / 2, side = f && f.cx < (x0 + x1) / 2 ? -1 : 1;
-  const cx = Math.round(fx + side * 6), top = y1 - 4, left = cx - 6;
+  const f = faceOf(grid);
+  return { x0, x1, y1, fx: f ? f.cx : (x0 + x1) / 2, side: f && f.cx < (x0 + x1) / 2 ? -1 : 1 };
+}
+// The camera stays put on the grass however she shifts about: it is placed once, on one lying frame, and every other
+// frame only moves it by how that frame sits against it (frames are drawn centred on her and standing on her feet).
+// Only the strap's far end follows her, to the side of her face on this frame
+function cameraLying(grid, pet) {
+  const out = [], ref = SORALOAF_IMG[12].grid, R = lyingBox(ref), B = lyingBox(grid);
+  const sx = (grid[0].length >> 1) - (ref[0].length >> 1), sy = grid.length - ref.length;
+  const side = R.side, left = Math.round(R.fx + side * 6) - 6 + sx, top = R.y1 - 4 + sy;
   for (let x = left + 1; x < left + 11; x++) out.push([x, top + 8, "rgba(40,60,40,0.25)"]);   // its shadow on the grass
   const pal = { K: OUT, W: "#f2f1ec", D: "#4a5256", S: "#a9c4d0", L: "#c9d0d4" };
   CAMERA_LIE.forEach((r, j) => [...r].forEach((ch, i) => { if (pal[ch]) out.push([left + i, top + j, pal[ch]]); }));
-  // the strap: from the far top corner of the camera up to under her chin, a light band with its darker edge
-  // (it sags on the grass in front of her and goes up round the side of her face, not to her mouth)
-  const ax = side > 0 ? left : left + 11, ay = top + 2, bx = Math.round(fx - side * 7), by = y1 - 4;
-  // sampled along its curve, each step joined to the last pixel by pixel so it never breaks
+  // the strap: from the far top corner of the camera, sagging on the grass, up round the side of her face; a light
+  // band with its darker edge, sampled along its curve and joined pixel by pixel so it never breaks
+  const ax = side > 0 ? left : left + 11, ay = top + 2, bx = Math.round(B.fx - side * 7), by = B.y1 - 4;
   const n = 24, seen = new Set(), dot = (x, y) => { if (seen.has(x + "," + y)) return; seen.add(x + "," + y); out.push([x, y, CAMERA_PAL.s], [x, y + 1, CAMERA_PAL.t]); };
   let px = ax, py = ay;
   for (let k = 1; k <= n; k++) {
