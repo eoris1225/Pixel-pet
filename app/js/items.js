@@ -857,7 +857,7 @@ function findHands(grid) {
   }
   return out;
 }
-function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
+function drawWeapon(g, petId, layer, dy, pose, img, equip = {}, stage = "all") {   // stage: "arms" only takes her arm away, "draw" only draws it
   const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, one = weaponOneHand(petId, equip);   // one: her other paw is busy
   const w = grid[0].length, h = grid.length, arm = ANCHOR[petId].arm, mode = weaponMode(img), mid = WEAPON_MID[petId];
   // breathing (squash / stretch) adds or drops a row low on her body: what she holds above it bobs with her, the ground does not
@@ -867,6 +867,7 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
   const o = cache.wo;
   if (mode === "away") return;                               // lying on the grass where she put it (drawn by pet.js)
   if (petId === "nori" && typeof pet !== "undefined" && (pet.act === "spin" || pet.act === "twirl") && pose === pet._pose) {
+    if (stage === "arms") return;
     if (layer !== (o ? "front" : "back")) return;            // twirled round in front of her; behind her (hidden by her body) facing away
     const t = performance.now() - pet.t0, len = pet.act === "spin" ? SPIN_LEN : TWIRL_LEN;
     const cx = mid + (o ? o.dx : Math.round(w / 2 - 14)), cy = arm - 2 + (o ? o.dy : soles(grid) - soles(SPRITES.nori) - 4) + shift;
@@ -876,6 +877,7 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
   // 욱 holding her pole, on screen: one eased state for it whatever she is doing (held up, let go, landing, jumping,
   // walking), so it never jumps from one way of holding it to another
   if (petId === "nori" && typeof pet !== "undefined" && pose === pet._pose && o && pet.act !== "dance") {
+    if (stage === "arms") return;
     // 욱's jump: when she has a paw up by her head, waving, the pole goes up with it in that one paw, held near its end,
     // reaching up and out and swaying as she waves (and bending, being rubber); otherwise in both paws as usual. Where it
     // is, its tilt and where she grips it all ease from one to the other, so it never jumps
@@ -904,6 +906,7 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
     return;
   }
   if (!base && typeof pet !== "undefined" && pet.act === "dance") {   // dancing: held across her belly, tipped to the beat
+    if (stage === "arms") return;                            // (her arms are not taken away here)
     if (layer !== "front") return;
     // it stays in her arms (moving with her body) and only its tilt follows her hands on each step of the dance: the
     // slant between her two hands, or tipped up toward the one hand she has out; kept small so it never flails
@@ -921,6 +924,7 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
     return;
   }
   if (mode === "lift") {                                     // arms going up and down: from across her belly to over her head
+    if (stage === "arms") return;                            // (her arms are not taken away here)
     if (layer !== "front") return;
     const q = LIFT[+/(\d+)$/.exec(img.key)[1]], f = petId === "nori" ? rubberStaff(rubberBend(screenY(g) + arm), null, true) : weaponFlat(petId), top = grid.findIndex(r => /[^B]/.test(r));
     const hx = mid + (o ? o.dx : 0), hy = arm + 0.5 + (o ? o.dy : 0);
@@ -934,10 +938,12 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
   }
   // in her hands: in front, or behind her (both long ends showing) while she faces away; swinging with what she does
   if (layer !== (o ? "front" : "back")) return;
-  if (o) {                                                   // it is held in her own little paws: her side arms go
+  if (stage === "arms" && !o) return;
+  if (o && stage !== "draw") {                               // it is held in her own little paws: her side arms go
     const off = one ? cache.warm1 || (cache.warm1 = armOff(grid, arm + o.dy - 3, arm + o.dy + 1).filter(([x]) => petId === "mochi" ? x > w / 2 : x < w / 2))   // (her other arm is busy)
                     : cache.warm || (cache.warm = armOff(grid, arm + o.dy - 3, arm + o.dy + 1));
     for (const [x, y, c] of off) { if (c === "clear") g.clearRect(x, y + shift, 1, 1); else { g.fillStyle = OUT; g.fillRect(x, y + shift, 1, 1); } }
+    if (stage === "arms") return;
   }
   const pj = equip.pajama && WEAPON_PJ[petId], sway = weaponSway();
   // facing away it is behind her at the height of her arms above her feet, whatever the frame's size
@@ -960,9 +966,12 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
 function drawItems(g, petId, equip, layer, dy, pose, img) {
   const art = ITEM_ART[petId];
   // the onesie goes on first; what hangs in front (her camera) goes on after what she holds (it hangs over the shaft)
-  const rank = id => (art[id] || {}).under ? 0 : id === "camera" || id === "pudding" || id === "teddy" ? 2 : id === "bag" ? 1.5 : 1;   // (and what is in her other paw shows in front of her weapon; her pochette goes on after the weapon has taken her arm away, under the bear)
+  const rank = id => (art[id] || {}).under ? 0 : id === "camera" || id === "pudding" || id === "teddy" ? 2 : 1;   // (and what is in her other paw shows in front of her weapon)
+  // her weapon takes her arm away before her pochette goes on (so the bag is not cut) and is drawn over it after
+  const pouch = equip.bag && WEAPON_OF[petId] && equip[WEAPON_OF[petId]];
   const order = ITEM_LIST[petId].slice().sort((p, q) => rank(p[1]) - rank(q[1]));
-  for (const [, id] of order) {
+  if (pouch) { const i = order.findIndex(p => p[1] === "bag"); order.splice(i, 0, [, WEAPON_OF[petId], , , "arms"]); order.splice(i + 2, 0, [, WEAPON_OF[petId], , , "draw"]); }
+  for (const [, id, , , stage] of order) {
     const a = art[id];
     if (equip[id] && a && a.auto === "guitar") {           // slung on her back: behind her from the front, over her back from behind
       if (!img || !img.grid) continue;
@@ -1019,7 +1028,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       continue;
     }
     if (equip[id] && a && a.auto === "weapon") {
-      if (img && img.grid) drawWeapon(g, petId, layer, dy, pose, img, equip);
+      if (img && img.grid && (!pouch || stage)) drawWeapon(g, petId, layer, dy, pose, img, equip, stage);
       continue;
     }
     if (!equip[id] || !a || a.layer !== layer) continue;
