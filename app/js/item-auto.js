@@ -289,8 +289,11 @@ function autoBangs(grid, pet) {
   if (!col || !f || f.rx <= 7 || grid[0].length > 60) return [];                    // facing us (two eyes) only
   const h = grid.length, w = grid[0].length, at = (x, y) => (grid[y] && grid[y][x]) || "B", out = [];
   const edge = (x, y) => at(x - 1, y) === "B" || at(x + 1, y) === "B" || at(x, y - 1) === "B" || at(x, y + 1) === "B";
-  const hy = Math.round(f.cy - 7), cx = Math.floor(f.cx - 0.5);                      // the new hairline, just above her eyes
   let y0 = 0; while (y0 < h && !/S/.test(grid[y0])) y0++;                            // where her hair starts
+  // the new hairline, just above her eyes; with her eyes shut the face is found from her cheeks and can sit low,
+  // so it never comes down past a few rows above her cheeks
+  let pTop = -1; for (let y = y0; y < h && pTop < 0; y++) if (grid[y].includes("P")) pTop = y;
+  const hy = Math.min(Math.round(f.cy - 7), pTop < 0 ? h : pTop - 5), cx = Math.floor(f.cx - 0.5);
   for (let y = y0; y <= hy + 1; y++) for (let x = 0; x < w; x++) {
     const c = at(x, y); if (c === "B" || (c === "K" && edge(x, y))) continue;        // her outline stays
     const mid = x === cx || x === cx + 1;
