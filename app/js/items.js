@@ -503,7 +503,7 @@ ITEM_AUTO.camera = (grid, pet) => {
       if (body(x, y + 1) && !"KP".includes(grid[y + 1][x])) out.push([x, y + 1, CAMERA_PAL.t]);
     }
   put(CAMERA, cx, cy, false);
-  out.noMirror = true;
+  out.noMirror = true; out.box = { cx, cy };
   return out;
 };
 // lying down, her camera has fallen on the grass in front of her, face down: seen from above, its light top edge, its
@@ -568,67 +568,67 @@ ITEM_AUTO.pass = (grid, pet) => {
   out.noMirror = true;
   return out;
 };
-// the pudding: caramel on top, the custard flaring out, on a wide shallow glass with a thin stem and a round foot.
-// The stem column is the middle (x 5); row 15 is where her paw grips it
+// the pudding: caramel on top, the custard flaring out, on a small stemmed glass. Row 8 is where her little paw holds
+// the stem (like her paws on the pole), at her hand
 const PUDDING = [
-  "...KKKKK...",
-  "..KCCCCCK..",
-  "..KYYYYYK..",
-  ".KYYYYYYYK.",
-  ".KYyyyyyYK.",
-  "KKKKKKKKKKK",
-  "KGGGGGGGGgK",
-  ".KGGGGGGgK.",
-  "..KKGGgKK..",
-  "....KGK....",
-  "....KGK....",
-  "....KGK....",
-  "....KGK....",
-  "..KKKGKKK..",
-  ".KGGGGGGgK.",
-  ".KKKKKKKKK.",
+  "..KKK..",
+  ".KCCCK.",
+  ".KYYYK.",
+  "KYYYyYK",
+  "KKKKKKK",
+  "KGGGGgK",
+  ".KKGKK.",
+  "..KGK..",
+  "..KGK..",
+  ".KKKKK.",
 ];
 const PUDDING_PAL = { K: OUT, C: "#6b3b1c", Y: "#f7d276", y: "#e9b850", G: "#eef6fa", g: "#c3d8e4" };
-// 욱 raises it to the side like a toast: her arm on that side lifted out and up, her paw round the stem, the glass held
-// up by her head. It moves with her (from her face); from behind or lying down it is out of sight
+const PUDDING_COLS = new Set(Object.values(PUDDING_PAL)), p0 = c => PUDDING_COLS.has(c) && c !== PUDDING_PAL.G && c !== PUDDING_PAL.g;   // the pudding itself (not its glass, nor her paw)
+// 욱 holds it at her side in one little paw, as she holds her pole; it moves with her (from her face); side on, in the
+// paw on the side she faces; from behind or lying down it is out of sight
 ITEM_AUTO.pudding = (grid, pet) => {
   if (grid[0].length > 60) return [];
   const o = weaponOffset(grid, pet), f = faceOf(grid);
   if (!o || !f) return [];
   let y1 = -1; grid.forEach((r, y) => { if (/[^B]/.test(r)) y1 = y; });
   if (y1 - f.cy < f.ry + 3) return [];
-  const out = [], mid = grid[0].length / 2, at = (x, y) => (grid[y] && grid[y][x]) || "B";
-  // which paw: her left (our left) facing us; side on, the one on the side she faces
-  const eyes = findEyes(grid), cheeks = []; grid.forEach((r, y) => [...r].forEach((c, x) => { if (c !== "P" || y < f.cy - 4) return;
+  const mid = grid[0].length / 2, eyes = findEyes(grid), cheeks = [];
+  grid.forEach((r, y) => [...r].forEach((c, x) => { if (c !== "P" || y < f.cy - 4) return;
     const k = cheeks.find(q => q.pts.some(([a, e]) => Math.abs(a - x) <= 2 && Math.abs(e - y) <= 2)); if (k) k.pts.push([x, y]); else cheeks.push({ pts: [[x, y]] }); }));
   const profile = eyes.length < 2 && cheeks.filter(c => c.pts.length >= 2 && c.pts.length <= 14).length < 2;
-  const side = profile && f.cx > mid ? 1 : -1;
-  const edge = y => { const r = grid[y] || ""; const q = r.search(/[^B]/); return q < 0 ? Math.round(mid) : side < 0 ? q : r.length - 1 - [...r].reverse().join("").search(/[^B]/); };
-  out.push(...armOff(grid, ANCHOR[pet].arm - 1 + o.dy, ANCHOR[pet].arm + 2 + o.dy).filter(([x]) => side < 0 ? x < mid : x > mid));   // her arm on that side, now raised
-  const py = 22 + o.dy, sy = 26 + o.dy, px = edge(py) + side * 4, sx = edge(sy) - side * 1;   // her paw on the stem, just off her side; her shoulder
-  const gx = px - 5, gy = py - 13;                                                 // the glass, its stem through her paw
-  PUDDING.forEach((r, j) => [...r].forEach((ch, i) => { if (PUDDING_PAL[ch]) out.push([gx + i, gy + j, PUDDING_PAL[ch]]); }));
-  // the arm: a fat line from her shoulder to her paw, outlined only where it is out in the air
-  const arm = new Set(), mark = (x, y) => arm.add(x + "," + y);
-  for (let k = 0; k <= 12; k++) { const x = Math.round(sx + (px - sx) * k / 12), y = Math.round(sy + (py - sy) * k / 12); mark(x, y); mark(x + 1, y); mark(x, y + 1); mark(x + 1, y + 1); }
-  for (const [dx, dy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [2, 0], [-1, 1], [2, 1], [0, 2], [1, 2]]) mark(px + dx, py + dy);   // her paw, round
-  const rim = new Set();
-  for (const k of arm) { const [x, y] = k.split(",").map(Number); for (const [a, c] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const n = (x + a) + "," + (y + c); if (!arm.has(n) && at(x + a, y + c) === "B") rim.add(n); } }
-  for (const k of rim) { const [x, y] = k.split(",").map(Number); out.push([x, y, "outline"]); }
-  for (const k of arm) { const [x, y] = k.split(",").map(Number); out.push([x, y, "body"]); }
-  out.push([px - 1, py, "outline"], [px + 1, py + 1, "outline"]);              // her toes round the stem
+  const side = profile && f.cx > mid ? 1 : -1, hy = ANCHOR[pet].arm + 1 + o.dy;
+  const r = grid[hy] || "", q = r.search(/[^B]/), edge = q < 0 ? Math.round(mid) : side < 0 ? q : r.length - 1 - [...r].reverse().join("").search(/[^B]/);
+  const sx = edge + side * 1, gx = sx - 3, gy = hy - 8, out = [];               // the stem at her hand, just off her side
+  PUDDING.forEach((row, j) => [...row].forEach((ch, i) => { if (PUDDING_PAL[ch]) out.push([gx + i, gy + j, PUDDING_PAL[ch]]); }));
+  HAND.forEach((row, j) => [...row].forEach((ch, i) => { if (ch !== ".") out.push([sx - 1 + i, hy - 1 + j, ch === "K" ? "outline" : "body"]); }));   // her paw round the stem
   return out;
 };
 // 하와's camera is lighter than she is: when she drops it floats up a little against its strap (it cannot go further than
 // the strap lets it) and settles back on her when she lands. A small spring on how fast her face moves down the screen
+// the pudding wobbles: its top swings the other way when she moves sideways and bobs when she goes up or down, then
+// wobbles back and forth to rest (a loose spring). Tracked on where her face is on the screen
+const PUDF = { x: 0, vx: 0, y: 0, vy: 0, sx: null, sy: null, t: 0 };
+function puddingWobble(g, cache, grid) {
+  if (!("fy" in cache)) { const f = faceOf(grid); cache.fy = f ? f.cy : 0; cache.fx = f ? f.cx : 0; }
+  const now = performance.now(), dt = Math.min(0.05, (now - PUDF.t) / 1000), flip = g.getTransform().a < 0 ? -1 : 1;
+  const sx = (g.worldX || 0) + SPRITE_PAD + cache.fx * flip, sy = (g.worldY || 0) + SPRITE_PAD + cache.fy;
+  if (PUDF.sx === null || dt <= 0 || now - PUDF.t > 200) { Object.assign(PUDF, { sx, sy, t: now }); return { x: 0, y: 0, flip }; }
+  const mvx = (sx - PUDF.sx) / dt, mvy = (sy - PUDF.sy) / dt;
+  const tx = Math.max(-2, Math.min(2, -mvx * 0.03)), ty = Math.max(-1, Math.min(1, mvy * 0.01));
+  PUDF.vx += (240 * (tx - PUDF.x) - 7 * PUDF.vx) * dt; PUDF.x += PUDF.vx * dt;
+  PUDF.vy += (300 * (ty - PUDF.y) - 9 * PUDF.vy) * dt; PUDF.y += PUDF.vy * dt;
+  PUDF.x = Math.max(-2, Math.min(2, PUDF.x)); PUDF.y = Math.max(-1, Math.min(1, PUDF.y));
+  Object.assign(PUDF, { sx, sy, t: now });
+  return { x: Math.round(PUDF.x), y: Math.round(PUDF.y), flip };
+}
 const CAMF = { r: 0, v: 0, y: null, t: 0 };
 function cameraFloat(g, img, cache, grid) {
   if (!("fy" in cache)) { const f = faceOf(grid); cache.fy = f ? f.cy : 0; }
   const now = performance.now(), y = (g.worldY || 0) + SPRITE_PAD + cache.fy, dt = Math.min(0.05, (now - CAMF.t) / 1000);
   if (CAMF.y === null || dt <= 0 || now - CAMF.t > 200) { CAMF.y = y; CAMF.t = now; return Math.round(CAMF.r); }
-  const vb = (y - CAMF.y) / dt, target = vb > 30 ? -Math.min(3, (vb - 30) * 0.015) : 0;
-  CAMF.v += (260 * (target - CAMF.r) - 16 * CAMF.v) * dt; CAMF.r += CAMF.v * dt;
-  CAMF.r = Math.max(-3, Math.min(1, CAMF.r));
+  const vb = (y - CAMF.y) / dt, target = vb > 20 ? -Math.min(6, (vb - 20) * 0.035) : 0;
+  CAMF.v += (220 * (target - CAMF.r) - 11 * CAMF.v) * dt; CAMF.r += CAMF.v * dt;   // a looser spring: it bobs back down past her and settles
+  CAMF.r = Math.max(-6, Math.min(2, CAMF.r));
   CAMF.y = y; CAMF.t = now;
   return Math.round(CAMF.r);
 }
@@ -964,6 +964,8 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       const dup = INFO[petId].dup, top = px.reduce((m, p) => Math.min(m, p[1]), 1e9), whole = top >= dup ? shift : 0;
       const each = a.auto === "pajama";
       const lift = a.auto === "camera" && !lie && typeof pet !== "undefined" && pose === pet._pose ? cameraFloat(g, img, cache, grid) : 0;   // light, it floats a little
+      const wob = a.auto === "pudding" && typeof pet !== "undefined" && pose === pet._pose ? puddingWobble(g, cache, grid) : null;   // it wobbles
+      const ptop = wob ? px.reduce((m, p) => Math.min(m, p[1]), 1e9) : 0;
       const body = equip.pajama && typeof PAJAMA !== "undefined" ? PAJAMA[petId].main : PET[petId].pal[PET[petId].body];   // her paws: her own colour, or her onesie's
       // on the base pose the onesie is laid on the frame as it is drawn: ears flicked sideways, feet stepping, a row added
       // or dropped by breathing; a pixel lands only where this frame has her body
@@ -973,13 +975,25 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       // the same hip of hers, so on a mirrored base pose it is mirrored back
       const keepSide = (a.auto === "carry" && base || px.noMirror === true) && g.getTransform().a < 0, fw = (grid[0] || "").length - 1;
       for (const [xs, y, c] of px) {
-        const x0 = keepSide ? fw - xs : xs, x = x0 + (each && y < tip ? ear : 0);
+        const wr = wob && p0(c) ? y - ptop : 9, wk = wr <= 2 ? 1 : wr === 3 ? 0.5 : 0;   // the custard's top swings, its foot less
+        const x0 = (keepSide ? fw - xs : xs) + (wk ? Math.round(wob.x * wob.flip * wk) : 0), x = x0 + (each && y < tip ? ear : 0);
         // a stretch doubles the row at dup: the onesie covers both copies
         if (each && y === dup && shift > 0 && c !== "clear" && on(x, y)) { g.fillStyle = c === "body" ? body : c === "outline" ? OUT : c; g.fillRect(x, y, 1, 1); }
-        const yy = y + (each ? (y >= dup ? shift : 0) : whole) + (lift && c !== CAMERA_PAL.s && c !== CAMERA_PAL.t ? lift : 0);
+        const yy = y + (each ? (y >= dup ? shift : 0) : whole) + (lift && c !== CAMERA_PAL.s && c !== CAMERA_PAL.t ? lift : 0) + (wk === 1 && wr <= 1 ? wob.y : 0);
         if (each && !on(x, yy)) continue;
         if (c === "clear") { g.clearRect(x, yy, 1, 1); continue; }   // her arm, now round the bear
         g.fillStyle = c === "body" ? body : c === "outline" ? OUT : c; g.fillRect(x, yy, 1, 1);
+      }
+      if (a.auto === "camera" && base && px.box && !lie) {        // standing or walking she holds it in both paws (her arms go round to it)
+        const k = cache.camHold || (cache.camHold = (() => { const { cx, cy } = px.box, o = [];
+          for (const [x, y, c] of armOff(grid, cy + 1, cy + 8)) o.push([x, y, c]);
+          for (const hx of [cx - 2, cx + 9]) [".KK.", "KWWK", ".KK."].forEach((r, j) => [...r].forEach((ch, i) => { if (ch !== ".") o.push([hx + i, cy + 4 + j, ch === "K" ? "outline" : "body"]); }));
+          return o; })());
+        for (const [xs, y, c] of k) {
+          const x = keepSide ? fw - xs : xs, yy = y + whole + (lift && c !== "clear" && x > px.box.cx - 3 && x < px.box.cx + 13 && y >= px.box.cy + 4 ? lift : 0);
+          if (c === "clear") { g.clearRect(x, yy, 1, 1); continue; }
+          g.fillStyle = c === "body" ? body : OUT; g.fillRect(x, yy, 1, 1);
+        }
       }
       continue;
     }

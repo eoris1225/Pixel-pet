@@ -687,51 +687,109 @@ function drawWeaponProp(front) {
   ctx.restore();
 }
 // 욱's weeding licence: a light little card. Dropped from a height it comes off her forehead and flies, fluttering down
-// like a leaf (turning over and over as it sways), lands flat on the grass, and she goes and picks it up again.
-// on / fly / ground / lift
-const lprop = { state: "on", x: 0, y: 0, z: 0, vx: 0, vy: 0, t0: 0, ready: 0, lastAct: "" };
+// like a leaf: tossed off at a random angle, turning over and over, swaying, caught by little gusts, dropping faster
+// when it turns edge-on. She runs back and forth under it; if she gets right under it as it comes down she jumps,
+// grabs it in her paw and pats it back on (boing). If it lands first she walks over and picks it up (boing again).
+// on / fly / catch (in her paw, up to her forehead) / ground / lift / stick (the boing as it goes back on)
+const lprop = { state: "on", x: 0, y: 0, z: 0, vx: 0, vy: 0, t0: 0, ready: 0, lastAct: "", ang: 0 };
 const licenceOn = () => G.pet === "nori" && !!(G.equip && G.equip.pass);
 const licenceWorn = () => !licenceOn() || lprop.state === "on";
+const lrnd = (a, b) => a + Math.random() * (b - a);
+// the card's pictures, pixel for pixel (no smoothing): face, narrowed as it turns, edge-on, and its plain grey back;
+// lying flat on the grass (half height); and squashed or stretched for the boing
+let LIC = null;
+function licencePics() {
+  if (LIC) return LIC;
+  const F = itemImg("nori", "pass").img, w = F.width, h = F.height;
+  const resample = (src, nw, nh) => { const c = document.createElement("canvas"); c.width = nw; c.height = nh; const g = c.getContext("2d"); g.imageSmoothingEnabled = false;
+    for (let y = 0; y < nh; y++) for (let x = 0; x < nw; x++) g.drawImage(src, Math.min(src.width - 1, Math.floor((x + 0.5) * src.width / nw)), Math.min(src.height - 1, Math.floor((y + 0.5) * src.height / nh)), 1, 1, x, y, 1, 1);
+    return c; };
+  const back = document.createElement("canvas"); back.width = w; back.height = h;
+  { const g = back.getContext("2d"), d = F.getContext("2d").getImageData(0, 0, w, h).data;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const k = (y * w + x) * 4; if (d[k + 3] < 128) continue;
+      const out = d[k] < 90 && d[k + 1] < 70; g.fillStyle = out ? OUT : (y === 1 ? "#f4f5f6" : "#c8ccd0"); g.fillRect(x, y, 1, 1); } }
+  const turn = src => [1, 0.7, 0.4].map(k => resample(src, Math.max(2, Math.round(w * k)), h));
+  const edge = document.createElement("canvas"); edge.width = 2; edge.height = h;
+  { const g = edge.getContext("2d"); g.fillStyle = OUT; g.fillRect(0, 0, 2, h); g.fillStyle = "#c8ccd0"; g.fillRect(1, 1, 1, h - 2); }
+  LIC = { face: turn(F), back: turn(back), edge, flat: resample(F, w, Math.ceil(h / 2)), boing: [resample(F, w + 2, h - 2), resample(F, w - 2, h + 2), F] };
+  return LIC;
+}
+// where her forehead is on the screen right now (from the frame she is drawn with)
+function foreheadAt() {
+  const b = pet._box, pose = pet._pose, g = pose && pose.img && pose.img.grid ? pose.img.grid : SPRITES.nori;
+  if (!b || !b.w) return { x: pet.x, y: FEET - INFO.nori.h + 12 };
+  const f = faceOf(g) || faceOf(SPRITES.nori), flip = pose && pose.img ? pose.flip : pet.dir < 0;
+  const k = b.w / g[0].length, fx = flip ? g[0].length - f.cx : f.cx;
+  return { x: b.x + fx * k, y: b.y + (f.cy - 8.5) * (b.h / g.length) };
+}
 function updateLicence(now, dt) {
-  if (!licenceOn()) { lprop.state = "on"; lprop.lastAct = pet.act; return; }
+  if (!licenceOn()) { lprop.state = "on"; lprop.lastAct = pet.act; pet.chase = false; return; }
   const s = Math.min(0.05, dt / 1000), began = pet.act !== lprop.lastAct;
   lprop.lastAct = pet.act;
-  if (lprop.state === "on" && began && pet.act === "fall" && FEET - pet.hy >= 14)        // let go up high: off it comes
-    Object.assign(lprop, { state: "fly", x: pet.x + pet.dir * -2, y: pet.hy - INFO.nori.h + 12, z: pet.z, vx: (pet.vx || 0) * 0.6 + (Math.random() < 0.5 ? -50 : 50), vy: -150, t0: now });
+  if (lprop.state === "on" && began && pet.act === "fall" && FEET - pet.hy >= 14) {      // let go up high: off it comes
+    const fh = foreheadAt();
+    Object.assign(lprop, { state: "fly", x: fh.x, y: fh.y, z: pet.z, t0: now, vx: (pet.vx || 0) * 0.6 + lrnd(-90, 90), vy: -lrnd(110, 210),
+      spin: lrnd(6, 12) * (Math.random() < 0.5 ? -1 : 1), ang: lrnd(0, 6.3), sway: lrnd(12, 36), swf: lrnd(3.5, 7.5), sph: lrnd(0, 6.3),
+      fall: lrnd(32, 60), gust: 0, gustT: now + lrnd(250, 700), tryAt: 0 });
+  }
   if (lprop.state === "fly") {
-    const t = (now - lprop.t0) / 1000;
-    lprop.vy = Math.min(lprop.vy + 380 * s, 55);                                   // light: it soon floats down slowly
-    lprop.vx *= Math.pow(0.35, s);
-    lprop.x += (lprop.vx + Math.sin(t * 7) * 28) * s; lprop.y += lprop.vy * s;     // and sways from side to side
-    if (lprop.x < 8 || lprop.x > W - 8) { lprop.vx = -lprop.vx; lprop.x = Math.max(8, Math.min(W - 8, lprop.x)); }
-    if (lprop.y >= FEET + 1) { Object.assign(lprop, { state: "ground", y: FEET + 1, ready: now + 700 }); dust(lprop.x, FEET + 1); }
+    const t = (now - lprop.t0) / 1000, edgeOn = 1 - Math.abs(Math.cos(lprop.ang));
+    if (now > lprop.gustT) { lprop.gust = lrnd(-55, 55); lprop.gustT = now + lrnd(300, 900); }   // a puff of wind now and then
+    lprop.ang += lprop.spin * s * (0.6 + edgeOn);
+    lprop.vy = Math.min(lprop.vy + 400 * s, lprop.fall * (1 + edgeOn * 0.9));                      // edge-on it slips down faster
+    lprop.vx += ((lprop.gust - lprop.vx) * 1.6) * s;
+    lprop.x += (lprop.vx + Math.sin(t * lprop.swf + lprop.sph) * lprop.sway) * s; lprop.y += lprop.vy * s;
+    if (lprop.x < 8 || lprop.x > W - 8) { lprop.vx = -lprop.vx; lprop.gust = -lprop.gust; lprop.x = Math.max(8, Math.min(W - 8, lprop.x)); }
+    // she chases it: runs to under where it is (a little ahead of it), back and forth as it sways
+    const free = ["idle", "walk"].includes(pet.act) && !G.sleeping && !G.wantSleep;
+    if (free) pet.nextThink = Math.max(pet.nextThink, now + 600);             // her mind is on the card
+    if (free && now > lprop.tryAt) {
+      const tx = Math.max(14, Math.min(W - 14, lprop.x + lprop.vx * 0.25));
+      if (pet.act === "walk" || Math.abs(tx - pet.x) > 5) { pet.act = "walk"; pet.target = tx; pet.tz = pet.z; pet.chase = true; }
+      // right under it as it comes down to her: she jumps for it; sometimes she grabs it, sometimes it slips past her paw
+      if (lprop.vy > 0 && Math.abs(lprop.x - pet.x) < 8 && lprop.y > FEET - 54 && lprop.y < FEET - 30) {
+        pet.chase = false; startAct("pet", now); pet.dir = Math.sign(lprop.x - pet.x) || pet.dir;
+        if (Math.random() < 0.55) { Object.assign(lprop, { state: "catch", t0: now, fx: lprop.x, fy: lprop.y }); return; }
+        lprop.tryAt = now + JUMP_LEN + 250; lprop.vx += lrnd(-40, 40);                  // missed: off it goes again
+      }
+    }
+    if (lprop.y >= FEET + 1) { Object.assign(lprop, { state: "ground", y: FEET + 1, ready: now + 600 }); dust(lprop.x, FEET + 1); pet.chase = false; if (pet.act === "walk") pet.act = "idle"; }
+  }
+  if (lprop.state === "catch") {                   // grabbed at the top of her jump, then patted onto her forehead
+    const q = Math.min(1, (now - lprop.t0) / 380), fh = foreheadAt(), e = q * q * (3 - 2 * q);
+    lprop.x = lprop.fx + (fh.x - lprop.fx) * e; lprop.y = lprop.fy + (fh.y - lprop.fy) * e;
+    if (q >= 1) Object.assign(lprop, { state: "stick", t0: now });
   }
   if (lprop.state === "lift") {
-    const q = Math.min(1, (now - lprop.t0) / 260);
-    lprop.x = lprop.fx + (pet.x - lprop.fx) * q; lprop.y = lprop.fy + (FEET - INFO.nori.h + 12 - lprop.fy) * q - Math.sin(q * Math.PI) * 8;
-    if (q >= 1) lprop.state = "on";
+    const q = Math.min(1, (now - lprop.t0) / 300), fh = foreheadAt();
+    lprop.x = lprop.fx + (fh.x - lprop.fx) * q; lprop.y = lprop.fy + (fh.y - lprop.fy) * q - Math.sin(q * Math.PI) * 8;
+    if (q >= 1) Object.assign(lprop, { state: "stick", t0: now });
   }
+  if (lprop.state === "stick") { const fh = foreheadAt(); lprop.x = fh.x; lprop.y = fh.y; if (now - lprop.t0 > 320) lprop.state = "on"; }
 }
 function fetchLicence(now) {
   if (!licenceOn() || lprop.state !== "ground" || now < lprop.ready || G.sleeping || G.wantSleep) return false;
   const dx = lprop.x - pet.x;
   if (Math.abs(dx) > 9 || Math.abs(lprop.z - pet.z) > 1.5) { pet.act = "walk"; pet.target = lprop.x - Math.sign(dx) * 7; pet.tz = lprop.z; return true; }
-  Object.assign(lprop, { state: "lift", t0: now, fx: lprop.x, fy: lprop.y });
+  Object.assign(lprop, { state: "lift", t0: now, fx: lprop.x, fy: lprop.y - 3 });
   pet.dir = Math.sign(dx) || pet.dir; startAct("pickup", now); return true;
 }
 function drawLicence(front) {
   if (!licenceOn() || lprop.state === "on" || !front || typeof itemImg !== "function") return;
-  const it = itemImg("nori", "pass").img, x = Math.round(lprop.x), y = Math.round(lprop.y) - Math.round(lprop.z);
-  ctx.save(); ctx.translate(x, y);
-  if (lprop.state === "fly") {                       // turning over as it falls: seen face on, then edge on, then its back
-    const k = Math.cos((performance.now() - lprop.t0) / 1000 * 9);
-    ctx.scale(Math.abs(k) < 0.15 ? 0.15 : k, 1); ctx.rotate(Math.sin((performance.now() - lprop.t0) / 1000 * 7) * 0.35);
-    ctx.drawImage(it, -it.width / 2, -it.height / 2);
-  } else if (lprop.state === "ground") {             // lying flat on the grass: seen from above, short and wide
-    groundShadow(ctx, 0, 0, it.width - 2, 1);
-    ctx.scale(1, 0.5); ctx.drawImage(it, -it.width / 2, -it.height);
-  } else ctx.drawImage(it, -it.width / 2, -it.height / 2);
-  ctx.restore();
+  const P = licencePics(), x = Math.round(lprop.x), y = Math.round(lprop.y) - Math.round(lprop.z), now = performance.now();
+  const put = (c, dy = 0) => ctx.drawImage(c, x - (c.width >> 1), y - (c.height >> 1) + dy);
+  if (lprop.state === "fly") {                      // turning over: face on, narrower, edge-on, its back, and round again
+    const c = Math.cos(lprop.ang), a = Math.abs(c), set = c >= 0 ? P.face : P.back;
+    put(a > 0.85 ? set[0] : a > 0.55 ? set[1] : a > 0.2 ? set[2] : P.edge);
+  } else if (lprop.state === "ground") {            // lying flat on the grass, seen from above
+    groundShadow(ctx, x, y + 1, P.flat.width - 2, 1); ctx.drawImage(P.flat, x - (P.flat.width >> 1), y - P.flat.height + 1);
+  } else if (lprop.state === "stick") {             // boing: squashed, stretched, then still
+    const k = Math.floor((now - lprop.t0) / 110); put(P.boing[Math.min(2, k)]);
+  } else {                                          // in her paw (caught, or picked up)
+    put(P.face[0]);
+    const hx = x + (lprop.state === "catch" ? 6 : -6), hy = y + 2, paw = PET.nori.pal[PET.nori.body];
+    [".KK.", "KWWK", ".KK."].forEach((r, j) => [...r].forEach((ch, i) => { if (ch !== ".") { ctx.fillStyle = ch === "K" ? OUT : paw; ctx.fillRect(hx - 2 + i, hy - 1 + j, 1, 1); } }));
+  }
 }
 // when she is free and her bear is on the ground, she goes to get it (called before she picks something else to do)
 function fetchTeddy(now) {
@@ -927,7 +985,7 @@ function petUpdate(now, dt) {
     else {
       const [gx, gz] = aroundSign();
       const dx = gx - pet.x, dz = gz - pet.z, dist = Math.max(0.001, Math.hypot(dx, dz * 1.6));   // depth reads shorter on screen, so it is walked slower
-      const step = Math.min(dist, 16 * dt / 1000);
+      const step = Math.min(dist, (pet.chase ? 70 : 16) * dt / 1000);   // running after her licence
       if (Math.abs(dx) > 0.5) pet.dir = Math.sign(dx);
       pet.x += dx / dist * step; pet.z += dz / dist * step; pet.walked += step;
     }
@@ -970,6 +1028,7 @@ function drawSprite(g, id, pose, cx, feet, dir, equip, shadow = true) {
     o.setTransform(1, 0, 0, 1, 0, 0); o.clearRect(0, 0, c.width, c.height); o.imageSmoothingEnabled = false;
     o.translate(dir < 0 ? M + dw : M, M); o.scale((dir < 0 ? -1 : 1) * dw / img.width, dh / img.height);
     o.worldY = g.getTransform().f + y - M;          // (where it sits on the screen: for things that move with her height)
+    o.worldX = g.getTransform().e + x - M;          // (and across it: for things that swing as she moves)
     drawItems(o, id, equip, "back", dy, pose, img);
     o.drawImage(img, 0, 0);
     drawItems(o, id, equip, "front", dy, pose, img);
@@ -1014,6 +1073,7 @@ function petRender(now) {
   drawTeddy(false); drawWeaponProp(false);
   ctx.save(); ctx.translate(0, -Math.round(pet.z));     // her depth on the grass
   const box = pose.hidden ? { x: pet.x, y: FEET - 30, w: 0, h: 30 } : drawSprite(ctx, G.pet, pose, pet.x, FEET, pet.dir, G.equip);
+  pet._box = box;
   if (G.pet === "mochi" && pet.act === "fall" && pet.skyDrop) hopLines(box, pose.hopF, now);
   if (G.pet === "mochi" && pet.act === "skyland" && now - pet.t0 < SKYLAND_RUN) { const f = skylandFrame(Math.max(0, now - pet.t0)); hopLines(box, f, now); hopDust(box, f); }
   if (pet.act === "dash" && !pose.hidden) dashDust(box, true);
