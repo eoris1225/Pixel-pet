@@ -862,6 +862,12 @@ function petUpdate(now, dt) {
 /* ---------- drawing ---------- */
 // sprite + items. Hand-placed items sit on the base-sprite frames (they follow squash, stretch and the flip);
 // auto items (item-auto.js) find their place on every frame, traced motions included.
+const SPRITE_PAD = 48, SPRITE_CV = [];
+function spriteCanvas(w, h) {                      // a scratch canvas big enough, reused
+  let c = SPRITE_CV.find(c => c.width >= w && c.height >= h);
+  if (!c) { c = document.createElement("canvas"); c.width = Math.max(w, 160); c.height = Math.max(h, 160); SPRITE_CV.push(c); }
+  return c;
+}
 function drawSprite(g, id, pose, cx, feet, dir, equip, shadow = true) {
   const img = pose.img || frame(id, pose);
   if (pose.img) dir = pose.flip ? -1 : 1;
@@ -875,14 +881,22 @@ function drawSprite(g, id, pose, cx, feet, dir, equip, shadow = true) {
   }
   g.imageSmoothingEnabled = false;
   const items = equip && typeof drawItems === "function";
-  g.save();
-  g.translate(dir < 0 ? x + dw : x, y);
-  g.scale((dir < 0 ? -1 : 1) * dw / img.width, dh / img.height);
   const dy = img.height - INFO[id].h;               // squash / stretch adds or drops a row low on the body (items below it shift)
-  if (items) drawItems(g, id, equip, "back", dy, pose, img);
-  g.drawImage(img, 0, 0);
-  if (items) drawItems(g, id, equip, "front", dy, pose, img);
-  g.restore();
+  if (!items) {
+    g.save(); g.translate(dir < 0 ? x + dw : x, y); g.scale((dir < 0 ? -1 : 1) * dw / img.width, dh / img.height);
+    g.drawImage(img, 0, 0); g.restore();
+  } else {
+    // she and her items are put together on a canvas of their own first, so where an item takes something of her away
+    // (her arms round the bear or the fork) only she is cut, never what is behind her (the grass, a screen's backdrop)
+    const M = SPRITE_PAD, c = spriteCanvas(dw + 2 * M, dh + 2 * M), o = c.getContext("2d");
+    o.setTransform(1, 0, 0, 1, 0, 0); o.clearRect(0, 0, c.width, c.height); o.imageSmoothingEnabled = false;
+    o.translate(dir < 0 ? M + dw : M, M); o.scale((dir < 0 ? -1 : 1) * dw / img.width, dh / img.height);
+    o.worldY = g.getTransform().f + y - M;          // (where it sits on the screen: for things that move with her height)
+    drawItems(o, id, equip, "back", dy, pose, img);
+    o.drawImage(img, 0, 0);
+    drawItems(o, id, equip, "front", dy, pose, img);
+    g.drawImage(c, 0, 0, c.width, c.height, x - M, y - M, c.width, c.height);
+  }
   return { x, y, w: dw, h: dh };
 }
 

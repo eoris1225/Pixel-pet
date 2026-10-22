@@ -494,6 +494,7 @@ function waveHand(grid) {
   }
   return null;
 }
+const screenY = g => (g.worldY || 0) + g.getTransform().f;   // her height on the screen, even drawn on her own canvas
 const pawColour = (petId, equip) => equip.pajama && typeof PAJAMA !== "undefined" ? PAJAMA[petId].main : PET[petId].pal[PET[petId].body];
 function drawPaws(g, petId, equip, pts) {
   const paw = equip.pajama && typeof PAJAMA !== "undefined" ? PAJAMA[petId].main : PET[petId].pal[PET[petId].body];
@@ -547,26 +548,33 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
     // is, its tilt and where she grips it all ease from one to the other, so it never jumps
     if (layer !== "front") return;
     const hand = cache.wave !== undefined ? cache.wave : (cache.wave = waveHand(grid));
-    const tgt = hand ? { x: hand[0], y: hand[1], a: 0.8 + (hand[1] - 17) * 0.25, grip: 29 }
-                     : { x: mid + o.dx, y: arm + 1.5 + o.dy, a: Math.atan2(-6, 44), grip: mid };
+    // she never lets go with her left paw (it grips the pole 7 px in from its left end... its own x 7): to wave she lets go
+    // with her right, lifts her left by her head and the pole comes up with it, swung round in that paw, the long end
+    // reaching up and out; the paw leads and the pole swings after it
+    const G7 = 7, flatA = Math.atan2(-6, 44);
+    const tgt = hand ? { x: hand[0], y: hand[1], a: -2.3 + (hand[1] - 17) * 0.2 }
+                     : { x: mid + o.dx + Math.cos(flatA) * (G7 - mid), y: arm + 1.5 + o.dy + Math.sin(flatA) * (G7 - mid), a: flatA };
     const now = performance.now(), st = NORI_JUMP;
     if (st.key !== pet.t0 || now - st.t > 300) Object.assign(st, tgt, { key: pet.t0 });
-    else { const k = 1 - Math.exp(-(now - st.t) / 70); for (const q of ["x", "y", "a", "grip"]) st[q] += (tgt[q] - st[q]) * k; }
+    else {
+      const kp = 1 - Math.exp(-(now - st.t) / 45), ka = 1 - Math.exp(-(now - st.t) / 95);
+      st.x += (tgt.x - st.x) * kp; st.y += (tgt.y - st.y) * kp; st.a += (tgt.a - st.a) * ka;
+    }
     st.t = now;
-    const f = rubberStaff(rubberBend(g.getTransform().f + st.y), null, true), row = ANCHOR.nori.arm + 1.5;
+    const f = rubberStaff(rubberBend(screenY(g) + st.y), null, true), row = ANCHOR.nori.arm + 1.5;
     g.save(); g.translate(Math.round(st.x), Math.round(st.y) + shift); g.rotate(st.a);
-    g.drawImage(f.img, f.x - Math.round(st.grip), f.y - row);
+    g.drawImage(f.img, f.x - G7, f.y - row);
     g.restore();
-    // her paws where she holds it: both, either side of her grip, until it is up in the one
+    // her paws: the left one always at its grip; the right one on it too while it is level in front of her
     const along = d => [st.x + Math.cos(st.a) * d, st.y + shift + Math.sin(st.a) * d];
-    drawPaws(g, petId, equip, st.grip > 21 ? [along(0)] : [along(7 - (st.grip - mid)), along(-7.5 - (st.grip - mid))]);
+    drawPaws(g, petId, equip, Math.abs(st.a - flatA) < 0.35 ? [along(0), along(15)] : [along(0)]);
     return;
   }
   if (!base && typeof pet !== "undefined" && pet.act === "dance") {   // dancing: held across her belly, tipped to the beat
     if (layer !== "front") return;
     // it stays in her arms (moving with her body) and only its tilt follows her hands on each step of the dance: the
     // slant between her two hands, or tipped up toward the one hand she has out; kept small so it never flails
-    const hd = cache.hands || (cache.hands = findHands(grid)), f = petId === "nori" ? rubberStaff(rubberBend(g.getTransform().f + arm), null, true) : weaponFlat(petId);
+    const hd = cache.hands || (cache.hands = findHands(grid)), f = petId === "nori" ? rubberStaff(rubberBend(screenY(g) + arm), null, true) : weaponFlat(petId);
     let ang = DIAG[petId];
     if (hd.l && hd.r) ang = Math.max(-0.35, Math.min(0.35, Math.atan2(hd.r[1] - hd.l[1], hd.r[0] - hd.l[0])));
     else if (hd.r) ang = -0.3; else if (hd.l) ang = 0.3;
@@ -581,7 +589,7 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
   }
   if (mode === "lift") {                                     // arms going up and down: from across her belly to over her head
     if (layer !== "front") return;
-    const q = LIFT[+/(\d+)$/.exec(img.key)[1]], f = petId === "nori" ? rubberStaff(rubberBend(g.getTransform().f + arm), null, true) : weaponFlat(petId), top = grid.findIndex(r => /[^B]/.test(r));
+    const q = LIFT[+/(\d+)$/.exec(img.key)[1]], f = petId === "nori" ? rubberStaff(rubberBend(screenY(g) + arm), null, true) : weaponFlat(petId), top = grid.findIndex(r => /[^B]/.test(r));
     const hx = mid + (o ? o.dx : 0), hy = arm + 0.5 + (o ? o.dy : 0);
     const cx = hx + (w / 2 - hx) * q, cy = hy + (top + 1 - hy) * q;
     const ang = DIAG[petId] * (1 - q);
@@ -605,7 +613,7 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
     ox = Math.round(sm.x); oy = Math.round(sm.y) + shift;
   }
   const it = petId === "nori"                                 // 욱's rubber pole, bent as it is right now; her paws on it unless it is behind her
-    ? rubberStaff(rubberBend(g.getTransform().f + oy), o ? pawColour(petId, equip) : null, !o)
+    ? rubberStaff(rubberBend(screenY(g) + oy), o ? pawColour(petId, equip) : null, !o)
     : pj ? (ITEM_CACHE["pj:" + petId] || (ITEM_CACHE["pj:" + petId] = pj())) : itemImg(petId, WEAPON_OF[petId]);
   if (!sway) { g.drawImage(it.img, it.x + ox, it.y + oy); return; }
   const cx = mid + ox, cy = arm + oy;
