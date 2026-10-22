@@ -119,8 +119,16 @@ function heldBreath(g) {                            // a row of her middle doubl
 function heldTwitch(g) {                            // a row low on her body taken out, so her feet come up
   const y = Math.round(g.length * 0.82); return [...g.slice(0, y), ...g.slice(y + 1)];
 }
-const HELD_IMG = Object.fromEntries(Object.entries(HELD).map(([p, g]) => [p, [g, heldBreath(g), heldTwitch(g)]
-  .map((v, i) => Object.assign(gridToCanvas(v, PET[p].pal), { key: p + "-held:" + i }))]));
+// 하와's tail (the rows below her body) swings a pixel side to side, its tip the most
+const HELD_TAIL = { sora: 27 };
+function heldWag(g, p, d) {
+  const y0 = HELD_TAIL[p], shift = (r, k) => k > 0 ? "B".repeat(k) + r.slice(0, -k) : k < 0 ? r.slice(-k) + "B".repeat(-k) : r;
+  return y0 == null || !d ? g : g.map((r, y) => y < y0 ? r : shift(r, y === y0 ? 0 : d));
+}
+const HELD_WAG = [0, 1, 0, -1];
+const HELD_IMG = Object.fromEntries(Object.entries(HELD).map(([p, g0]) => [p, HELD_WAG.map(d => { const g = heldWag(g0, p, d);
+  return [g, heldBreath(g), heldTwitch(g)].map((v, i) => Object.assign(gridToCanvas(v, PET[p].pal), { key: p + "-held:" + d + ":" + i })); })]));
+const heldImg = (t, k) => HELD_IMG[G.pet][Math.floor(t / 170) % 4][k];
 const SORALOAF_IMG = SORALOAF.map(g => Object.assign(gridToCanvas(g, PET.sora.pal), { lying: true }));   // lying: her guitar goes on the grass
 const sitEase = q => q <= 0 ? 0 : q >= 1 ? 1 : 1 - Math.pow(1 - q, 2);
 function sitPose(a, t, loaf, drop = LOAF_DROP) {
@@ -500,7 +508,7 @@ function petPose(now) {
     }
     case "held": {                                       // picked up: dangling from where she is held, swaying a little
       const twitch = t % 2600 > 2450, breath = Math.floor(t / 600) % 2;
-      a.img = HELD_IMG[G.pet][twitch ? 2 : breath]; a.dx = Math.round(Math.sin(t / 260) * 0.8);
+      a.img = heldImg(t, twitch ? 2 : breath); a.dx = Math.round(Math.sin(t / 260) * 0.8);
       if (t < 320) { const q = t / 320; a.sy = 1 + 0.2 * Math.cos(q * Math.PI * 1.5) * (1 - q); a.sx = 2 - a.sy; }   // boing as she is picked up
       a.yoff = Math.round(pet.hy - FEET + Math.sin(t / 170));
       break;
@@ -508,13 +516,16 @@ function petPose(now) {
     case "fall": {
       if (G.pet === "nori") a.img = JUMP_IMG[pet.vy < 0 ? 4 : 8];
       else if (G.pet === "mochi" && pet.skyDrop) { a.hopF = FEET - pet.hy < 14 && pet.vy > 0 ? HOP_NEAR_F : HOP_FALL_F; a.img = MOCHIHOP_IMG[a.hopF]; }
-      else { a.body = "stretch"; a.ear = -1; }
+      else { a.img = heldImg(t, 0); a.dx = Math.round(Math.sin(t / 120) * 0.8); }   // let go, she drops just as she hung
       a.yoff = Math.round(pet.hy - FEET);
       break;
     }
     case "land": {
       if (G.pet === "nori") a.img = JUMP_IMG[[11, 12, 12, 11, 10][Math.min(4, Math.floor(t / 90))]];
-      else { a.body = t < 220 ? "squash" : "base"; a.face = "happy"; }
+      else {                                             // squash as she lands, then boing back to herself
+        a.body = t < 160 ? "squash" : "base"; a.face = "happy";
+        if (t >= 160) { const q = Math.min(1, (t - 160) / 300); a.sy = 1 + 0.14 * Math.cos(q * Math.PI * 1.5) * (1 - q); a.sx = 2 - a.sy; }
+      }
       break;
     }
     case "peek": {
