@@ -515,7 +515,13 @@ function petPose(now) {
     }
     case "dance": { a.img = danceImg(t); break; }
     case "strum": { strumPose(a, t); break; }
-    case "pickup": { a.body = t < 90 || t > 260 ? "base" : "squash"; break; }   // a little dip as she bends for it
+    case "pickup": {                                     // the same boing as 치카 picking up her bear: squash, up, squash
+      a.face = "happy";
+      if (t < 100) a.body = "squash";
+      else if (t < 380) { a.body = "stretch"; a.yoff = -Math.round(Math.sin((t - 100) / 280 * Math.PI) * 4); }
+      else if (t < 470) a.body = "squash";
+      break;
+    }
     case "wave": { a.img = MOCHIWAVE_IMG[waveFrame(t)]; break; }
     case "skyland": { skylandPose(a, t); break; }
     case "dash": {
@@ -727,7 +733,7 @@ function pickWalk() {
 function petUpdate(now, dt) {
   updateParts(dt);
   const dur = { skyland:SKYLAND_LEN, gloom:GLOOM_LEN, dash:DASH_LEN, wave:WAVE_LEN,
-    pet:(G.pet === "nori" ? JUMP_LEN : G.pet === "sora" ? seqLen(SORA_ONCE) : 520), dance:DANCE_LEN, strum:STRUM_ALL, pickup:360, lie:LIE_DUR,
+    pet:(G.pet === "nori" ? JUMP_LEN : G.pet === "sora" ? seqLen(SORA_ONCE) : 520), dance:DANCE_LEN, strum:STRUM_ALL, pickup:520, lie:LIE_DUR,
     lieDown:(G.pet === "nori" ? seqDur(LIE_DOWN) : G.pet === "sora" ? SIT_LEN : 1), getUp:(G.pet === "nori" ? seqDur(GET_UP) : G.pet === "sora" ? STAND_LEN : 1),
     spin:SPIN_LEN, twirl:TWIRL_LEN, land:460, loaf:LOAF_LEN }[pet.act];
   if (dur && now - pet.t0 >= dur) { pet.act = "idle"; pet.nextThink = now + 1500; }
