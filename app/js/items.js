@@ -143,7 +143,7 @@ const GUITAR = [
 ];
 const GUITAR_PAL = { K: OUT, T: "#d9a15e", L: "#eaba7a", H: "#4a2e1c", R: "#7a4a2a", S: "#b07640", F: "#6e4228", N: "#be7d46", D: "#6e4228", P: "#fbeed5" };   // P: the white tuning pegs
 const STRUM_FEET = ["KWKWK", "KWKWK", ".K.K."];          // her two thin legs hanging down; the guitar hides their tops
-const GUITAR_REST = -68;                                 // put down: stood on its end, leaning in against her
+const GUITAR_REST = -172;                                 // put down: lying on the grass, its head pointing away from her
 const GUITAR_BACK = { deg: -20, x: 15, foot: 28 };       // slung on her back: its body out by her left foot, its head up past her right
                                                           // cheek, never lower than her feet
 /* the guitar just turned, the way pixel art is rotated (RotSprite): the level drawing is blown up 8x with Scale2x, which
@@ -160,22 +160,27 @@ function scale2x(src) {
   }
   return out;
 }
-const GUITAR_BIG = (() => { let g = GUITAR.map(r => [...r].map(ch => GUITAR_PAL[ch] || null)); for (let i = 0; i < 3; i++) g = scale2x(g); return g; })();
+const bigGuitar = rows => { let g = rows.map(r => [...r].map(ch => GUITAR_PAL[ch] || null)); for (let i = 0; i < 3; i++) g = scale2x(g); return g; };
+// lying on the grass it is seen from above at a slant: the same guitar, flattened to every other row or so
+const GUITAR_FLAT = [0, 1, 3, 4, 5, 6, 7, 8, 9, 11, 12].map(i => GUITAR[i]);
+const GUITAR_BIG = bigGuitar(GUITAR), GUITAR_FLAT_BIG = bigGuitar(GUITAR_FLAT);
 const GUITAR_TURNED = {};
-function guitarTurned(deg) {
+function guitarTurned(deg, flat = false) {
   deg = ((Math.round(deg) % 360) + 540) % 360 - 180;
-  if (GUITAR_TURNED[deg]) return GUITAR_TURNED[deg];
-  const h = GUITAR.length, w = GUITAR[0].length, D = Math.ceil(Math.hypot(w, h)) + 2;
+  const key = deg + (flat ? "f" : "");
+  if (GUITAR_TURNED[key]) return GUITAR_TURNED[key];
+  const src = flat ? GUITAR_FLAT : GUITAR, big = flat ? GUITAR_FLAT_BIG : GUITAR_BIG;
+  const h = src.length, w = src[0].length, D = Math.ceil(Math.hypot(w, h)) + 2;
   const r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
   const cv = document.createElement("canvas"); cv.width = D; cv.height = D;
   const g = cv.getContext("2d");
   for (let y = 0; y < D; y++) for (let x = 0; x < D; x++) {
     const X = x + 0.5 - D / 2, Y = y + 0.5 - D / 2;
     const u = Math.floor((c * X + s * Y + w / 2) * 8), v = Math.floor((-s * X + c * Y + h / 2) * 8);
-    const col = GUITAR_BIG[v] && GUITAR_BIG[v][u];
+    const col = big[v] && big[v][u];
     if (col) { g.fillStyle = col; g.fillRect(x, y, 1, 1); }
   }
-  return (GUITAR_TURNED[deg] = cv);
+  return (GUITAR_TURNED[key] = cv);
 }
 /* her lines right beside the guitar on a play frame, worked out once: painted over in her colour so its edge isn't
    doubled (she and the guitar make one shape; only its outside edge keeps a line) */
@@ -205,8 +210,8 @@ function strumPaws(t) {
   return [[-4, swing, STRUM_PAW], [chord, -1.5, FRET_PAW]];
 }
 // the lowest row of the turned guitar, in its own canvas
-function guitarBottom(deg) {
-  const c = guitarTurned(deg); if ("_bot" in c) return c._bot;
+function guitarBottom(deg, flat) {
+  const c = guitarTurned(deg, flat); if ("_bot" in c) return c._bot;
   const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; let b = 0;
   for (let i = 3; i < d.length; i += 4) if (d[i]) b = Math.floor((i >> 2) / c.width);
   return (c._bot = b);

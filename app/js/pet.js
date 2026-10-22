@@ -665,15 +665,16 @@ function drawTeddy(front) {
   ctx.drawImage(im, x, y);
 }
 
-// 하와's guitar, put down while she lies (loaf, sleep): stood up leaning against her side, where she put it, however
+// 하와's guitar, put down while she lies (loaf, sleep): lying on the grass beside her, where she put it, however
 // she moves on the spot, and she picks it up again when she gets up
 let grest = null;
 function drawGuitarRest(pose, box) {
   const lying = G.pet === "sora" && G.equip && G.equip.guitar && !pose.hidden && pose.img && pose.img.lying;
   if (!lying || typeof drawGuitar !== "function") { grest = null; return; }
-  if (!grest) grest = { x: box.x - 3, y: FEET - Math.round(pet.z) };
-  const c = guitarTurned(GUITAR_REST);                     // stood on the end of its body, its foot right on the grass
-  ctx.drawImage(c, Math.round(grest.x - c.width / 2), grest.y - 1 - guitarBottom(GUITAR_REST));
+  if (!grest) grest = { x: box.x - 16, y: FEET - Math.round(pet.z) };   // a little way off to her side
+  const c = guitarTurned(GUITAR_REST, true);               // lying on its back, seen from above at a slant
+  groundShadow(ctx, grest.x, grest.y, 22, 0.8);
+  ctx.drawImage(c, Math.round(grest.x - c.width / 2), grest.y - guitarBottom(GUITAR_REST, true));
 }
 // the next point to head for on the way to (target, tz): she never steps from in front of the sign to behind it (or back)
 // while her body overlaps its post, so she goes round it, crossing that line beside the sign instead
