@@ -458,7 +458,7 @@ ITEM_AUTO.shades = (grid, pet) => {
 // lying down she is on top of it. Facing us it never mirrors (it is marked flat for the drawing)
 const CAMERA = ["...KK......", "KKKKKKKKKKK", "KWWWWWWWKWK", "KDDDDKKKDDK", "KDKLKLLLKDK", "KDKDKLCLKDK", "KDKLKLLLKDK", "KDDDDKKKDDK", "KKKKKKKKKKK"];
 const CAMERA_SIDE = ["KKKK..", "KWWK..", "KDDKKK", "KDDKLK", "KDDKKK", "KKKK.."];
-const CAMERA_PAL = { K: OUT, W: "#f2f1ec", D: "#4a5256", L: "#c9d0d4", C: "#2f3539", s: "#6fb3cf" };
+const CAMERA_PAL = { K: OUT, W: "#f2f1ec", D: "#4a5256", L: "#c9d0d4", C: "#2f3539", s: "#8ccbe4", t: "#5d9fc2" };
 ITEM_AUTO.camera = (grid, pet) => {
   if (grid[0].length > 60) return [];
   const out = [], body = (x, y) => !!(grid[y] && grid[y][x] && grid[y][x] !== "B");
@@ -488,7 +488,13 @@ ITEM_AUTO.camera = (grid, pet) => {
     return out;
   }
   const cx = 9 + dx, cy = Math.min(Math.round(f.cy) + 4, y1 - 7);   // just under her mouth, wherever her face is, and not off her feet
-  for (const x of [cx - 1, cx + 11]) if (body(x, cy + 2)) out.push([x, cy + 2, CAMERA_PAL.s]);   // the strap ends, going round behind her arms
+  // the strap: a light blue band out from each side of the camera to her arm, where it goes round behind
+  for (const [x0s, step] of [[cx - 1, -1], [cx + 11, 1]])
+    for (let x = x0s, k = 0; k < 8; x += step, k++) {
+      const y = cy + 2 - (k >= 3 ? 1 : 0);
+      if (!body(x, y) || grid[y][x] === "K" || !body(x, y + 1) || grid[y + 1][x] === "K") break;
+      out.push([x, y, CAMERA_PAL.s], [x, y + 1, CAMERA_PAL.t]);
+    }
   put(CAMERA, cx, cy, false);
   out.flat = true;
   return out;
