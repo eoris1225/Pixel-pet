@@ -132,6 +132,16 @@ const DANCE_MS = 83, DANCE_LEN = SORADANCE.length * DANCE_MS;
 const NOTE_ICON = { Y: "noteEE", V: "noteV", T: "noteU" };
 const danceFrame = t => Math.max(0, Math.min(SORADANCE.length - 1, Math.floor(t / DANCE_MS)));
 const danceImg = t => SORADANCE_IMG[danceFrame(t)];
+// 하와 playing her guitar (only when she has it; frames in strum.js). Each frame knows where the guitar goes and which of
+// her pixels are her paws on it, drawn again over the guitar
+const STRUM_IMG = SORASTRUM.map((g, i) => {
+  const c = gridToCanvas(g, PET.sora.pal), [, , x, y, ga] = STRUM_SEQ[i];
+  c.key = "sora-strum:" + i;
+  c.play = { x, y, ga, paws: gridToCanvas(g.map((r, j) => [...r].map((ch, k) => STRUM_PAWS[i][j][k] === "P" ? ch : "B").join("")), PET.sora.pal) };
+  return c;
+});
+const STRUM_AT = STRUM_SEQ.reduce((a, f) => (a.push(a[a.length - 1] + f[1]), a), [0]), STRUM_LEN = STRUM_AT[STRUM_AT.length - 1];
+const strumFrame = t => { let i = 0; while (i < STRUM_SEQ.length - 1 && STRUM_AT[i + 1] <= t) i++; return i; };
 const MOCHIWAVE_IMG = tagFrames(MOCHIWAVE.map(g => gridToCanvas(g, PET.mochi.pal)), "mochi-wave");
 const WAVE_MS = 100, WAVE_LEN = MOCHIWAVE.length * WAVE_MS;
 const waveFrame = t => Math.max(0, Math.min(MOCHIWAVE.length - 1, Math.floor((t % WAVE_LEN) / WAVE_MS)));
@@ -393,7 +403,7 @@ function petHold(on) {
 
 /* ---------- input: tap to pet, press and hold to pick up ---------- */
 let press = null;
-const GRAB_OK = ["idle", "walk", "lie", "spin", "twirl", "pet", "loaf", "dance", "wave", "gloom"];
+const GRAB_OK = ["idle", "walk", "lie", "spin", "twirl", "pet", "loaf", "dance", "strum", "wave", "gloom"];
 const GRAB_HOLD = 260;
 let onPetTap = null;
 function grab(now) {
@@ -490,6 +500,7 @@ function petPose(now) {
       break;
     }
     case "dance": { a.img = danceImg(t); break; }
+    case "strum": { a.img = STRUM_IMG[strumFrame(t)]; break; }
     case "wave": { a.img = MOCHIWAVE_IMG[waveFrame(t)]; break; }
     case "skyland": { skylandPose(a, t); break; }
     case "dash": {
@@ -665,13 +676,13 @@ function pickWalk() {
 function petUpdate(now, dt) {
   updateParts(dt);
   const dur = { skyland:SKYLAND_LEN, gloom:GLOOM_LEN, dash:DASH_LEN, wave:WAVE_LEN,
-    pet:(G.pet === "nori" ? JUMP_LEN : G.pet === "sora" ? seqLen(SORA_ONCE) : 520), dance:DANCE_LEN, lie:LIE_DUR,
+    pet:(G.pet === "nori" ? JUMP_LEN : G.pet === "sora" ? seqLen(SORA_ONCE) : 520), dance:DANCE_LEN, strum:STRUM_LEN, lie:LIE_DUR,
     lieDown:(G.pet === "nori" ? seqDur(LIE_DOWN) : G.pet === "sora" ? SIT_LEN : 1), getUp:(G.pet === "nori" ? seqDur(GET_UP) : G.pet === "sora" ? STAND_LEN : 1),
     spin:SPIN_LEN, twirl:TWIRL_LEN, land:460, loaf:LOAF_LEN }[pet.act];
   if (dur && now - pet.t0 >= dur) { pet.act = "idle"; pet.nextThink = now + 1500; }
 
   // fall asleep / wake up when the app asks (rest time), once she is free
-  if (G.wantSleep !== G.sleeping && (pet.act === "idle" || pet.act === "walk" || pet.act === "lie" || pet.act === "loaf" || pet.act === "pet" || pet.act === "gloom" || pet.act === "wave" || pet.act === "dance" || pet.act === "spin" || pet.act === "twirl")) {
+  if (G.wantSleep !== G.sleeping && (pet.act === "idle" || pet.act === "walk" || pet.act === "lie" || pet.act === "loaf" || pet.act === "pet" || pet.act === "gloom" || pet.act === "wave" || pet.act === "dance" || pet.act === "strum" || pet.act === "spin" || pet.act === "twirl")) {
     G.sleeping = G.wantSleep;
     if (G.sleeping) { pet.act = "idle"; startAct("lieDown", now); }
     else wakeUp(now);
@@ -684,6 +695,15 @@ function petUpdate(now, dt) {
     const sx = Math.round(pet.x) - (sw >> 1), sy = FEET - sh;
     for (let k = pet.noteF + 1; k <= f; k++) for (const [nx, ny, c, vx, vy, n] of DANCE_NOTES[k]) note(sx + nx, sy + ny, vx, vy, n, c);
     pet.noteF = f;
+  }
+  if (G.pet === "sora" && pet.act === "strum") {                        // a note floats up off the headstock now and then
+    const k = Math.floor((now - pet.t0) / 700);
+    if (pet.noteT0 !== pet.t0) { pet.noteT0 = pet.t0; pet.noteF = 0; }
+    if (k > pet.noteF) {
+      pet.noteF = k;
+      const im = STRUM_IMG[strumFrame(now - pet.t0)], r = im.play.ga * Math.PI / 180;
+      note(Math.round(pet.x) - (im.width >> 1) + Math.round(im.play.x + Math.cos(r) * 13), FEET - im.height + Math.round(im.play.y + Math.sin(r) * 13) - 3, 2 + Math.random() * 2, -4, 9, "YVT"[k % 3]);
+    }
   }
   if (G.pet === "mochi" && pet.act === "wave") {
     const t = Math.max(0, now - pet.t0), f = Math.floor(t / WAVE_MS);
@@ -716,7 +736,8 @@ function petUpdate(now, dt) {
     else if (G.pet === "sora" && r < (calm ? 0.35 : 0.2)) startAct("loaf", now);
     else if (G.pet === "sora" && r < 0.34) startAct("pet", now);
     else if (G.pet === "sora" && r < 0.42) startAct("dance", now);
-    else if (G.pet === "sora" && !calm && r < 0.5) startPeek(now);
+    else if (G.pet === "sora" && G.equip && G.equip.guitar && r < 0.52) startAct("strum", now);
+    else if (G.pet === "sora" && !calm && r < 0.58) startPeek(now);
     else if (G.pet === "mochi" && r < (G.lowMood ? 0.4 : 0.08)) startAct("gloom", now);   // 치카 gets gloomy when her plan falls apart
     else if (G.pet === "mochi" && r < 0.3) startAct("wave", now);
     else if (G.pet === "mochi" && r < 0.45 && startDash(now)) {}

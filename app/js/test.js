@@ -40,7 +40,7 @@
           ["표지판 앞", walkTo(SIGN_X, 0)], ["표지판 뒤", walkTo(SIGN_X, Z_MAX)], ["가운데로", walkTo(90, 0)]],
     mochi: [["손 흔들기", go(t => startAct("wave", t))], ["시무룩", go(t => startAct("gloom", t))],
             ["돌진", go(t => startDash(t))], ["하늘에서 착지", drop(true)]],
-    sora: [["춤", go(t => startAct("dance", t))], ["식빵", go(t => startAct("loaf", t))], ["빼꼼", go(t => startPeek(t))]],
+    sora: [["춤", go(t => startAct("dance", t))], ["기타 치기 (기타 착용)", go(t => { if (G.equip && G.equip.guitar) startAct("strum", t); })], ["식빵", go(t => startAct("loaf", t))], ["빼꼼", go(t => startPeek(t))]],
     nori: [["눕기", go(t => startAct("lie", t))], ["회전", go(t => startAct("spin", t))], ["빙글", go(t => startAct("twirl", t))],
            ["빼꼼", go(t => startPeek(t))]],
   };

@@ -124,20 +124,51 @@ const POCHETTE = [
 ];
 const bagStrap = d => d.line(4, 17, 17, 21, "#fff7ea");                  // the strap, from her shoulder to her hip
 const bagFace = d => d.grid(POCHETTE, { P: "#f7a8bd", p: "#ec8fab", W: "#fffaf0", D: "#5a4636" }, 16, 20);
-function guitarArt() {                                   // a small ukulele-like guitar, tilted up to her right shoulder
-  return pixmap(d => {
-    d.line(3, 19, 20, 3, "#a8693a", 2);                                      // the neck
-    d.line(3, 19, 20, 3, "#6e4228");                                         // its fingerboard, with frets
-    for (const k of [8, 11, 14, 17]) d.put(k, Math.round(19 - (k - 3) * 16 / 17), "#c9a27a");
-    d.disc(-2, 24, 3.7, "#d9a15e"); d.disc(1.8, 20.2, 2.8, "#d9a15e");       // lower and upper bout
-    d.disc(-2.6, 24.8, 2.2, "#e6b574");                                      // the light on the wood
-    d.rect(0, 21, 2, 2, "#5a3a22");                                          // sound hole
-    d.line(-4, 24, -2, 26, "#7a4a2a");                                       // bridge
-    d.line(-2, 24, 3, 19, "#fbeed5");                                        // strings over the body
-    d.rect(20, 1, 3, 3, "#8a5530"); d.put(21, 0, "#8a5530");                 // headstock and pegs
-    d.put(23, 1, "#fbeed5"); d.put(22, 4, "#fbeed5"); d.put(19, 1, "#fbeed5");
-  });
+// 하와's guitar, drawn level like the teddy (its outline taken from the anime, 24 px long at her size): a round lower bout, a smaller upper bout,
+// a dark sound hole with the strings over it, the bridge, a short neck and a headstock with pegs
+const GUITAR = [
+  "...KKKK.................",
+  ".KKTTTTKK..KKKK.........",
+  "KTTTTTTTTKKTTTTK....P.P.",
+  "KTTTTTTTTTTTTTTTK..KKKKK",
+  "KTTRTTTHHTTTTTTTKKKNNNNK",
+  "KTTRSSHHHHSSSSSSFFFNDDNK",
+  "KTTRSSHHHHSSSSSSFFFNDDNK",
+  "KTTRTTTHHTTTTTTTKKKNNNNK",
+  "KTLTTTTTTTTTTTTTK..KKKKK",
+  "KTLLTTTTTKKTTTTK....P.P.",
+  ".KKLLTTKK..KKKK.........",
+  "...KKKK.................",
+];
+const GUITAR_PAL = { K: OUT, T: "#d9a15e", L: "#eaba7a", H: "#4a2e1c", R: "#7a4a2a", S: "#b07640", F: "#6e4228", N: "#be7d46", D: "#6e4228", P: "#fbeed5" };
+const GUITAR_BACK = { deg: -40, x: 12, y: 19 };          // slung on her back: turned up to her right shoulder, centred here on her
+/* the guitar just turned: the level drawing rotated as a picture. Each pixel looks
+   at 4x4 points of the turned drawing and takes the colour most of them land on (the outline and the small dark parts
+   count a little extra, so the edge stays joined and the sound hole doesn't vanish). Kept per angle */
+const GUITAR_TURNED = {};
+function guitarTurned(deg) {
+  if (GUITAR_TURNED[deg]) return GUITAR_TURNED[deg];
+  const src = GUITAR.map(r => [...r].map(ch => GUITAR_PAL[ch] || null));
+  const h = src.length, w = src[0].length, D = Math.ceil(Math.hypot(w, h)) + 2, S = 4;
+  const r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
+  const heavy = col => col === OUT ? 1.5 : col === GUITAR_PAL.H || col === GUITAR_PAL.R || col === GUITAR_PAL.D ? 1.6 : 1;
+  const cv = document.createElement("canvas"); cv.width = D; cv.height = D;
+  const g = cv.getContext("2d");
+  for (let y = 0; y < D; y++) for (let x = 0; x < D; x++) {
+    const votes = new Map(); let n = 0;
+    for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
+      const X = x + (i + .5) / S - D / 2, Y = y + (j + .5) / S - D / 2;
+      const u = Math.floor(c * X + s * Y + w / 2), v = Math.floor(-s * X + c * Y + h / 2), col = src[v] && src[v][u];
+      if (col) { votes.set(col, (votes.get(col) || 0) + heavy(col)); n++; }
+    }
+    if (n * 8 < S * S * 3) continue;
+    let best = null, bv = 0; for (const [col, k] of votes) if (k > bv) { best = col; bv = k; }
+    g.fillStyle = best; g.fillRect(x, y, 1, 1);
+  }
+  return (GUITAR_TURNED[deg] = cv);
 }
+function drawGuitar(g, x, y, deg) { const c = guitarTurned(deg); g.drawImage(c, Math.round(x - c.width / 2), Math.round(y - c.height / 2)); }
+function guitarArt() { return pixmap(d => d.grid(GUITAR, GUITAR_PAL, 0, 8), false); }
 const ITEM_ART = {
   mochi: {
     tears: { layer: "front", auto: "tears", build: () => pixmap(d => {          // build = the inventory icon; in play it is placed per frame
@@ -152,8 +183,6 @@ const ITEM_ART = {
   },
   sora: {
     beanie: { layer: "front", auto: "bangs", build: () => bangsIcon("sora") },   // her bangs restyled (item id kept for saves)
-    // 하와's guitar, slung on her back: a warm wooden body with a round lower and a smaller upper bout, a dark sound hole,
-    // strings, and a long neck reaching up past her shoulder to a headstock with pegs
     guitar: { layer: "back", auto: "guitar", build: () => guitarArt() },
     pajama: { layer: "front", auto: "pajama", under: true, build: () => onesieIcon("sora") },
     camera: { layer: "front", build: () => pixmap(d => {
@@ -310,6 +339,7 @@ ITEM_AUTO.carry = (grid, pet) => {
 function weaponMode(img) {
   const act = typeof pet !== "undefined" ? pet.act : "idle";
   if (typeof wprop !== "undefined" && wprop.state !== "held" && typeof G !== "undefined" && WEAPON_OF[G.pet]) return "away";   // set down in the world (pet.js)
+  if (act === "strum") return "away";                       // both paws are on her guitar
   const m = /^mochi-hop:(\d+)$/.exec((img && img.key) || "");
   if (m && LIFT[+m[1]]) return "lift";
   return "held";
@@ -426,24 +456,26 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
     const a = art[id];
     if (equip[id] && a && a.auto === "guitar") {           // slung on her back: behind her from the front, over her back from behind
       if (!img || !img.grid) continue;
+      if (img.play) {                                     // playing it: where hers is on this frame, her paws back over it
+        if (layer === "front") { drawGuitar(g, img.play.x, img.play.y, img.play.ga); g.drawImage(img.play.paws, 0, 0); }
+        continue;
+      }
       const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base && 20 >= INFO[petId].dup ? dy : 0;
       const cache = base ? (ITEM_CACHE["base:" + petId] || (ITEM_CACHE["base:" + petId] = {})) : (img._auto || (img._auto = {}));
       if (!("wo" in cache)) cache.wo = weaponOffset(grid, petId);
-      const o = cache.wo, it = itemImg(petId, id);
-      if (o && layer === "back") g.drawImage(it.img, it.x + o.dx, it.y + o.dy + shift);
+      const o = cache.wo;
+      if (o && layer === "back") drawGuitar(g, GUITAR_BACK.x + o.dx, GUITAR_BACK.y + o.dy + shift, GUITAR_BACK.deg);
       if (o && layer === "front") {                       // its strap across her chest, from her right shoulder to her left hip
         const row = y => { const r = grid[y] || ""; const q = r.search(/[^B]/); return q < 0 ? null : [q, r.length - 1 - [...r].reverse().join("").search(/[^B]/)]; };
         const f = faceOf(grid), sy = Math.round(f.cy + 4), hy = Math.round(f.cy + 10), a1 = row(sy), a2 = row(hy);
         if (a1 && a2) for (const [x, y, c] of pixList("gstrap:" + [a1[1], sy, a2[0], hy], d => d.line(a1[1], sy, a2[0], hy, "#9a6a3e"))) { g.fillStyle = c; g.fillRect(x, y + shift, 1, 1); }
       }
-      if (!o && layer === "front") {
+      if (!o && layer === "front") {                      // from behind it lies over her back, mirrored about her middle
         let x0 = 1e9, x1 = -1, bottom = grid.length - 1;
         grid.forEach(r => { const q = r.search(/[^B]/); if (q >= 0) { x0 = Math.min(x0, q); x1 = Math.max(x1, r.length - 1 - [...r].reverse().join("").search(/[^B]/)); } });
         while (bottom > 0 && !/[^B]/.test(grid[bottom])) bottom--;
         const cx = (x0 + x1) / 2, oy = bottom - (SPRITES[petId].length - 1);
-        g.save(); g.translate(Math.round(cx * 2), 0); g.scale(-1, 1);              // mirrored about her middle
-        g.drawImage(it.img, it.x + Math.round(cx - 14), it.y + oy);
-        g.restore();
+        drawGuitar(g, Math.round(cx * 2) - (GUITAR_BACK.x + Math.round(cx - 14)), GUITAR_BACK.y + oy, 180 - GUITAR_BACK.deg);
       }
       continue;
     }
