@@ -889,19 +889,27 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}, stage = "all") {
     const G7 = 7, flatA = Math.atan2(-6, 44);
     const tgt = hand ? { x: hand[0], y: hand[1], a: -2.3 + (hand[1] - 17) * 0.2 }
                      : { x: mid + o.dx + Math.cos(flatA) * (G7 - mid), y: arm + 1.5 + o.dy + Math.sin(flatA) * (G7 - mid), a: flatA + weaponSway() };
+    // eased on the screen, not in the frame's own pixels: the jump's frames are drawn from different origins (her feet
+    // off the ground, squashed), so in-frame numbers would make the pole lag off her body. Its grip stays close on her
+    // paw; its tilt swings after it on a loose spring (a little overshoot, then it settles)
+    const tr = g.getTransform(), fx = tr.a < 0 ? -1 : 1, ox = (g.worldX || 0) + tr.e, oy = (g.worldY || 0) + tr.f;
+    const TX = ox + fx * tgt.x, TY = oy + tgt.y + shift;
     const now = performance.now(), st = NORI_JUMP;
-    if (now - st.t > 300) Object.assign(st, tgt);
+    if (now - st.t > 300 || st.fx !== fx) Object.assign(st, { X: TX, Y: TY, a: tgt.a, va: 0, fx });
     else {
-      const kp = 1 - Math.exp(-(now - st.t) / 45), ka = 1 - Math.exp(-(now - st.t) / 95);
-      st.x += (tgt.x - st.x) * kp; st.y += (tgt.y - st.y) * kp; st.a += (tgt.a - st.a) * ka;
+      let left = Math.min(0.05, (now - st.t) / 1000);
+      const kp = 1 - Math.exp(-left / 0.018);
+      st.X += (TX - st.X) * kp; st.Y += (TY - st.Y) * kp;
+      for (; left > 0; left -= 0.004) { const h = Math.min(0.004, left); st.va += (520 * (tgt.a - st.a) - 30 * st.va) * h; st.a += st.va * h; }
     }
     st.t = now;
-    const f = rubberStaff(rubberBend(screenY(g) + st.y), null, true), row = ANCHOR.nori.arm + 1.5;
-    g.save(); g.translate(Math.round(st.x), Math.round(st.y) + shift); g.rotate(st.a);
+    const x = (st.X - ox) * fx, y = st.Y - oy;
+    const f = rubberStaff(rubberBend(oy + y), null, true), row = ANCHOR.nori.arm + 1.5;
+    g.save(); g.translate(Math.round(x), Math.round(y)); g.rotate(st.a);
     g.drawImage(f.img, f.x - G7, f.y - row);
     g.restore();
     // her paws: the left one always at its grip; the right one on it too while it is level in front of her
-    const along = d => [st.x + Math.cos(st.a) * d, st.y + shift + Math.sin(st.a) * d];
+    const along = d => [x + Math.cos(st.a) * d, y + Math.sin(st.a) * d];
     drawPaws(g, petId, equip, Math.abs(st.a - flatA) < 0.35 && !one ? [along(0), along(15)] : [along(0)]);
     return;
   }
