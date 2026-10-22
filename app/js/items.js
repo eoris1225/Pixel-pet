@@ -678,6 +678,17 @@ function puddingPop() {
   if (PUDL.r > 0.6) { PUDL.r = 0.6; PUDL.v = -PUDL.v * 0.3; }      // it lands back on the glass with a little bounce
   return Math.round(Math.max(-7, PUDL.r));
 }
+// when she turns round, her pudding does not jump to her other side: it is swung across in front of her (a short
+// eased slide with a little lift), from where it was on the screen to where it now is
+const PUDS = { flip: null, sx: 0, off: 0, t0: 0, t: 0, cur: 0 };
+function puddingSwap(g, img, px) {
+  if (px.cx === undefined) px.cx = px.length ? px.reduce((m, p) => m + p[0], 0) / px.length : 0;
+  const flip = g.getTransform().a < 0, w = img.width, sx = (g.worldX || 0) + SPRITE_PAD + (flip ? w - px.cx : px.cx), now = performance.now();
+  if (PUDS.flip !== null && flip !== PUDS.flip && now - PUDS.t > 0 && now - PUDS.t < 300) { PUDS.off = PUDS.sx + PUDS.cur - sx; PUDS.t0 = now; }
+  const q = Math.min(1, (now - PUDS.t0) / 240), e = 1 - (1 - q) * (1 - q) * (1 - q), cur = PUDS.off * (1 - e);
+  Object.assign(PUDS, { flip, sx, t: now, cur });
+  return { x: Math.round(cur * (flip ? -1 : 1)), y: -Math.round(Math.sin(e * Math.PI) * 3 * (Math.abs(PUDS.off) > 4 ? 1 : 0)) };
+}
 const CAMF = { r: 0, v: 0, y: null, t: 0 };
 function cameraFloat() {                                        // (on how fast she really falls, in small even steps: smooth)
   const now = performance.now(); let dt = Math.min(0.05, (now - (CAMF.t || now)) / 1000); CAMF.t = now;
@@ -1028,6 +1039,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       const each = a.auto === "pajama";
       const lift = a.auto === "camera" && !lie && typeof pet !== "undefined" && pose === pet._pose ? cameraFloat() : 0;   // light, it floats a little
       const wob = a.auto === "pudding" && typeof pet !== "undefined" && pose === pet._pose ? puddingWobble(g, cache, grid) : null;   // it wobbles
+      const swap = a.auto === "pudding" && typeof pet !== "undefined" && pose === pet._pose ? puddingSwap(g, img, px) : null;   // turning round
       const ptop = wob ? px.reduce((m, p) => Math.min(m, p[1]), 1e9) : 0;
       const body = equip.pajama && typeof PAJAMA !== "undefined" ? PAJAMA[petId].main : PET[petId].pal[PET[petId].body];   // her paws: her own colour, or her onesie's
       // on the base pose the onesie is laid on the frame as it is drawn: ears flicked sideways, feet stepping, a row added
@@ -1039,10 +1051,10 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       const keepSide = (a.auto === "carry" && base || px.noMirror === true) && g.getTransform().a < 0, fw = (grid[0] || "").length - 1;
       for (const [xs, y, c] of px) {
         const wr = wob && p0(c) ? y - ptop : 9, wk = wr <= 2 ? 1 : wr === 3 ? 0.5 : 0;   // the custard's top swings, its foot less
-        const x0 = (keepSide ? fw - xs : xs) + (wk ? Math.round(wob.x * wob.flip * wk) : 0), x = x0 + (each && y < tip ? ear : 0);
+        const x0 = (keepSide ? fw - xs : xs) + (wk ? Math.round(wob.x * wob.flip * wk) : 0) + (swap ? swap.x : 0), x = x0 + (each && y < tip ? ear : 0);
         // a stretch doubles the row at dup: the onesie covers both copies
         if (each && y === dup && shift > 0 && c !== "clear" && on(x, y)) { g.fillStyle = c === "body" ? body : c === "outline" ? OUT : c; g.fillRect(x, y, 1, 1); }
-        const yy = y + (each ? (y >= dup ? shift : 0) : whole) + (lift && c !== CAMERA_PAL.s && c !== CAMERA_PAL.t ? lift : 0) + (wk === 1 && wr <= 1 ? wob.y : 0) + (wob && p0(c) && wr <= 3 ? wob.pop : 0);
+        const yy = y + (each ? (y >= dup ? shift : 0) : whole) + (lift && c !== CAMERA_PAL.s && c !== CAMERA_PAL.t ? lift : 0) + (wk === 1 && wr <= 1 ? wob.y : 0) + (wob && p0(c) && wr <= 3 ? wob.pop : 0) + (swap ? swap.y : 0);
         if (each && !on(x, yy)) continue;
         if (c === "clear") { g.clearRect(x, yy, 1, 1); continue; }   // her arm, now round the bear
         g.fillStyle = c === "body" ? body : c === "outline" ? OUT : c; g.fillRect(x, yy, 1, 1);
