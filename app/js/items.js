@@ -129,7 +129,7 @@ const bagFace = d => d.grid(POCHETTE, { P: "#f7a8bd", p: "#ec8fab", W: "#fffaf0"
 const GUITAR = [
   "....KKKK..................",
   "..KKTTTTKK................",
-  ".KTTTTTTTTK.KKKK..........",
+  ".KTTTTTTTTK.KKKK......P.P.",
   ".KTTTTTTTTTKTTTTKK...KKKKK",
   "KTTTTTTHHTTTTTTTTTKKKKNNNK",
   "KTRSSSHHHHSSSSSSSSFFFNDDNK",
@@ -137,14 +137,15 @@ const GUITAR = [
   "KTRSSSHHHHSSSSSSSSFFFNDDNK",
   "KTTTTTTHHTTTTTTTTTKKKKNNNK",
   ".KLTTTTTTTTKTTTTKK...KKKKK",
-  ".KLLTTTTTTK.KKKK..........",
+  ".KLLTTTTTTK.KKKK......P.P.",
   "..KKLLTTKK................",
   "....KKKK..................",
 ];
-const GUITAR_PAL = { K: OUT, T: "#d9a15e", L: "#eaba7a", H: "#4a2e1c", R: "#7a4a2a", S: "#b07640", F: "#6e4228", N: "#be7d46", D: "#6e4228" };
+const GUITAR_PAL = { K: OUT, T: "#d9a15e", L: "#eaba7a", H: "#4a2e1c", R: "#7a4a2a", S: "#b07640", F: "#6e4228", N: "#be7d46", D: "#6e4228", P: "#fbeed5" };   // P: the white tuning pegs
 const STRUM_FEET = ["KWKWK", "KWKWK", ".K.K."];          // her two thin legs hanging down; the guitar hides their tops
 const GUITAR_REST = -6;                                  // lying on the grass, nearly flat
-const GUITAR_BACK = { deg: -40, x: 12, foot: 28 };       // slung on her back: turned up to her right shoulder, no lower than her feet
+const GUITAR_BACK = { deg: -20, x: 15, foot: 28 };       // slung on her back: its body out by her left foot, its head up past her right
+                                                          // cheek, never lower than her feet
 /* the guitar just turned, the way pixel art is rotated (RotSprite): the level drawing is blown up 8x with Scale2x, which
    rounds its stair-steps into smooth lines, turned, and each pixel then takes the colour at its own middle. Kept per angle */
 function scale2x(src) {
@@ -224,6 +225,8 @@ function guitarSway(x, y, deg) {
   }
   return { x: Math.round(GSW.s.x), y: Math.round(GSW.s.y), deg: Math.round(GSW.s.deg) };
 }
+// the lowest row of her on a frame (her soles): what she carries never hangs below it
+function soles(grid) { let y = grid.length - 1; while (y > 0 && !/[^B]/.test(grid[y])) y--; return y; }
 function drawGuitar(g, x, y, deg) { const c = guitarTurned(deg); g.drawImage(c, Math.round(x - c.width / 2), Math.round(y - c.height / 2)); }
 function guitarArt() { return pixmap(d => d.grid(GUITAR, GUITAR_PAL, 0, 8), false); }
 const ITEM_ART = {
@@ -543,7 +546,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       const o = cache.go;
       if (o && layer === "back") {                         // it hangs on her loosely: it follows her a moment late and sways as she moves
         const s = guitarSway(GUITAR_BACK.x + o.dx, GUITAR_BACK.foot - guitarDrop(GUITAR_BACK.deg) + o.dy + shift, GUITAR_BACK.deg);
-        drawGuitar(g, s.x, s.y, s.deg);
+        drawGuitar(g, s.x, Math.min(s.y, soles(grid) + shift - guitarDrop(s.deg)), s.deg);
       }
       if (o && layer === "front") {                       // its strap across her chest, from her right shoulder to her left hip
         const row = y => { const r = grid[y] || ""; const q = r.search(/[^B]/); return q < 0 ? null : [q, r.length - 1 - [...r].reverse().join("").search(/[^B]/)]; };
@@ -556,7 +559,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
         while (bottom > 0 && !/[^B]/.test(grid[bottom])) bottom--;
         const cx = (x0 + x1) / 2, oy = bottom - (SPRITES[petId].length - 1);
         const s = guitarSway(Math.round(cx * 2) - (GUITAR_BACK.x + Math.round(cx - 14)), GUITAR_BACK.foot - guitarDrop(180 - GUITAR_BACK.deg) + oy, 180 - GUITAR_BACK.deg);
-        drawGuitar(g, s.x, s.y, s.deg);
+        drawGuitar(g, s.x, Math.min(s.y, soles(grid) - guitarDrop(s.deg)), s.deg);
       }
       continue;
     }
