@@ -509,7 +509,7 @@ function petPose(now) {
     }
     case "held": {                                       // picked up: dangling from where she is held, swaying a little
       const twitch = t % 2600 > 2450, breath = Math.floor(t / 600) % 2;
-      a.img = heldImg(t, twitch ? 2 : breath); a.dx = Math.round(Math.sin(t / 260) * 0.8);
+      a.img = heldImg(t, twitch ? 2 : breath); a.flip = pet.dir > 0; a.dx = Math.round(Math.sin(t / 260) * 0.8);
       if (t < 320) { const q = t / 320; a.sy = 1 + 0.2 * Math.cos(q * Math.PI * 1.5) * (1 - q); a.sx = 2 - a.sy; }   // boing as she is picked up
       a.yoff = Math.round(pet.hy - FEET + Math.sin(t / 170));
       break;
@@ -521,7 +521,7 @@ function petPose(now) {
         const f = pet.vy < 0 ? 1 : 2; a.img = SORAHOP_IMG[f]; a.flip = pet.dir > 0; a.yoff = SORAHOP_GAP[f];
         if (t < 260) { const q = t / 260; a.sy = 1 + 0.16 * Math.cos(q * Math.PI * 1.5) * (1 - q); a.sx = 2 - a.sy; }
       }
-      else { a.img = heldImg(t, 0); a.dx = Math.round(Math.sin(t / 120) * 0.8); }   // let go, she drops just as she hung
+      else { a.img = heldImg(t, 0); a.flip = pet.dir > 0; a.dx = Math.round(Math.sin(t / 120) * 0.8); }   // let go, she drops just as she hung
       a.yoff = (a.yoff || 0) + Math.round(pet.hy - FEET);
       break;
     }
@@ -833,7 +833,6 @@ function petUpdate(now, dt) {
     const tx = Math.max(14, Math.min(W - 14, press.x));
     const ty = Math.max(TOP_Y + h + 4, Math.min(FEET, press.y + pet.grabDy));
     const k = Math.min(1, dt / 1000 * 14);
-    if (Math.abs(tx - pet.x) > 0.6) pet.dir = Math.sign(tx - pet.x);
     pet.x += (tx - pet.x) * k; pet.hy += (ty - pet.hy) * k;
   }
   if (pet.act === "fall") {
