@@ -729,17 +729,25 @@ function updateLicence(now, dt) {
   if (lprop.state === "on" && began && pet.act === "fall" && FEET - pet.hy >= 14) {      // let go up high: off it comes
     const fh = foreheadAt();
     Object.assign(lprop, { state: "fly", x: fh.x, y: fh.y, z: pet.z, t0: now, vx: (pet.vx || 0) * 0.6 + lrnd(-90, 90), vy: -lrnd(110, 210),
-      spin: lrnd(6, 12) * (Math.random() < 0.5 ? -1 : 1), ang: lrnd(0, 6.3), sway: lrnd(12, 36), swf: lrnd(3.5, 7.5), sph: lrnd(0, 6.3),
-      fall: lrnd(32, 60), gust: 0, gustT: now + lrnd(250, 700), tryAt: 0 });
+      ang: lrnd(-0.9, 0.9), w: lrnd(-4, 4), wind: 0, gust: 0, gustT: now + lrnd(200, 600), tryAt: 0 });
   }
   if (lprop.state === "fly") {
-    const t = (now - lprop.t0) / 1000, edgeOn = 1 - Math.abs(Math.cos(lprop.ang));
-    if (now > lprop.gustT) { lprop.gust = lrnd(-55, 55); lprop.gustT = now + lrnd(300, 900); }   // a puff of wind now and then
-    lprop.ang += lprop.spin * s * (0.6 + edgeOn);
-    lprop.vy = Math.min(lprop.vy + 400 * s, lprop.fall * (1 + edgeOn * 0.9));                      // edge-on it slips down faster
-    lprop.vx += ((lprop.gust - lprop.vx) * 1.6) * s;
-    lprop.x += (lprop.vx + Math.sin(t * lprop.swf + lprop.sph) * lprop.sway) * s; lprop.y += lprop.vy * s;
-    if (lprop.x < 8 || lprop.x > W - 8) { lprop.vx = -lprop.vx; lprop.gust = -lprop.gust; lprop.x = Math.max(8, Math.min(W - 8, lprop.x)); }
+    // a falling leaf: the card is a flat plate. Air hardly holds it moving along its face but strongly across it, so it
+    // glides and swoops; the air also turns it, so it rocks and tumbles; and the wind comes in uneven puffs. Worked
+    // out in small steps so the path is smooth, and different every time
+    if (now > lprop.gustT) { lprop.gust = lrnd(-45, 45); lprop.gustT = now + lrnd(300, 1000); }
+    let left = s;
+    while (left > 0) {
+      const h = Math.min(left, 0.004); left -= h;
+      lprop.wind += (lprop.gust - lprop.wind) * 1.5 * h;
+      const rx = lprop.vx - lprop.wind, ry = lprop.vy, tx = Math.cos(lprop.ang), ty = Math.sin(lprop.ang);
+      const vt = rx * tx + ry * ty, vn = -rx * ty + ry * tx;               // along its face, and across it
+      lprop.vx += (-0.3 * vt * tx + 6 * vn * ty) * h;
+      lprop.vy += (300 - 0.3 * vt * ty - 6 * vn * tx) * h;
+      lprop.w += (-40 * Math.sin(lprop.ang) - 0.05 * lprop.w) * h; lprop.ang += lprop.w * h;   // it rocks like a pendulum, so it swoops one way, then back
+      lprop.x += lprop.vx * h; lprop.y += lprop.vy * h;
+    }
+    if (lprop.x < 8 || lprop.x > W - 8) { lprop.vx = -lprop.vx * 0.5; lprop.gust = -lprop.gust; lprop.x = Math.max(8, Math.min(W - 8, lprop.x)); }
     // she chases it: runs to under where it is (a little ahead of it), back and forth as it sways
     const free = ["idle", "walk"].includes(pet.act) && !G.sleeping && !G.wantSleep;
     if (free) pet.nextThink = Math.max(pet.nextThink, now + 600);             // her mind is on the card
@@ -779,7 +787,7 @@ function drawLicence(front) {
   const P = licencePics(), x = Math.round(lprop.x), y = Math.round(lprop.y) - Math.round(lprop.z), now = performance.now();
   const put = (c, dy = 0) => ctx.drawImage(c, x - (c.width >> 1), y - (c.height >> 1) + dy);
   if (lprop.state === "fly") {                      // turning over: face on, narrower, edge-on, its back, and round again
-    const c = Math.cos(lprop.ang), a = Math.abs(c), set = c >= 0 ? P.face : P.back;
+    const c = Math.cos(lprop.ang * 2.4), a = Math.abs(c), set = c >= 0 ? P.face : P.back;   // (its rocking shown as turning it over)
     put(a > 0.85 ? set[0] : a > 0.55 ? set[1] : a > 0.2 ? set[2] : P.edge);
   } else if (lprop.state === "ground") {            // lying flat on the grass, seen from above
     groundShadow(ctx, x, y + 1, P.flat.width - 2, 1); ctx.drawImage(P.flat, x - (P.flat.width >> 1), y - P.flat.height + 1);
