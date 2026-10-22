@@ -484,6 +484,7 @@ function weaponSway() {
 // her little paws on the handle wherever she is gripping it (the fork only), in her own colour or her onesie's
 // a paw raised by her head, waving (욱's jump): the outermost pixel of her on her left, from her ears down to her eyes,
 // when it sticks right out to the frame's edge
+const NORI_JUMP = { t: 0 };
 function waveHand(grid) {
   const f = faceOf(grid); if (!f) return null;
   const edge = y => (grid[y] || "").search(/[^B]/);
@@ -540,19 +541,26 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
     spinPole(g, equip, cx, cy, t, len, !!o);
     return;
   }
-  if (petId === "nori" && typeof pet !== "undefined" && pet.act === "pet" && pose === pet._pose && layer === "front") {
+  if (petId === "nori" && typeof pet !== "undefined" && pet.act === "pet" && pose === pet._pose && o) {
     // 욱's jump: when she has a paw up by her head, waving, the pole goes up with it in that one paw, held near its end,
-    // reaching up and out and swaying as she waves (and bending, being rubber)
+    // reaching up and out and swaying as she waves (and bending, being rubber); otherwise in both paws as usual. Where it
+    // is, its tilt and where she grips it all ease from one to the other, so it never jumps
+    if (layer !== "front") return;
     const hand = cache.wave !== undefined ? cache.wave : (cache.wave = waveHand(grid));
-    if (hand) {
-      const sm = smoothHold("wave" + pet.t0, hand[0], hand[1], 0.8 + (hand[1] - 17) * 0.25) || { x: hand[0], y: hand[1], a: 0.8 };
-      const f = rubberStaff(rubberBend(g.getTransform().f + sm.y), null, true), grip = 29, row = ANCHOR.nori.arm + 1.5;
-      g.save(); g.translate(Math.round(sm.x), Math.round(sm.y)); g.rotate(sm.a);
-      g.drawImage(f.img, f.x - grip, f.y - row);
-      g.restore();
-      drawPaws(g, petId, equip, [[sm.x, sm.y]]);
-      return;
-    }
+    const tgt = hand ? { x: hand[0], y: hand[1], a: 0.8 + (hand[1] - 17) * 0.25, grip: 29 }
+                     : { x: mid + o.dx, y: arm + 1.5 + o.dy, a: Math.atan2(-6, 44), grip: mid };
+    const now = performance.now(), st = NORI_JUMP;
+    if (st.key !== pet.t0 || now - st.t > 300) Object.assign(st, tgt, { key: pet.t0 });
+    else { const k = 1 - Math.exp(-(now - st.t) / 70); for (const q of ["x", "y", "a", "grip"]) st[q] += (tgt[q] - st[q]) * k; }
+    st.t = now;
+    const f = rubberStaff(rubberBend(g.getTransform().f + st.y), null, true), row = ANCHOR.nori.arm + 1.5;
+    g.save(); g.translate(Math.round(st.x), Math.round(st.y) + shift); g.rotate(st.a);
+    g.drawImage(f.img, f.x - Math.round(st.grip), f.y - row);
+    g.restore();
+    // her paws where she holds it: both, either side of her grip, until it is up in the one
+    const along = d => [st.x + Math.cos(st.a) * d, st.y + shift + Math.sin(st.a) * d];
+    drawPaws(g, petId, equip, st.grip > 21 ? [along(0)] : [along(7 - (st.grip - mid)), along(-7.5 - (st.grip - mid))]);
+    return;
   }
   if (!base && typeof pet !== "undefined" && pet.act === "dance") {   // dancing: held across her belly, tipped to the beat
     if (layer !== "front") return;
