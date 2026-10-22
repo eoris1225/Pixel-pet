@@ -70,7 +70,7 @@ function headHat(p, main, rib) {
 // towards the way she faces, her two little hands on the handle.
 const PRONG = [[0, 0], [1, -1], [2, -2], [3, -3], [4, -4], [5, -4], [6, -5], [7, -5], [8, -5], [9, -5], [10, -5], [11, -6], [12, -7]];
 const HAND = [".KK.", "KWWK", ".KK."];                   // a little paw over the handle
-function fork(p, main, light, flat = false, paw = PET[p].pal[PET[p].body]) {
+function fork(p, main, light, flat = false, paw = PET[p].pal[PET[p].body], hands = [7, 22]) {
   const y = ANCHOR[p].arm, x0 = -6, x1 = 26, y0 = flat ? y : y + 4, y1 = flat ? y : y - 3;
   const at = x => Math.round(y0 + (x - x0) * (y1 - y0) / (x1 - x0));
   return pixmap(d => {
@@ -94,14 +94,14 @@ function fork(p, main, light, flat = false, paw = PET[p].pal[PET[p].body]) {
       const [x, y] = k.split(",").map(Number);
       for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!body.has((x + dx) + "," + (y + dy))) d.put(x + dx, y + dy, OUT);
     }
-    if (!flat) for (const hx2 of [7, 22]) d.grid(HAND, { K: OUT, W: paw }, hx2 - 1, at(hx2) - 1);   // where her own hands are
+    if (!flat) for (const hx2 of hands) d.grid(HAND, { K: OUT, W: paw }, hx2 - 1, at(hx2) - 1);   // where her own hands are
   }, false);
 }
 
 // 욱: a long yellow staff with white caps at both ends, tilted a little, with the rabbit she doodled on it (a dark speck)
 // 욱's rabbit pole is rubber: it bends. bend = how far its two ends sit below a straight pole (minus: above), in pixels;
 // paw = the colour of her two paws gripping it (none when it is flat on the grass or behind her back)
-function staff(p, flat = false, bend = 0, paw = null, twist = 0) {
+function staff(p, flat = false, bend = 0, paw = null, twist = 0, hands = [7, 22]) {
   const y = ANCHOR[p].arm + 1, x0 = -8, x1 = 36, rise = flat ? 0 : 6, mid = 14, half = 22;
   // twist: spun fast, its two ends trail behind the turn, one up and one down (an S)
   const at = x => y + Math.round(rise / 2 - (x - x0) * rise / (x1 - x0) + bend * ((x - mid) / half) ** 2 + twist * ((x - mid) / half) ** 3);
@@ -114,7 +114,7 @@ function staff(p, flat = false, bend = 0, paw = null, twist = 0) {
     }
     const dx = x0 + 9, dy = at(dx) + 1;
     d.put(dx, dy, "#5a4636"); d.put(dx + 1, dy, "#9a7a3e");                 // the doodle
-    if (paw) for (const hx of [7, 22]) d.grid(HAND, { K: OUT, W: paw }, hx - 1, at(hx));   // where her own hands are
+    if (paw) for (const hx of hands) d.grid(HAND, { K: OUT, W: paw }, hx - 1, at(hx));   // where her own hands are
   });
 }
 // the pole's rubber: its ends lag behind her as she moves and wobble back, around a slight sag
@@ -136,9 +136,9 @@ function rubberBend(holdY) {
   RUBBER.t = now;
   return Math.round(RUBBER.b);
 }
-function rubberStaff(bend, paw, flat = false, twist = 0) {
-  const k = "rub:" + bend + ":" + paw + ":" + flat + ":" + twist;
-  return ITEM_CACHE[k] || (ITEM_CACHE[k] = staff("nori", flat, bend, paw, twist));
+function rubberStaff(bend, paw, flat = false, twist = 0, one = false) {
+  const k = "rub:" + bend + ":" + paw + ":" + flat + ":" + twist + ":" + one;
+  return ITEM_CACHE[k] || (ITEM_CACHE[k] = staff("nori", flat, bend, paw, twist, one ? [7] : [7, 22]));
 }
 // spinning it round (during her spin and twirl, like a knight twirling a spear): it whirls round her paws, speeding up
 // and slowing down to stop level again; spun fast its rubber ends trail in an S, and white swooshes follow them
@@ -365,8 +365,22 @@ function itemImg(pet, id) {
 const WEAPON_OF = { mochi: "fork", sora: "trident", nori: "pencil" };
 const WEAPON_FLAT = { mochi: () => fork("mochi", "#f59ab6", "#ffd0de", true), sora: () => fork("sora", "#4f9fe0", "#a9d6f7", true), nori: () => staff("nori", true) };
 // in her onesie the paws on the handle are the onesie's colour
+const WEAPON_ONE = { mochi: paw => fork("mochi", "#f59ab6", "#ffd0de", false, paw, [22]) };   // held in the one paw she has free (치카: the bear is in her other arm)
 const WEAPON_PJ = { mochi: () => fork("mochi", "#f59ab6", "#ffd0de", false, PAJAMA.mochi.main), sora: () => fork("sora", "#4f9fe0", "#a9d6f7", false, PAJAMA.sora.main) };
 const WEAPON_MID = { mochi: 10, sora: 10, nori: 14 };                       // the middle of the handle, where it turns
+// 치카 with her fork too: the bear hugged in one arm against her side (away from her pochette); her other paw keeps the fork
+function teddyOneArm(grid) {
+  const eyes = findEyes(grid);
+  if (!eyes.length) return [];
+  const cx = eyes.length === 2 ? (eyes[0].cx + eyes[1].cx) / 2 : eyes[0].cx, mid = grid[0].length / 2;
+  const bottom = Math.max(...eyes.map(e => e.y1)) + 15;
+  const x0 = Math.round(cx - (TEDDY[0].length - 1) / 2) - 7, y0 = bottom - TEDDY.length + 1, out = [];
+  out.push(...armOff(grid, y0 + 3, y0 + 7).filter(([x]) => x < mid));
+  TEDDY.forEach((row, y) => [...row].forEach((ch, x) => { if (TEDDY_PAL[ch]) out.push([x0 + x, y0 + y, TEDDY_PAL[ch]]); }));
+  const px = x0 - 1;
+  TEDDY_PAW.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== ".") out.push([px + x, y0 + 6 + y, ch === "K" ? TEDDY_PAL.K : "body"]); }));
+  return out;
+}
 // any little picture turned to an angle, pixel for pixel (the guitar's way: blown up smoothly, turned, sampled back)
 const TURNED = {};
 function turnedSprite(key, src, deg) {
@@ -382,24 +396,12 @@ function turnedSprite(key, src, deg) {
   }
   return (TURNED[k] = cv);
 }
-// Everything on at once: one pair of paws can only hold so much. Her Lv10 weapon needs both paws, so when they are
-// busy with something else she carries it slung across her back instead: 치카 while she hugs her bear, 욱 while she
-// holds up her pudding. (하와 keeps her trident in her paws; her camera then just hangs from her neck.)
-function weaponOnBack(petId, equip) {
+// Everything on at once: she has two paws, so she keeps her weapon in one (her left, at its grip end, so it still
+// swings and twirls as always) and uses the other for her other thing: 치카 hugs her bear in her left arm (the fork in her
+// right), 욱 holds up her pudding in her right paw (the pole in her left). (하와 keeps both paws on her trident; her camera then just hangs from her neck.)
+function weaponOneHand(petId, equip) {
   return petId === "mochi" && equip.teddy && (typeof teddyHugged !== "function" || teddyHugged())
       || petId === "nori" && equip.pudding;
-}
-// slung across her back, top end over her shoulder: behind her when she faces us, in front of her back when she turns away
-function drawWeaponOnBack(g, petId, layer, pose, img) {
-  const grid = !pose || !pose.img ? SPRITES[petId] : img.grid; if (!grid) return;
-  const o = weaponOffset(grid, petId);
-  if ((o ? "back" : "front") !== layer) return;
-  let x0 = 1e9, x1 = -1, y0 = -1, y1 = -1;
-  grid.forEach((r, y) => { const q = r.search(/[^B]/); if (q >= 0) { if (y0 < 0) y0 = y; x0 = Math.min(x0, q); x1 = Math.max(x1, r.length - 1 - [...r].reverse().join("").search(/[^B]/)); y1 = y; } });
-  if (x1 - x0 > (y1 - y0) * 1.15) return;                       // lying down: it is on the grass (pet.js)
-  const f = weaponFlat(petId).img, t = turnedSprite("back:" + petId, f, -33);
-  const cx = (x0 + x1) / 2 + (o ? o.dx : 0), cy = Math.min(y0 + (y1 - y0) * 0.62, y1 + 1 - t.height * 0.42);   // its low end no lower than her feet
-  g.drawImage(t, Math.round(cx - t.width / 2), Math.round(cy - t.height / 2));
 }
 function weaponFlat(pet) { const k = "flat:" + pet; return ITEM_CACHE[k] || (ITEM_CACHE[k] = WEAPON_FLAT[pet]()); }
 function weaponPixels(pet, id = WEAPON_OF[pet]) {
@@ -620,7 +622,9 @@ const PUDDING_PAL = { K: OUT, C: "#6b3b1c", Y: "#f7d276", y: "#e9b850", G: "#eef
 const PUDDING_COLS = new Set(Object.values(PUDDING_PAL)), p0 = c => PUDDING_COLS.has(c) && c !== PUDDING_PAL.G && c !== PUDDING_PAL.g;   // the pudding itself (not its glass, nor her paw)
 // 욱 holds it at her side in one little paw, as she holds her pole; it moves with her (from her face); side on, in the
 // paw on the side she faces; from behind or lying down it is out of sight
-ITEM_AUTO.pudding = (grid, pet) => {
+ITEM_AUTO.pudding = (grid, pet) => puddingAt(grid, pet, -1);
+// prefer: the paw she holds it in facing us (-1 her left / our left; 1 her right, when her pole is in her left)
+function puddingAt(grid, pet, prefer) {
   if (grid[0].length > 60) return [];
   const o = weaponOffset(grid, pet), f = faceOf(grid);
   if (!o || !f) return [];
@@ -630,11 +634,11 @@ ITEM_AUTO.pudding = (grid, pet) => {
   grid.forEach((r, y) => [...r].forEach((c, x) => { if (c !== "P" || y < f.cy - 4) return;
     const k = cheeks.find(q => q.pts.some(([a, e]) => Math.abs(a - x) <= 2 && Math.abs(e - y) <= 2)); if (k) k.pts.push([x, y]); else cheeks.push({ pts: [[x, y]] }); }));
   const profile = eyes.length < 2 && cheeks.filter(c => c.pts.length >= 2 && c.pts.length <= 14).length < 2;
-  const side = profile && f.cx > mid ? 1 : -1, at = (x, y) => (grid[y] && grid[y][x]) || "B";
+  const side = profile ? (f.cx > mid ? 1 : -1) : prefer, at = (x, y) => (grid[y] && grid[y][x]) || "B";
   const edge = y => { const r = grid[y] || "", q = r.search(/[^B]/); return q < 0 ? -1 : side < 0 ? q : r.length - 1 - [...r].reverse().join("").search(/[^B]/); };
   // her hand on this frame: a paw waved up by her head, else the end of her arm (the little stub of outline, arm and
   // its inner line at her side, lowest one), else where her arm would be
-  let hand = side < 0 ? waveHand(grid) : null;
+  let hand = side < 0 && prefer < 0 ? waveHand(grid) : null;
   // (only as low as her arms go, so it is never her foot; the top of the stub, a little raised, where her paw is)
   if (!hand) for (let y = Math.round(f.cy); y <= ANCHOR[pet].arm + 2 + o.dy && !hand; y++) { const e = edge(y); if (e >= 0 && at(e, y) === "K" && !"KB".includes(at(e - side, y)) && at(e - 2 * side, y) === "K") hand = [e, y]; }
   if (!hand) { const y = ANCHOR[pet].arm + o.dy; hand = [edge(y) + side, y]; }
@@ -642,7 +646,7 @@ ITEM_AUTO.pudding = (grid, pet) => {
   PUDDING.forEach((row, j) => [...row].forEach((ch, i) => { if (PUDDING_PAL[ch]) out.push([gx + i, gy + j, PUDDING_PAL[ch]]); }));
   HAND.forEach((row, j) => [...row].forEach((ch, i) => { if (ch !== ".") out.push([sx - 1 + i, hy - 1 + j, ch === "K" ? "outline" : "body"]); }));   // her paw round the stem
   return out;
-};
+}
 // 하와's camera is lighter than she is: when she drops it floats up a little against its strap (it cannot go further than
 // the strap lets it) and settles back on her when she lands. A small spring on how fast her face moves down the screen
 // the pudding wobbles: its top swings the other way when she moves sideways and bobs when she goes up or down, then
@@ -832,7 +836,7 @@ function findHands(grid) {
   return out;
 }
 function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
-  const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid;
+  const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, one = weaponOneHand(petId, equip);   // one: her other paw is busy
   const w = grid[0].length, h = grid.length, arm = ANCHOR[petId].arm, mode = weaponMode(img), mid = WEAPON_MID[petId];
   // breathing (squash / stretch) adds or drops a row low on her body: what she holds above it bobs with her, the ground does not
   const shift = base && arm >= INFO[petId].dup ? dy : 0;
@@ -874,7 +878,7 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
     g.restore();
     // her paws: the left one always at its grip; the right one on it too while it is level in front of her
     const along = d => [st.x + Math.cos(st.a) * d, st.y + shift + Math.sin(st.a) * d];
-    drawPaws(g, petId, equip, Math.abs(st.a - flatA) < 0.35 ? [along(0), along(15)] : [along(0)]);
+    drawPaws(g, petId, equip, Math.abs(st.a - flatA) < 0.35 && !one ? [along(0), along(15)] : [along(0)]);
     return;
   }
   if (!base && typeof pet !== "undefined" && pet.act === "dance") {   // dancing: held across her belly, tipped to the beat
@@ -891,7 +895,7 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
     g.save(); g.translate(Math.round(cx), Math.round(cy)); g.rotate(ang);
     g.drawImage(f.img, f.x - mid, f.y - arm);
     g.restore();
-    drawPaws(g, petId, equip, [-7, 8].map(d => [cx + Math.cos(ang) * d, cy + Math.sin(ang) * d]));
+    drawPaws(g, petId, equip, (one ? [petId === "mochi" ? 8 : -7] : [-7, 8]).map(d => [cx + Math.cos(ang) * d, cy + Math.sin(ang) * d]));
     return;
   }
   if (mode === "lift") {                                     // arms going up and down: from across her belly to over her head
@@ -903,13 +907,14 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
     g.save(); g.translate(Math.round(cx), Math.round(cy) + shift); g.rotate(ang);
     g.drawImage(f.img, f.x - mid, f.y - arm);
     g.restore();
-    drawPaws(g, petId, equip, [-8, 8].map(d => [cx + Math.cos(ang) * d, cy + shift + Math.sin(ang) * d]));   // both hands up on the handle
+    drawPaws(g, petId, equip, (one ? [petId === "mochi" ? 8 : -8] : [-8, 8]).map(d => [cx + Math.cos(ang) * d, cy + shift + Math.sin(ang) * d]));   // both hands up on the handle (or her left)
     return;
   }
   // in her hands: in front, or behind her (both long ends showing) while she faces away; swinging with what she does
   if (layer !== (o ? "front" : "back")) return;
   if (o) {                                                   // it is held in her own little paws: her side arms go
-    const off = cache.warm || (cache.warm = armOff(grid, arm + o.dy - 3, arm + o.dy + 1));
+    const off = one ? cache.warm1 || (cache.warm1 = armOff(grid, arm + o.dy - 3, arm + o.dy + 1).filter(([x]) => petId === "mochi" ? x > w / 2 : x < w / 2))   // (her other arm is busy)
+                    : cache.warm || (cache.warm = armOff(grid, arm + o.dy - 3, arm + o.dy + 1));
     for (const [x, y, c] of off) { if (c === "clear") g.clearRect(x, y + shift, 1, 1); else { g.fillStyle = OUT; g.fillRect(x, y + shift, 1, 1); } }
   }
   const pj = equip.pajama && WEAPON_PJ[petId], sway = weaponSway();
@@ -920,7 +925,8 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
     ox = Math.round(sm.x); oy = Math.round(sm.y) + shift;
   }
   const it = petId === "nori"                                 // 욱's rubber pole, bent as it is right now; her paws on it unless it is behind her
-    ? rubberStaff(rubberBend(screenY(g) + oy), o ? pawColour(petId, equip) : null, !o)
+    ? rubberStaff(rubberBend(screenY(g) + oy), o ? pawColour(petId, equip) : null, !o, 0, one)
+    : one ? (ITEM_CACHE["one:" + petId + !!pj] || (ITEM_CACHE["one:" + petId + !!pj] = WEAPON_ONE[petId](pj ? PAJAMA[petId].main : undefined)))
     : pj ? (ITEM_CACHE["pj:" + petId] || (ITEM_CACHE["pj:" + petId] = pj())) : itemImg(petId, WEAPON_OF[petId]);
   if (!sway) { g.drawImage(it.img, it.x + ox, it.y + oy); return; }
   const cx = mid + ox, cy = arm + oy;
@@ -932,7 +938,7 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
 function drawItems(g, petId, equip, layer, dy, pose, img) {
   const art = ITEM_ART[petId];
   // the onesie goes on first; what hangs in front (her camera) goes on after what she holds (it hangs over the shaft)
-  const rank = id => (art[id] || {}).under ? 0 : id === "camera" ? 2 : 1;
+  const rank = id => (art[id] || {}).under ? 0 : id === "camera" || id === "pudding" || id === "teddy" ? 2 : 1;   // (and what is in her other paw shows in front of her weapon)
   const order = ITEM_LIST[petId].slice().sort((p, q) => rank(p[1]) - rank(q[1]));
   for (const [, id] of order) {
     const a = art[id];
@@ -991,7 +997,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       continue;
     }
     if (equip[id] && a && a.auto === "weapon") {
-      if (img && img.grid) { if (weaponOnBack(petId, equip)) drawWeaponOnBack(g, petId, layer, pose, img); else drawWeapon(g, petId, layer, dy, pose, img, equip); }
+      if (img && img.grid) drawWeapon(g, petId, layer, dy, pose, img, equip);
       continue;
     }
     if (!equip[id] || !a || a.layer !== layer) continue;
@@ -1003,7 +1009,9 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       // on the base pose the face is found on the plain sprite, so a blink does not make the item vanish
       const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base ? dy : 0;
       const cache = base ? (ITEM_CACHE["base:" + petId] || (ITEM_CACHE["base:" + petId] = {})) : (img._auto || (img._auto = {}));
+      const busy = a.auto === "teddy" && equip.fork ? "teddy1" : a.auto === "pudding" && equip.pencil ? "pudding1" : null;   // sharing her paws with her weapon
       let px = lie ? cache.cameraLie || (cache.cameraLie = cameraLying(grid, petId))
+        : busy ? cache[busy] || (cache[busy] = busy === "teddy1" ? teddyOneArm(grid) : puddingAt(grid, petId, 1))
         : cache[a.auto] || (cache[a.auto] = autoItemPixels(a.auto, grid, base ? petId + "-base:0" : img.key || "", petId));
       if (a.auto === "bangs" && equip.pajama) {      // in her onesie the new bangs show only in the hood's opening, in its deeper blue
         const key = "bangsPJ";
