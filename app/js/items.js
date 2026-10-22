@@ -99,18 +99,40 @@ function fork(p, main, light, flat = false, paw = "#fffaf0") {
 }
 
 // 욱: a long yellow staff with white caps at both ends, tilted a little, with the rabbit she doodled on it (a dark speck)
-function staff(p, flat = false) {
-  const y = ANCHOR[p].arm + 1, x0 = -8, x1 = 36, rise = flat ? 0 : 6;
+// 욱's rabbit pole is rubber: it bends. bend = how far its two ends sit below a straight pole (minus: above), in pixels;
+// paw = the colour of her two paws gripping it (none when it is flat on the grass or behind her back)
+function staff(p, flat = false, bend = 0, paw = null) {
+  const y = ANCHOR[p].arm + 1, x0 = -8, x1 = 36, rise = flat ? 0 : 6, mid = 14, half = 22;
+  const at = x => y + Math.round(rise / 2 - (x - x0) * rise / (x1 - x0) + bend * ((x - mid) / half) ** 2);
   return pixmap(d => {
     for (let x = x0; x <= x1; x++) {
-      const yy = y + Math.round(rise / 2 - (x - x0) * rise / (x1 - x0)), cap = x - x0 < 4 || x1 - x < 4;
+      const yy = at(x), cap = x - x0 < 4 || x1 - x < 4;
       d.put(x, yy, cap ? "#ffffff" : "#fff1b8");
       d.put(x, yy + 1, cap ? "#f4efe4" : "#ffd25e");
       d.put(x, yy + 2, cap ? "#d9d2c4" : "#e8a93a");
     }
-    const dx = x0 + 9, dy = y + Math.round(rise / 2 - 9 * rise / (x1 - x0)) + 1;
+    const dx = x0 + 9, dy = at(dx) + 1;
     d.put(dx, dy, "#5a4636"); d.put(dx + 1, dy, "#9a7a3e");                 // the doodle
+    if (paw) for (const hx of [7, 22]) d.grid(HAND, { K: OUT, W: paw }, hx - 1, at(hx));   // where her own hands are
   });
+}
+// the pole's rubber: its ends lag behind her as she moves and wobble back, around a slight sag
+const RUBBER = { b: 1, v: 0, t: 0, y: null };
+function rubberBend(holdY) {
+  const now = performance.now(), dt = Math.min(0.05, (now - RUBBER.t) / 1000);
+  if (now - RUBBER.t > 300 || RUBBER.y === null) Object.assign(RUBBER, { b: 1, v: 0, y: holdY });
+  else {
+    RUBBER.v += (RUBBER.y - holdY) * 9;                    // lifted: the ends are left behind and dip; dropped: they flick up
+    RUBBER.v += (-(RUBBER.b - 1) * 160 - RUBBER.v * 7) * dt;
+    RUBBER.b = Math.max(-3, Math.min(4, RUBBER.b + RUBBER.v * dt));
+    RUBBER.y = holdY;
+  }
+  RUBBER.t = now;
+  return Math.round(RUBBER.b);
+}
+function rubberStaff(bend, paw, flat = false) {
+  const k = "rub:" + bend + ":" + paw + ":" + flat;
+  return ITEM_CACHE[k] || (ITEM_CACHE[k] = staff("nori", flat, bend, paw));
 }
 
 const POCHETTE = [
@@ -432,8 +454,8 @@ function weaponSway() {
 // her hands on a frame where they are drawn out from her body (하와's dance): on each side, the short run of rows where
 // the outline juts out past the rows a few above and below it, between her face and her feet
 // her little paws on the handle wherever she is gripping it (the fork only), in her own colour or her onesie's
+const pawColour = (petId, equip) => equip.pajama && typeof PAJAMA !== "undefined" ? PAJAMA[petId].main : PET[petId].pal[PET[petId].body];
 function drawPaws(g, petId, equip, pts) {
-  if (petId === "nori") return;
   const paw = equip.pajama && typeof PAJAMA !== "undefined" ? PAJAMA[petId].main : PET[petId].pal[PET[petId].body];
   for (const [x, y] of pts) HAND.forEach((row, j) => [...row].forEach((ch, i) => {
     if (ch === ".") return;
@@ -476,7 +498,7 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
     if (layer !== "front") return;
     // it stays in her arms (moving with her body) and only its tilt follows her hands on each step of the dance: the
     // slant between her two hands, or tipped up toward the one hand she has out; kept small so it never flails
-    const hd = cache.hands || (cache.hands = findHands(grid)), f = weaponFlat(petId);
+    const hd = cache.hands || (cache.hands = findHands(grid)), f = petId === "nori" ? rubberStaff(rubberBend(g.getTransform().f + arm), null, true) : weaponFlat(petId);
     let ang = DIAG[petId];
     if (hd.l && hd.r) ang = Math.max(-0.35, Math.min(0.35, Math.atan2(hd.r[1] - hd.l[1], hd.r[0] - hd.l[0])));
     else if (hd.r) ang = -0.3; else if (hd.l) ang = 0.3;
@@ -491,7 +513,7 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
   }
   if (mode === "lift") {                                     // arms going up and down: from across her belly to over her head
     if (layer !== "front") return;
-    const q = LIFT[+/(\d+)$/.exec(img.key)[1]], f = weaponFlat(petId), top = grid.findIndex(r => /[^B]/.test(r));
+    const q = LIFT[+/(\d+)$/.exec(img.key)[1]], f = petId === "nori" ? rubberStaff(rubberBend(g.getTransform().f + arm), null, true) : weaponFlat(petId), top = grid.findIndex(r => /[^B]/.test(r));
     const hx = mid + (o ? o.dx : 0), hy = arm + 0.5 + (o ? o.dy : 0);
     const cx = hx + (w / 2 - hx) * q, cy = hy + (top + 1 - hy) * q;
     const ang = DIAG[petId] * (1 - q);
@@ -503,17 +525,20 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
   }
   // in her hands: in front, or behind her (both long ends showing) while she faces away; swinging with what she does
   if (layer !== (o ? "front" : "back")) return;
-  if (o && petId !== "nori") {                               // the fork is held in her own little paws: her side arms go
+  if (o) {                                                   // it is held in her own little paws: her side arms go
     const off = cache.warm || (cache.warm = armOff(grid, arm + o.dy - 3, arm + o.dy + 1));
     for (const [x, y, c] of off) { if (c === "clear") g.clearRect(x, y + shift, 1, 1); else { g.fillStyle = OUT; g.fillRect(x, y + shift, 1, 1); } }
   }
   const pj = equip.pajama && WEAPON_PJ[petId], sway = weaponSway();
-  const it = pj ? (ITEM_CACHE["pj:" + petId] || (ITEM_CACHE["pj:" + petId] = pj())) : itemImg(petId, WEAPON_OF[petId]);
-  let ox = o ? o.dx : Math.round(w / 2 - 14), oy = (o ? o.dy : h - INFO[petId].h) + shift;
+  // facing away it is behind her at the height of her arms above her feet, whatever the frame's size
+  let ox = o ? o.dx : Math.round(w / 2 - 14), oy = (o ? o.dy : soles(grid) - soles(SPRITES[petId]) - (petId === "nori" ? 4 : 0)) + shift;
   if (o && !base && typeof pet !== "undefined") {             // a traced motion: ease from frame to frame
     const sm = smoothHold(pet.act + pet.t0 + petId, o.dx, o.dy, 0);
     ox = Math.round(sm.x); oy = Math.round(sm.y) + shift;
   }
+  const it = petId === "nori"                                 // 욱's rubber pole, bent as it is right now; her paws on it unless it is behind her
+    ? rubberStaff(rubberBend(g.getTransform().f + oy), o ? pawColour(petId, equip) : null, !o)
+    : pj ? (ITEM_CACHE["pj:" + petId] || (ITEM_CACHE["pj:" + petId] = pj())) : itemImg(petId, WEAPON_OF[petId]);
   if (!sway) { g.drawImage(it.img, it.x + ox, it.y + oy); return; }
   const cx = mid + ox, cy = arm + oy;
   g.save(); g.translate(cx, cy); g.rotate(sway); g.drawImage(it.img, it.x + ox - cx, it.y + oy - cy); g.restore();
