@@ -426,7 +426,7 @@ ITEM_AUTO.shades = (grid, pet) => {
   let y0 = -1, y1 = -1, tx = 0, tn = 0;
   grid.forEach((r, y) => { if (/[^B]/.test(r)) { if (y0 < 0) y0 = y; y1 = y; }
     [...r].forEach((c, x) => { if (c === "W") { tx += x; tn++; } }); });
-  const lying = x1 - x0 + 1 > (y1 - y0 + 1) * 1.15;
+  const lying = f ? y1 - f.cy < f.ry + 3 : x1 - x0 + 1 > (y1 - y0 + 1) * 1.15;   // lying: hardly any of her below her face
   const tailRight = tn ? tx / tn > (x0 + x1) / 2 : true;
   // from behind: her nape is a set way down from the top of her head (where it gets wide, below her ears), whatever her legs do
   const wid = grid.map(r => { const q = r.search(/[^B]/); return q < 0 ? 0 : r.length - [...r].reverse().join("").search(/[^B]/) - q; });
