@@ -540,7 +540,8 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
         }
         continue;
       }
-      if (img.lying) continue;                              // lying down: it is on the grass beside her (drawn by pet.js)
+      // lying down, or put down and not picked up yet: it is on the grass (drawn by pet.js)
+      if (img.lying || (typeof gprop !== "undefined" && gprop.state !== "held" && typeof pet !== "undefined" && pose && pose === pet._pose)) continue;
       const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base && 20 >= INFO[petId].dup ? dy : 0;
       const cache = base ? (ITEM_CACHE["base:" + petId] || (ITEM_CACHE["base:" + petId] = {})) : (img._auto || (img._auto = {}));
       if (!("go" in cache)) {                             // where it hangs on this frame; facing us even with her eyes shut (found by her

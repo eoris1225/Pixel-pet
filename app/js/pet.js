@@ -665,16 +665,45 @@ function drawTeddy(front) {
   ctx.drawImage(im, x, y);
 }
 
-// 하와's guitar, put down while she lies (loaf, sleep): lying on the grass beside her, where she put it, however
-// she moves on the spot, and she picks it up again when she gets up
-let grest = null;
-function drawGuitarRest(pose, box) {
-  const lying = G.pet === "sora" && G.equip && G.equip.guitar && !pose.hidden && pose.img && pose.img.lying;
-  if (!lying || typeof drawGuitar !== "function") { grest = null; return; }
-  if (!grest) grest = { x: box.x - 16, y: FEET - Math.round(pet.z) };   // a little way off to her side
-  const c = guitarTurned(GUITAR_REST, true);               // lying on its back, seen from above at a slant
-  groundShadow(ctx, grest.x, grest.y, 22, 0.8);
-  ctx.drawImage(c, Math.round(grest.x - c.width / 2), grest.y - guitarBottom(GUITAR_REST, true));
+// 하와's guitar when she lies down (loaf, sleep): she puts it down on the grass a little way off to her side (it swings
+// off her back and lands lying there), it stays put while she moves on the spot, and once she is up she walks over and
+// picks it up again, as with 치카's bear. gprop.state: held (on her back) / place / ground / lift
+const gprop = { state: "held" }, G_PLACE = 380, G_LIFT = 300;
+const guitarOn = () => G.pet === "sora" && !!(G.equip && G.equip.guitar) && typeof drawGuitar === "function";
+const backGuitarAt = () => { const d = pet.dir < 0 ? -1 : 1;   // where it hangs on her back, on the grass's coordinates
+  return { x: pet.x + (GUITAR_BACK.x - 13.5) * d, y: FEET - Math.round(pet.z) - 1 - guitarDrop(GUITAR_BACK.deg), deg: d < 0 ? 180 - GUITAR_BACK.deg : GUITAR_BACK.deg }; };
+const restAt = () => ({ x: gprop.x, y: gprop.y - guitarBottom(GUITAR_REST, true) + guitarTurned(GUITAR_REST, true).height / 2 });
+function drawGuitarRest(pose, box, now) {
+  if (!guitarOn()) { gprop.state = "held"; return; }
+  const lying = !pose.hidden && pose.img && pose.img.lying;
+  if (lying && gprop.state === "held") Object.assign(gprop, { state: "place", t0: now, from: backGuitarAt(), x: box.x - 16, y: FEET - Math.round(pet.z), ready: 0 });
+  if (gprop.state === "place" && now - gprop.t0 >= G_PLACE) gprop.state = "ground";
+  if (gprop.state === "lift" && now - gprop.t0 >= G_LIFT) gprop.state = "held";
+  if (gprop.state === "held") return;
+  if (gprop.state === "ground") {                         // lying on its back, seen from above at a slant
+    const c = guitarTurned(GUITAR_REST, true);
+    groundShadow(ctx, gprop.x, gprop.y, 22, 0.8);
+    ctx.drawImage(c, Math.round(gprop.x - c.width / 2), gprop.y - guitarBottom(GUITAR_REST, true));
+    return;
+  }
+  // on its way down or up: an arc between her back and the grass, turning over as it goes
+  const down = gprop.state === "place", q = Math.min(1, (now - gprop.t0) / (down ? G_PLACE : G_LIFT));
+  const e = q * q * (3 - 2 * q), back = down ? gprop.from : backGuitarAt(), rest = restAt();
+  const [a, b] = down ? [back, rest] : [rest, back], dd = ((GUITAR_REST - back.deg) % 360 + 540) % 360 - 180;
+  const deg = down ? back.deg + dd * e : GUITAR_REST - dd * e;
+  const x = a.x + (b.x - a.x) * e, y = a.y + (b.y - a.y) * e - Math.sin(Math.PI * q) * 7;
+  groundShadow(ctx, x, gprop.y, Math.round(10 + 12 * (down ? e : 1 - e)), 0.5);
+  const c = guitarTurned(deg);
+  ctx.drawImage(c, Math.round(x - c.width / 2), Math.round(y - c.height / 2));
+}
+function fetchGuitar(now) {
+  if (!guitarOn() || gprop.state !== "ground" || G.sleeping || G.wantSleep) return false;
+  if (!gprop.ready) gprop.ready = now + 700;                  // a moment after she is up, and before anything else
+  if (now < gprop.ready) return true;
+  const dx = gprop.x - pet.x;
+  if (Math.abs(dx) > 12) { pet.act = "walk"; pet.target = gprop.x - Math.sign(dx) * 11; pet.tz = pet.z; return true; }
+  Object.assign(gprop, { state: "lift", t0: now });
+  pet.dir = Math.sign(dx) || pet.dir; startAct("pet", now); return true;
 }
 // the next point to head for on the way to (target, tz): she never steps from in front of the sign to behind it (or back)
 // while her body overlaps its post, so she goes round it, crossing that line beside the sign instead
@@ -748,6 +777,7 @@ function petUpdate(now, dt) {
   if (G.still) pet.nextThink = now + 1500;                               // the tutorial is talking: she stands and listens
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && now > prop.ready && fetchTeddy(now)) {}
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && fetchWeapon(now)) {}
+  else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && fetchGuitar(now)) {}
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && now > pet.nextThink) {
     pet.nextThink = now + 2500 + Math.random() * 3500;
     const r = Math.random(), calm = G.studying;          // fewer big moves while you study
@@ -758,7 +788,7 @@ function petUpdate(now, dt) {
     else if (G.pet === "sora" && r < (calm ? 0.35 : 0.2)) startAct("loaf", now);
     else if (G.pet === "sora" && r < 0.34) startAct("pet", now);
     else if (G.pet === "sora" && r < 0.42) startAct("dance", now);
-    else if (G.pet === "sora" && G.equip && G.equip.guitar && r < 0.52) startAct("strum", now);
+    else if (G.pet === "sora" && G.equip && G.equip.guitar && gprop.state === "held" && r < 0.52) startAct("strum", now);
     else if (G.pet === "sora" && !calm && r < 0.58) startPeek(now);
     else if (G.pet === "mochi" && r < (G.lowMood ? 0.4 : 0.08)) startAct("gloom", now);   // 치카 gets gloomy when her plan falls apart
     else if (G.pet === "mochi" && r < 0.3) startAct("wave", now);
@@ -875,7 +905,7 @@ function groundShadow(g, cx, feet, w, alpha = 1) {
 
 function petRender(now) {
   ctx.clearRect(0, 0, W, H);
-  const pose = petPose(now);
+  const pose = petPose(now); pet._pose = pose;            // (items know which drawing is her, live on the grass)
   if (pet.lastY < -2 && pose.yoff === 0 && !G.sleeping) dust(pet.x, FEET - 1);
   pet.lastY = pose.yoff;
   now_ = now;
@@ -907,7 +937,7 @@ function petRender(now) {
   ctx.restore();
   box.y -= Math.round(pet.z);                            // back to screen space, for the Zzz and the speech bubble
   if (pet.z > SIGN_Z + 0.5 && typeof drawSignOver === "function") drawSignOver(ctx, now);   // behind the sign
-  drawTeddy(true); drawWeaponProp(true); drawGuitarRest(pose, box);
+  drawTeddy(true); drawWeaponProp(true); drawGuitarRest(pose, box, now);
   if (pet.act === "peek" && pet.peek.phase !== "out" && pet.peek.phase !== "in") {
     const pk = pet.peek, t = now - pk.t0, sora = pk.kind === "sora";
     let img = sora ? soraPeekImg(pk, t) : PEEK_IMG[0], off = 0;
