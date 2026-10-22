@@ -949,7 +949,7 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
 function drawItems(g, petId, equip, layer, dy, pose, img) {
   const art = ITEM_ART[petId];
   // the onesie goes on first; what hangs in front (her camera) goes on after what she holds (it hangs over the shaft)
-  const rank = id => (art[id] || {}).under ? 0 : id === "camera" || id === "pudding" || id === "teddy" ? 2 : 1;   // (and what is in her other paw shows in front of her weapon)
+  const rank = id => (art[id] || {}).under ? 0 : id === "camera" || id === "pudding" || id === "teddy" ? 2 : id === "bag" ? 1.5 : 1;   // (and what is in her other paw shows in front of her weapon; her pochette goes on after the weapon has taken her arm away, under the bear)
   const order = ITEM_LIST[petId].slice().sort((p, q) => rank(p[1]) - rank(q[1]));
   for (const [, id] of order) {
     const a = art[id];
