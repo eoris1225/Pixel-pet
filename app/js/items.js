@@ -334,20 +334,17 @@ const ITEM_ART = {
       }
       d.grid([".K.K.", "KYKYK", "KYYYK", "KdYdK", ".KKK."], { K: OUT, Y: "#ffd84a", d: "#8a5a1a" }, 11, sag(13) + 1);   // a little rabbit head hanging in the middle
     }, false) },
-    // her weeding licence (as in the anime): a grey card with a little green crown, the title, a photo of her on the
-    // right, a line across and her grade below
+    // her weeding licence, small and neat like the old note: a pale grey card with a little green crown and the title,
+    // her photo (pink ears) at the right and her grade under a thin line
     pass: { layer: "front", build: () => pixmap(d => {
-      d.grid([
-        ".KKKKKKKKKKKKKK.",
-        "KGGGgGGGKKKKKKKK",
-        "KGkkkkGGKWPWPWKK",
-        "KGGGGGGGKWYYYWKK",
-        "KKKKKKKKKYkYkYKK",
-        "KGGGGGGGGGGGGGGK",
-        "KGGGkGkkkGGGGGGK",
-        ".KKKKKKKKKKKKKK.",
-      ], { K: OUT, G: "#d9dadb", k: "#6f6f6f", g: "#8cc84b", Y: "#fcf4ca", W: "#ffffff", P: "#f5aab6" }, 6, 9);
-    }, false) },
+      d.rect(9, 11, 11, 6, "#eef0f2");
+      for (const x of [10, 12, 14]) d.put(x, 12, "#7cc46b"); d.rect(10, 13, 5, 1, "#7cc46b");   // the crown
+      d.rect(10, 15, 4, 1, "#9b8e7a");                                                          // the title
+      d.rect(15, 12, 4, 4, "#ffffff");                                                          // the photo
+      d.put(15, 12, "#f5aab6"); d.put(17, 12, "#f5aab6"); d.rect(15, 13, 3, 3, "#fcf4ca");
+      d.put(15, 14, "#5a4636"); d.put(17, 14, "#5a4636");
+      d.rect(10, 16, 9, 1, "#d2d6da");                                                          // the line under the title
+    }) },
     pajama: { layer: "front", auto: "pajama", under: true, build: () => onesieIcon("nori") },
     pudding: { layer: "front", build: () => pixmap(d => {          // in her other hand
       const y = ANCHOR.nori.arm;
