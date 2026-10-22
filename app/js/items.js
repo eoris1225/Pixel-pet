@@ -309,19 +309,9 @@ const ITEM_ART = {
     pajama: { layer: "front", auto: "pajama", under: true, build: () => onesieIcon("sora") },
     // her camera (as in the anime): a dark grey body with a light top band, the button on top left of middle, a little
     // viewfinder at the right, the big round lens right of middle with the flash and a grip line to its left, on a light blue strap that goes up behind her arms
-    camera: { layer: "front", build: () => pixmap(d => {
-      d.line(8, 20, 5, 18, "#6fb3cf"); d.line(20, 20, 23, 18, "#6fb3cf");   // the strap, round behind her arms
-      d.grid([
-        "...KK......",
-        "KKKKKKKKKKK",
-        "KWWWWWWWKWK",
-        "KDDDDKKKDDK",
-        "KDKLKLLLKDK",
-        "KDKDKLCLKDK",
-        "KDKLKLLLKDK",
-        "KDDDDKKKDDK",
-        "KKKKKKKKKKK",
-      ], { K: OUT, W: "#f2f1ec", D: "#4a5256", L: "#c9d0d4", C: "#2f3539", S: "#ffffff" }, 9, 18);
+    camera: { layer: "front", auto: "camera", build: () => pixmap(d => {   // the inventory picture; in play placed per frame (below)
+      d.line(8, 20, 5, 18, CAMERA_PAL.s); d.line(20, 20, 23, 18, CAMERA_PAL.s);   // the strap, round behind her arms
+      d.grid(CAMERA, CAMERA_PAL, 9, 18);
     }, false) },
     trident: { layer: "front", auto: "weapon", build: () => fork("sora", "#4f9fe0", "#a9d6f7") },
   },
@@ -461,6 +451,46 @@ ITEM_AUTO.shades = (grid, pet) => {
   for (const n of ring) { const [x, y] = n.split(",").map(Number); out.push([x, y, OUT]); }
   for (const [key, a] of link) { const [x, y] = key.split(",").map(Number); out.push([x, y, a ? "#ffe680" : "#d39a22"]); }
   if (f && uy && !side) { const [mx, my] = at(0).map(Math.round); if (body(mx, my + 4)) put(RABBIT, RABBIT_PAL, mx - 2, my + 1); }   // the rabbit at the front
+  return out;
+};
+// 하와's camera on every motion: held in front of her belly where her paws are (it moves with her face), its strap round
+// behind her arms; side on, a narrow body with the lens poking forward; from behind only the strap shows at her nape;
+// lying down she is on top of it. Facing us it never mirrors (it is marked flat for the drawing)
+const CAMERA = ["...KK......", "KKKKKKKKKKK", "KWWWWWWWKWK", "KDDDDKKKDDK", "KDKLKLLLKDK", "KDKDKLCLKDK", "KDKLKLLLKDK", "KDDDDKKKDDK", "KKKKKKKKKKK"];
+const CAMERA_SIDE = ["KKKK..", "KWWK..", "KDDKKK", "KDDKLK", "KDDKKK", "KKKK.."];
+const CAMERA_PAL = { K: OUT, W: "#f2f1ec", D: "#4a5256", L: "#c9d0d4", C: "#2f3539", s: "#6fb3cf" };
+ITEM_AUTO.camera = (grid, pet) => {
+  if (grid[0].length > 60) return [];
+  const out = [], body = (x, y) => !!(grid[y] && grid[y][x] && grid[y][x] !== "B");
+  const put = (rows, x0, y0, flip) => rows.forEach((r, j) => [...r].forEach((ch, i) => { if (CAMERA_PAL[ch]) out.push([flip ? x0 + r.length - 1 - i : x0 + i, y0 + j, CAMERA_PAL[ch]]); }));
+  let x0 = 1e9, x1 = -1, y1 = -1;
+  grid.forEach((r, y) => { const q = r.search(/[^B]/); if (q >= 0) { x0 = Math.min(x0, q); x1 = Math.max(x1, r.length - 1 - [...r].reverse().join("").search(/[^B]/)); y1 = y; } });
+  let f = faceOf(grid);
+  const b = faceOf(SPRITES[pet]);
+  if (!f && b && grid.some(r => r.includes("P"))) {            // eyes shut but her cheeks show: still facing us, her face where her body puts it
+    let by = SPRITES[pet].length - 1; while (by > 0 && !/[^B]/.test(SPRITES[pet][by])) by--;
+    f = { cx: b.cx + Math.round((x0 + x1) / 2 - (SPRITES[pet][0].length - 1) / 2), cy: b.cy + (y1 - by), rx: b.rx, ry: b.ry };
+  }
+  if (!f || !b) {                                              // from behind: the strap across her nape
+    const wid = grid.map(r => { const q = r.search(/[^B]/); return q < 0 ? 0 : r.length - [...r].reverse().join("").search(/[^B]/) - q; });
+    const y = wid.findIndex(v => v >= Math.max(...wid) * 0.6) + 10, mid = (x0 + x1) / 2;
+    for (let x = x0; x <= x1; x++) { const yy = y + Math.round(1.5 * ((x - mid) / ((x1 - x0) / 2)) ** 2); if (body(x, yy) && grid[yy][x] !== "K") out.push([x, yy, CAMERA_PAL.s]); }
+    return out;
+  }
+  if (y1 - f.cy < f.ry) return out;                             // lying on it
+  const cheeks = []; grid.forEach((r, y) => [...r].forEach((c, x) => { if (c !== "P" || y < f.cy - 4) return;
+    const k = cheeks.find(q => q.pts.some(([a, e]) => Math.abs(a - x) <= 2 && Math.abs(e - y) <= 2)); if (k) k.pts.push([x, y]); else cheeks.push({ pts: [[x, y]] }); }));
+  const profile = faceOf(grid) && findEyes(grid).length < 2 && cheeks.filter(c => c.pts.length >= 2 && c.pts.length <= 14).length < 2;
+  const dx = Math.round(f.cx - b.cx);
+  if (profile) {                                               // side on, under her chin, the lens to the front
+    const s = f.cx > (x0 + x1) / 2 ? 1 : -1, cx = Math.round(f.cx - s * 3);
+    put(CAMERA_SIDE, s > 0 ? cx - 2 : cx - 3, Math.round(f.cy + f.ry) + 1, s < 0);
+    return out;
+  }
+  const cx = 9 + dx, cy = Math.min(Math.round(f.cy) + 4, y1 - 7);   // just under her mouth, wherever her face is, and not off her feet
+  for (const x of [cx - 1, cx + 11]) if (body(x, cy + 2)) out.push([x, cy + 2, CAMERA_PAL.s]);   // the strap ends, going round behind her arms
+  put(CAMERA, cx, cy, false);
+  out.flat = true;
   return out;
 };
 ITEM_AUTO.weapon = (grid, pet) => {
@@ -774,6 +804,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
     if (a.auto) {
       if (!img || !img.grid) continue;
       if (a.auto === "teddy" && typeof teddyHugged === "function" && !teddyHugged()) continue;   // the bear is off in the world
+      if (a.auto === "camera" && img.lying && pose && pose.img) continue;   // lying down she is on top of her camera
       // on the base pose the face is found on the plain sprite, so a blink does not make the item vanish
       const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base ? dy : 0;
       const cache = base ? (ITEM_CACHE["base:" + petId] || (ITEM_CACHE["base:" + petId] = {})) : (img._auto || (img._auto = {}));
@@ -798,7 +829,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       const on = (x, y) => !fg || (fg[y] && fg[y][x] && !"BK".includes(fg[y][x]));
       // turning to walk the other way mirrors her picture, but not what she wears on one side: the pochette stays at
       // the same hip of hers, so on a mirrored base pose it is mirrored back
-      const keepSide = a.auto === "carry" && base && g.getTransform().a < 0, fw = (SPRITES[petId][0] || "").length - 1;
+      const keepSide = (a.auto === "carry" && base || px.flat) && g.getTransform().a < 0, fw = (grid[0] || "").length - 1;
       for (const [xs, y, c] of px) {
         const x0 = keepSide ? fw - xs : xs, x = x0 + (each && y < tip ? ear : 0);
         // a stretch doubles the row at dup: the onesie covers both copies
@@ -811,9 +842,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       continue;
     }
     if (pose && pose.img) continue;
-    const it = itemImg(petId, id), flat = id === "camera" && g.getTransform().a < 0;   // the camera faces out the same way when she turns
-    if (flat) { g.save(); g.translate(SPRITES[petId][0].length, 0); g.scale(-1, 1); }
+    const it = itemImg(petId, id);
     g.drawImage(it.img, it.x, it.y + (it.y >= INFO[petId].dup ? dy : 0));   // one piece, moving with where it is worn
-    if (flat) g.restore();
   }
 }
