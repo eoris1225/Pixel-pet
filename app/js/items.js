@@ -307,19 +307,19 @@ const ITEM_ART = {
     beanie: { layer: "front", auto: "bangs", build: () => bangsIcon("sora") },   // her bangs restyled (item id kept for saves)
     guitar: { layer: "back", auto: "guitar", build: () => guitarArt() },
     pajama: { layer: "front", auto: "pajama", under: true, build: () => onesieIcon("sora") },
-    // her camera (as in the anime): a dark grey body with a light top band, a button on top, a little viewfinder
-    // and a big round lens, on a light blue strap that goes up behind her arms
+    // her camera (as in the anime): a dark grey body with a light top band, the button on top left of middle, a little
+    // viewfinder at the right, the big round lens right of middle with the flash and a grip line to its left, on a light blue strap that goes up behind her arms
     camera: { layer: "front", build: () => pixmap(d => {
       d.line(8, 20, 5, 18, "#6fb3cf"); d.line(20, 20, 23, 18, "#6fb3cf");   // the strap, round behind her arms
       d.grid([
-        ".KK........",
+        "...KK......",
         "KKKKKKKKKKK",
         "KWWWWWWWKWK",
-        "KDDDKKKDDDK",
-        "KDLKLLLKDDK",
-        "KDDKLCLKDDK",
-        "KDDKLLLKDDK",
-        "KDDDKKKDDDK",
+        "KDDDDKKKDDK",
+        "KDKLKLLLKDK",
+        "KDKDKLCLKDK",
+        "KDKLKLLLKDK",
+        "KDDDDKKKDDK",
         "KKKKKKKKKKK",
       ], { K: OUT, W: "#f2f1ec", D: "#4a5256", L: "#c9d0d4", C: "#2f3539", S: "#ffffff" }, 9, 18);
     }, false) },
@@ -811,7 +811,9 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       continue;
     }
     if (pose && pose.img) continue;
-    const it = itemImg(petId, id);
+    const it = itemImg(petId, id), flat = id === "camera" && g.getTransform().a < 0;   // the camera faces out the same way when she turns
+    if (flat) { g.save(); g.translate(SPRITES[petId][0].length, 0); g.scale(-1, 1); }
     g.drawImage(it.img, it.x, it.y + (it.y >= INFO[petId].dup ? dy : 0));   // one piece, moving with where it is worn
+    if (flat) g.restore();
   }
 }
