@@ -455,7 +455,7 @@ ITEM_AUTO.shades = (grid, pet) => {
 };
 // 하와's camera on every motion: held in front of her belly where her paws are (it moves with her face), its strap round
 // behind her arms; side on, a narrow body with the lens poking forward; from behind only the strap shows at her nape;
-// lying down she is on top of it. Facing us it never mirrors (it is marked flat for the drawing)
+// lying down she is on top of it. Facing us it never mirrors (it is marked noMirror for the drawing)
 const CAMERA = ["...KK......", "KKKKKKKKKKK", "KWWWWWWWKWK", "KDDDDKKKDDK", "KDKLKLLLKDK", "KDKDKLCLKDK", "KDKLKLLLKDK", "KDDDDKKKDDK", "KKKKKKKKKKK"];
 const CAMERA_SIDE = ["KKKK..", "KWWK..", "KDDKKK", "KDDKLK", "KDDKKK", "KKKK.."];
 const CAMERA_PAL = { K: OUT, W: "#f2f1ec", D: "#4a5256", L: "#c9d0d4", C: "#2f3539", s: "#8ccbe4", t: "#5d9fc2" };
@@ -499,7 +499,7 @@ ITEM_AUTO.camera = (grid, pet) => {
       if (body(x, y + 1) && !"KP".includes(grid[y + 1][x])) out.push([x, y + 1, CAMERA_PAL.t]);
     }
   put(CAMERA, cx, cy, false);
-  out.flat = true;
+  out.noMirror = true;
   return out;
 };
 ITEM_AUTO.weapon = (grid, pet) => {
@@ -838,7 +838,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       const on = (x, y) => !fg || (fg[y] && fg[y][x] && !"BK".includes(fg[y][x]));
       // turning to walk the other way mirrors her picture, but not what she wears on one side: the pochette stays at
       // the same hip of hers, so on a mirrored base pose it is mirrored back
-      const keepSide = (a.auto === "carry" && base || px.flat) && g.getTransform().a < 0, fw = (grid[0] || "").length - 1;
+      const keepSide = (a.auto === "carry" && base || px.noMirror === true) && g.getTransform().a < 0, fw = (grid[0] || "").length - 1;
       for (const [xs, y, c] of px) {
         const x0 = keepSide ? fw - xs : xs, x = x0 + (each && y < tip ? ear : 0);
         // a stretch doubles the row at dup: the onesie covers both copies
