@@ -280,6 +280,7 @@ const TWIRL_STEP = TWIRL_SEQ.map(i => i < 0 ? 180 : (i === 0 ? 80 : 40));
 const TWIRL_LEN = TWIRL_STEP.reduce((a, b) => a + b, 0);
 function twirlIndex(t) { for (let k = 0; k < TWIRL_SEQ.length; k++) { if (t < TWIRL_STEP[k]) return TWIRL_SEQ[k]; t -= TWIRL_STEP[k]; } return -1; }
 const JUMP_IMG = JUMPS.map(g => gridToCanvas(g, PET.nori.pal));
+const JUMP_GAP = JUMPS.map(g => { let n = 0; while (!/[^B]/.test(g[g.length - 1 - n])) n++; return n; });   // blank rows under her feet
 const JUMP_SEQ = [-1, 13, 14, 15, 16, 17, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, -1];
 const JUMP_STEP = JUMP_SEQ.map(i => i < 0 ? 160 : 40);
 const JUMP_LEN = JUMP_STEP.reduce((a, b) => a + b, 0);
@@ -515,7 +516,10 @@ function petPose(now) {
       break;
     }
     case "fall": {
-      if (G.pet === "nori") a.img = JUMP_IMG[pet.vy < 0 ? 4 : 8];
+      if (G.pet === "nori") {                            // let go, she boings into her jump pose (its own lift taken out: she is where she was held)
+        const f = pet.vy < 0 ? 4 : 8; a.img = JUMP_IMG[f]; a.yoff = JUMP_GAP[f];
+        if (t < 260) { const q = t / 260; a.sy = 1 + 0.16 * Math.cos(q * Math.PI * 1.5) * (1 - q); a.sx = 2 - a.sy; }
+      }
       else if (G.pet === "mochi" && pet.skyDrop) { a.hopF = FEET - pet.hy < 14 && pet.vy > 0 ? HOP_NEAR_F : HOP_FALL_F; a.img = MOCHIHOP_IMG[a.hopF]; }
       else if (G.pet === "sora") {                       // let go, she boings into her hop pose and drops in it
         const f = pet.vy < 0 ? 1 : 2; a.img = SORAHOP_IMG[f]; a.flip = pet.dir > 0; a.yoff = SORAHOP_GAP[f];
