@@ -129,7 +129,7 @@ const bagFace = d => d.grid(POCHETTE, { P: "#f7a8bd", p: "#ec8fab", W: "#fffaf0"
 const GUITAR = [
   "....KKKK..................",
   "..KKTTTTKK................",
-  ".KTTTTTTTTK.KKKK......P.P.",
+  ".KTTTTTTTTK.KKKK..........",
   ".KTTTTTTTTTKTTTTKK...KKKKK",
   "KTTTTTTHHTTTTTTTTTKKKKNNNK",
   "KTRSSSHHHHSSSSSSSSFFFNDDNK",
@@ -137,11 +137,11 @@ const GUITAR = [
   "KTRSSSHHHHSSSSSSSSFFFNDDNK",
   "KTTTTTTHHTTTTTTTTTKKKKNNNK",
   ".KLTTTTTTTTKTTTTKK...KKKKK",
-  ".KLLTTTTTTK.KKKK......P.P.",
+  ".KLLTTTTTTK.KKKK..........",
   "..KKLLTTKK................",
   "....KKKK..................",
 ];
-const GUITAR_PAL = { K: OUT, T: "#d9a15e", L: "#eaba7a", H: "#4a2e1c", R: "#7a4a2a", S: "#b07640", F: "#6e4228", N: "#be7d46", D: "#6e4228", P: "#fbeed5" };
+const GUITAR_PAL = { K: OUT, T: "#d9a15e", L: "#eaba7a", H: "#4a2e1c", R: "#7a4a2a", S: "#b07640", F: "#6e4228", N: "#be7d46", D: "#6e4228" };
 const STRUM_FEET = ["KWKWK", "KWKWK", ".K.K."];          // her two thin legs hanging down; the guitar hides their tops
 const GUITAR_BACK = { deg: -40, x: 12, foot: 28 };       // slung on her back: turned up to her right shoulder, no lower than her feet
 /* the guitar just turned, the way pixel art is rotated (RotSprite): the level drawing is blown up 8x with Scale2x, which
@@ -174,15 +174,30 @@ function guitarTurned(deg) {
   }
   return (GUITAR_TURNED[deg] = cv);
 }
-// her arms in her onesie colour (the white of the drawing swapped), kept per colour
-function tint(c, col) {
-  const k = "_t" + col; if (c[k]) return c[k];
-  const t = document.createElement("canvas"); t.width = c.width; t.height = c.height;
-  const g = t.getContext("2d"); g.drawImage(c, 0, 0);
-  const im = g.getImageData(0, 0, t.width, t.height), d = im.data, n = parseInt(col.slice(1), 16), w = parseInt(PET.sora.pal.W.slice(1), 16);
-  for (let i = 0; i < d.length; i += 4) if (d[i + 3] && ((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]) === w) { d[i] = n >> 16; d[i + 1] = (n >> 8) & 255; d[i + 2] = n & 255; }
-  g.putImageData(im, 0, 0);
-  return (c[k] = t);
+/* for a play frame, worked out once against where the guitar lies on it:
+   patch - her own inner lines right beside the guitar, painted over in her colour so its edge isn't doubled
+   arm   - her arm over the guitar (from the clip), and edge - its outline, only where it lies on the guitar */
+function strumClean(img) {
+  if (img._clean) return img._clean;
+  const p = img.play, gc = guitarTurned(p.ga), gx = Math.round(p.x - gc.width / 2), gy = Math.round(p.y - gc.height / 2);
+  const d = gc.getContext("2d").getImageData(0, 0, gc.width, gc.height).data;
+  const on = (x, y) => { const u = x - gx, v = y - gy; return u >= 0 && v >= 0 && u < gc.width && v < gc.height && d[(v * gc.width + u) * 4 + 3] > 0; };
+  const grid = img.grid, at = (x, y) => (grid[y] && grid[y][x]) || "B", N4 = [[1,0],[-1,0],[0,1],[0,-1]];
+  const patch = [], arm = [], edge = [];
+  // she and the guitar together make one shape: next to the guitar, her lines that aren't on its outside edge (and any
+  // gap left between her and it) become her colour
+  const inShape = (x, y) => at(x, y) !== "B" || on(x, y);
+  for (let y = 0; y < grid.length; y++) for (let x = 0; x < grid[0].length; x++) {
+    const c = at(x, y);
+    if (c === "W" || c === "S" || c === "P" || on(x, y) || !N4.every(([i, j]) => inShape(x + i, y + j))) continue;
+    let near = false; for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) if (on(x + i, y + j)) near = true;
+    if (near) patch.push([x, y]);
+  }
+  const A = new Set();
+  p.arms.forEach((r, y) => [...r].forEach((ch, x) => { if (ch === "W") { A.add(x + "," + y); arm.push([x, y]); } }));
+  const E = new Set();
+  for (const [x, y] of arm) for (const [i, j] of N4) { const k = (x + i) + "," + (y + j); if (!A.has(k) && !E.has(k) && on(x + i, y + j)) { E.add(k); edge.push([x + i, y + j]); } }
+  return (img._clean = { patch, arm, edge });
 }
 // how far below its middle the turned guitar reaches
 function guitarDrop(deg) {
@@ -484,10 +499,12 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
         if (layer === "front") {
           const p = img.play, paw = equip.pajama && typeof PAJAMA !== "undefined" ? PAJAMA[petId].main : PET[petId].pal[PET[petId].body];
           const put = (rows, x, y) => rows.forEach((row, j) => [...row].forEach((ch, k) => { if (ch !== ".") { g.fillStyle = ch === "K" ? OUT : paw; g.fillRect(x + k, y + j, 1, 1); } }));
+          const k = strumClean(img);
+          g.fillStyle = paw; for (const [x, y] of k.patch) g.fillRect(x, y, 1, 1);
           put(STRUM_FEET, p.fx + 1, p.fy);
           drawGuitar(g, p.x, p.y, p.ga);
-          if (paw === PET[petId].pal[PET[petId].body]) g.drawImage(p.arms, 0, 0);
-          else g.drawImage(tint(p.arms, paw), 0, 0);
+          g.fillStyle = OUT; for (const [x, y] of k.edge) g.fillRect(x, y, 1, 1);
+          g.fillStyle = paw; for (const [x, y] of k.arm) g.fillRect(x, y, 1, 1);
         }
         continue;
       }

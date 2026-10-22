@@ -197,7 +197,7 @@ function faceOf(grid) {
 // The opening reaches well above the eyes, like the figures: 욱's brows show, and 하와's bangs in a deeper blue.
 // Facing away, the whole body is the suit (the back of the hood). 욱's white tail pokes out of it. Close-ups keep their own look.
 const PAJAMA = {
-  mochi: { main: "#ffbdd0", shade: "#f29ab5", rim: "#ffdbe6", up: 2.5 },
+  mochi: { main: "#ffbdd0", shade: "#f29ab5", rim: "#ffdbe6", up: 2.5, tail: true },   // her little round tail stays white
   sora:  { main: "#acdaf8", shade: "#84bfeb", rim: "#d6eefd", up: 4, bangs: "S", bang: "#5eaee6" },
   nori:  { main: "#ffd766", shade: "#efb53a", rim: "#ffe07e", keep: "W", up: 3 },   // her rim must not match her own face colour
 };
@@ -230,9 +230,29 @@ function autoPajama(grid, pet) {
     if (top && n[top] >= 12) gloom = GLOOM[top];
   }
   const inner = (x, y) => { for (let j = -1; j <= 1; j++) for (let i = -1; i <= 1; i++) { const r = grid[y + j]; if (!r || !r[x + i] || r[x + i] === "B") return false; } return true; };
+  // 치카's tail: a little white patch (2 to 8 pixels) ringed all round by outline, away from her face
+  const tail = new Set();
+  if (pal.tail) {
+    const seen = new Set();
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (grid[y][x] !== "W" || seen.has(x + "," + y)) continue;
+      const comp = [], stack = [[x, y]]; let closed = true; seen.add(x + "," + y);
+      while (stack.length) {
+        const [px, py] = stack.pop(); comp.push(px + "," + py);
+        for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+          const nx = px + dx, ny = py + dy, k = nx + "," + ny, c = grid[ny] && grid[ny][nx];
+          if (c === "W") { if (!seen.has(k)) { seen.add(k); stack.push([nx, ny]); } }
+          else if (c !== "K") closed = false;
+        }
+      }
+      if (closed && comp.length >= 2 && comp.length <= 8 && !comp.some(k => { const [cx, cy] = k.split(",").map(Number); return ell(cx, cy, 1.3); }))
+        comp.forEach(k => tail.add(k));
+    }
+  }
   const out = [];
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     let c = grid[y][x];
+    if (tail.has(x + "," + y)) continue;
     // 하와's hair lines (the bang edge, the parting) belong under the hood, not drawn across it: inner outline above the face
     // (no empty pixel around it, so not the silhouette) outside the opening becomes suit
     if (c === "K" && pal.bangs && face && y < face.cy && !ell(x, y, 0) && inner(x, y)) c = "S";
