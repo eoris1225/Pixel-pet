@@ -307,11 +307,22 @@ const ITEM_ART = {
     beanie: { layer: "front", auto: "bangs", build: () => bangsIcon("sora") },   // her bangs restyled (item id kept for saves)
     guitar: { layer: "back", auto: "guitar", build: () => guitarArt() },
     pajama: { layer: "front", auto: "pajama", under: true, build: () => onesieIcon("sora") },
+    // her camera (as in the anime): a dark grey body with a light top band, a button on top, a little viewfinder
+    // and a big round lens, on a light blue strap that goes up behind her arms
     camera: { layer: "front", build: () => pixmap(d => {
-      d.line(7, 17, 11, 21, "#6cb8e6"); d.line(21, 17, 17, 21, "#6cb8e6");
-      d.rect(10, 21, 9, 6, "#f4f1ea"); d.rect(10, 21, 9, 1, "#4a4f6e"); d.rect(11, 20, 3, 1, "#4a4f6e");
-      d.disc(14.5, 24, 1.9, "#4a4f6e"); d.put(14, 23, "#a6d6f2"); d.put(17, 22, "#ffd84d");
-    }) },
+      d.line(8, 20, 5, 18, "#6fb3cf"); d.line(20, 20, 23, 18, "#6fb3cf");   // the strap, round behind her arms
+      d.grid([
+        ".KK........",
+        "KKKKKKKKKKK",
+        "KWWWWWWWKWK",
+        "KDDDKKKDDDK",
+        "KDLKLLLKDDK",
+        "KDDKLCLKDDK",
+        "KDDKLLLKDDK",
+        "KDDDKKKDDDK",
+        "KKKKKKKKKKK",
+      ], { K: OUT, W: "#f2f1ec", D: "#4a5256", L: "#c9d0d4", C: "#2f3539", S: "#ffffff" }, 9, 18);
+    }, false) },
     trident: { layer: "front", auto: "weapon", build: () => fork("sora", "#4f9fe0", "#a9d6f7") },
   },
   nori: {
