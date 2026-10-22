@@ -101,9 +101,10 @@ function fork(p, main, light, flat = false, paw = "#fffaf0") {
 // 욱: a long yellow staff with white caps at both ends, tilted a little, with the rabbit she doodled on it (a dark speck)
 // 욱's rabbit pole is rubber: it bends. bend = how far its two ends sit below a straight pole (minus: above), in pixels;
 // paw = the colour of her two paws gripping it (none when it is flat on the grass or behind her back)
-function staff(p, flat = false, bend = 0, paw = null) {
+function staff(p, flat = false, bend = 0, paw = null, twist = 0) {
   const y = ANCHOR[p].arm + 1, x0 = -8, x1 = 36, rise = flat ? 0 : 6, mid = 14, half = 22;
-  const at = x => y + Math.round(rise / 2 - (x - x0) * rise / (x1 - x0) + bend * ((x - mid) / half) ** 2);
+  // twist: spun fast, its two ends trail behind the turn, one up and one down (an S)
+  const at = x => y + Math.round(rise / 2 - (x - x0) * rise / (x1 - x0) + bend * ((x - mid) / half) ** 2 + twist * ((x - mid) / half) ** 3);
   return pixmap(d => {
     for (let x = x0; x <= x1; x++) {
       const yy = at(x), cap = x - x0 < 4 || x1 - x < 4;
@@ -123,16 +124,43 @@ function rubberBend(holdY) {
   if (now - RUBBER.t > 300 || RUBBER.y === null) Object.assign(RUBBER, { b: 1, v: 0, y: holdY });
   else {
     RUBBER.v += (RUBBER.y - holdY) * 9;                    // lifted: the ends are left behind and dip; dropped: they flick up
-    RUBBER.v += (-(RUBBER.b - 1) * 160 - RUBBER.v * 7) * dt;
+    const act = typeof pet !== "undefined" ? pet.act : "";
+    // falling, the air bends its ends up and they flutter; landing, they slam down and boing back
+    const rest = act === "fall" ? -2.5 + Math.sin(now / 55) * 1.2 : 1;
+    if (act === "land" && RUBBER.act === "fall") RUBBER.v += 70;
+    RUBBER.act = act;
+    RUBBER.v += (-(RUBBER.b - rest) * 160 - RUBBER.v * 7) * dt;
     RUBBER.b = Math.max(-3, Math.min(4, RUBBER.b + RUBBER.v * dt));
     RUBBER.y = holdY;
   }
   RUBBER.t = now;
   return Math.round(RUBBER.b);
 }
-function rubberStaff(bend, paw, flat = false) {
-  const k = "rub:" + bend + ":" + paw + ":" + flat;
-  return ITEM_CACHE[k] || (ITEM_CACHE[k] = staff("nori", flat, bend, paw));
+function rubberStaff(bend, paw, flat = false, twist = 0) {
+  const k = "rub:" + bend + ":" + paw + ":" + flat + ":" + twist;
+  return ITEM_CACHE[k] || (ITEM_CACHE[k] = staff("nori", flat, bend, paw, twist));
+}
+// spinning it round (during her spin and twirl, like a knight twirling a spear): it whirls round her paws, speeding up
+// and slowing down to stop level again; spun fast its rubber ends trail in an S, and white swooshes follow them
+function spinPole(g, equip, cx, cy, t, len) {
+  const q = Math.min(1, t / len), N = len > 1500 ? 3 : 2;   // whole turns, so it ends level as it began
+  const th = 2 * Math.PI * N * (q - Math.sin(2 * Math.PI * q) / (2 * Math.PI)), speed = (1 - Math.cos(2 * Math.PI * q)) / 2;
+  const f = rubberStaff(0, null, true, Math.round(speed * 3)), mid = 14, arm = ANCHOR.nori.arm + 1.5;
+  // the circle it turns in leans back (seen at a slant, an ellipse), so its ends never dig into the grass
+  const TILT = 0.5;
+  g.save(); g.translate(Math.round(cx), Math.round(cy)); g.scale(1, TILT); g.rotate(th);
+  g.drawImage(f.img, f.x - mid, f.y - arm);
+  g.restore();
+  if (speed > 0.25) {                                       // the swooshes: arcs of light behind both ends
+    const span = 1.6 * speed;
+    for (const end of [0, Math.PI]) for (let k = 1; k <= 16; k++) for (const R of [21, 18]) {
+      const a = th + end - span * k / 16;
+      g.globalAlpha = (1 - k / 16) * 0.85 * speed; g.fillStyle = "#ffffff";
+      g.fillRect(Math.round(cx + Math.cos(a) * R), Math.round(cy + Math.sin(a) * R * TILT), 1, 1);
+    }
+    g.globalAlpha = 1;
+  }
+  drawPaws(g, "nori", equip, [[cx, cy]]);
 }
 
 const POCHETTE = [
@@ -494,6 +522,13 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}) {
   if (!("wo" in cache)) cache.wo = weaponOffset(grid, petId);
   const o = cache.wo;
   if (mode === "away") return;                               // lying on the grass where she put it (drawn by pet.js)
+  if (petId === "nori" && typeof pet !== "undefined" && (pet.act === "spin" || pet.act === "twirl") && pose === pet._pose) {
+    if (layer !== "front") return;                           // twirled round in front of her
+    const t = performance.now() - pet.t0, len = pet.act === "spin" ? SPIN_LEN : TWIRL_LEN;
+    const cx = mid + (o ? o.dx : Math.round(w / 2 - 14)), cy = arm - 2 + (o ? o.dy : soles(grid) - soles(SPRITES.nori) - 4) + shift;
+    spinPole(g, equip, cx, cy, t, len);
+    return;
+  }
   if (!base && typeof pet !== "undefined" && pet.act === "dance") {   // dancing: held across her belly, tipped to the beat
     if (layer !== "front") return;
     // it stays in her arms (moving with her body) and only its tilt follows her hands on each step of the dance: the
