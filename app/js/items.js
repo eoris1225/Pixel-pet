@@ -162,6 +162,7 @@ function scale2x(src) {
 const GUITAR_BIG = (() => { let g = GUITAR.map(r => [...r].map(ch => GUITAR_PAL[ch] || null)); for (let i = 0; i < 3; i++) g = scale2x(g); return g; })();
 const GUITAR_TURNED = {};
 function guitarTurned(deg) {
+  deg = ((Math.round(deg) % 360) + 540) % 360 - 180;
   if (GUITAR_TURNED[deg]) return GUITAR_TURNED[deg];
   const h = GUITAR.length, w = GUITAR[0].length, D = Math.ceil(Math.hypot(w, h)) + 2;
   const r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r);
@@ -209,15 +210,19 @@ function guitarDrop(deg) {
   for (let i = 3; i < d.length; i += 4) if (d[i]) b = Math.floor((i >> 2) / c.width);
   return (c._drop = b - Math.round(c.height / 2) + 0.5);
 }
-// the guitar on her back eases after where her frame puts it (so it never jumps with her outline from frame to frame)
-// and tips a few degrees with her sway (walking, dancing, waving)
+// the guitar on her back eases after where her frame puts it (so it never jumps with her outline from frame to frame),
+// tips a few degrees with her sway (walking, dancing, waving), and when she turns round it swings across to her other
+// side instead of jumping there. One state for front and back views, so the turn is eased too
 const GSW = {};
-function guitarSway(key, x, y) {
-  const now = performance.now(), st = GSW[key];
-  if (!st || now - st.t > 300) GSW[key] = { x, y, t: now };
-  else { const k = 1 - Math.exp(-(now - st.t) / 120); st.x += (x - st.x) * k; st.y += (y - st.y) * k; st.t = now; }
-  const sw = typeof weaponSway === "function" ? weaponSway() * 180 / Math.PI * 0.6 : 0;
-  return { x: Math.round(GSW[key].x), y: Math.round(GSW[key].y), deg: Math.round(sw) };
+function guitarSway(x, y, deg) {
+  const now = performance.now(), st = GSW.s, sw = typeof weaponSway === "function" ? weaponSway() * 180 / Math.PI * 0.6 : 0;
+  const tdeg = deg + (Math.cos(deg * Math.PI / 180) < 0 ? -sw : sw);
+  if (!st || now - st.t > 300) GSW.s = { x, y, deg: tdeg, t: now };
+  else {
+    const k = 1 - Math.exp(-(now - st.t) / 120), d = ((tdeg - st.deg) % 360 + 540) % 360 - 180;   // the short way round
+    st.x += (x - st.x) * k; st.y += (y - st.y) * k; st.deg += d * k; st.t = now;
+  }
+  return { x: Math.round(GSW.s.x), y: Math.round(GSW.s.y), deg: Math.round(GSW.s.deg) };
 }
 function drawGuitar(g, x, y, deg) { const c = guitarTurned(deg); g.drawImage(c, Math.round(x - c.width / 2), Math.round(y - c.height / 2)); }
 function guitarArt() { return pixmap(d => d.grid(GUITAR, GUITAR_PAL, 0, 8), false); }
@@ -529,15 +534,20 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       }
       const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base && 20 >= INFO[petId].dup ? dy : 0;
       const cache = base ? (ITEM_CACHE["base:" + petId] || (ITEM_CACHE["base:" + petId] = {})) : (img._auto || (img._auto = {}));
-      if (!("wo" in cache)) cache.wo = weaponOffset(grid, petId);
-      const o = cache.wo;
+      if (!("go" in cache)) {                             // where it hangs on this frame; facing us even with her eyes shut (found by her
+        const w = weaponOffset(grid, petId), f = faceOf(grid), b = faceOf(SPRITES[petId]);   // cheeks) counts as front
+        const o = w || (f && f.rx > 7 && b ? { dx: Math.round(f.cx - b.cx), dy: Math.round(f.cy - b.cy) } : null);
+        // her body barely moves under the guitar: a face found far off (paws up by her cheeks) is not followed down
+        cache.go = o && { dx: Math.max(-4, Math.min(4, o.dx)), dy: Math.max(-2, Math.min(3, o.dy)) };
+      }
+      const o = cache.go;
       if (o && layer === "back") {                         // it hangs on her loosely: it follows her a moment late and sways as she moves
-        const s = guitarSway("front", GUITAR_BACK.x + o.dx, GUITAR_BACK.foot - guitarDrop(GUITAR_BACK.deg) + o.dy + shift);
-        drawGuitar(g, s.x, s.y, GUITAR_BACK.deg + s.deg);
+        const s = guitarSway(GUITAR_BACK.x + o.dx, GUITAR_BACK.foot - guitarDrop(GUITAR_BACK.deg) + o.dy + shift, GUITAR_BACK.deg);
+        drawGuitar(g, s.x, s.y, s.deg);
       }
       if (o && layer === "front") {                       // its strap across her chest, from her right shoulder to her left hip
         const row = y => { const r = grid[y] || ""; const q = r.search(/[^B]/); return q < 0 ? null : [q, r.length - 1 - [...r].reverse().join("").search(/[^B]/)]; };
-        const f = faceOf(grid), sy = Math.round(f.cy + 4), hy = Math.round(f.cy + 10), a1 = row(sy), a2 = row(hy);
+        const fy = faceOf(SPRITES[petId]).cy + o.dy, sy = Math.round(fy + 4), hy = Math.round(fy + 10), a1 = row(sy), a2 = row(hy);
         if (a1 && a2) for (const [x, y, c] of pixList("gstrap:" + [a1[1], sy, a2[0], hy], d => d.line(a1[1], sy, a2[0], hy, "#9a6a3e"))) { g.fillStyle = c; g.fillRect(x, y + shift, 1, 1); }
       }
       if (!o && layer === "front") {                      // from behind it lies over her back, mirrored about her middle
@@ -545,8 +555,8 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
         grid.forEach(r => { const q = r.search(/[^B]/); if (q >= 0) { x0 = Math.min(x0, q); x1 = Math.max(x1, r.length - 1 - [...r].reverse().join("").search(/[^B]/)); } });
         while (bottom > 0 && !/[^B]/.test(grid[bottom])) bottom--;
         const cx = (x0 + x1) / 2, oy = bottom - (SPRITES[petId].length - 1);
-        const s = guitarSway("back", Math.round(cx * 2) - (GUITAR_BACK.x + Math.round(cx - 14)), GUITAR_BACK.foot - guitarDrop(180 - GUITAR_BACK.deg) + oy);
-        drawGuitar(g, s.x, s.y, 180 - GUITAR_BACK.deg - s.deg);
+        const s = guitarSway(Math.round(cx * 2) - (GUITAR_BACK.x + Math.round(cx - 14)), GUITAR_BACK.foot - guitarDrop(180 - GUITAR_BACK.deg) + oy, 180 - GUITAR_BACK.deg);
+        drawGuitar(g, s.x, s.y, s.deg);
       }
       continue;
     }
