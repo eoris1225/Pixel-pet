@@ -502,6 +502,38 @@ ITEM_AUTO.camera = (grid, pet) => {
   out.noMirror = true;
   return out;
 };
+// lying down, her camera has fallen on the grass in front of her, face down: seen from above, its light top edge, its
+// dark back with the little screen and viewfinder, a shadow under it; its strap runs from it up to her neck
+const CAMERA_LIE = [
+  ".KKKKKKKKKK.",
+  "KWWWWWWWWWWK",
+  "KKKKKKKKKKKK",
+  "KDDDDDDDKKDK",
+  "KDKKKKKDDDDK",
+  "KDKSSSKDDLDK",
+  "KDKKKKKDDDDK",
+  ".KKKKKKKKKK.",
+];
+function cameraLying(grid, pet) {
+  const out = [];
+  let x0 = 1e9, x1 = -1, y1 = -1;
+  grid.forEach((r, y) => { const q = r.search(/[^B]/); if (q >= 0) { x0 = Math.min(x0, q); x1 = Math.max(x1, r.length - 1 - [...r].reverse().join("").search(/[^B]/)); y1 = y; } });
+  const f = faceOf(grid), fx = f ? f.cx : (x0 + x1) / 2, side = f && f.cx < (x0 + x1) / 2 ? -1 : 1;
+  const cx = Math.round(fx + side * 6), top = y1 - 4, left = cx - 6;
+  for (let x = left + 1; x < left + 11; x++) out.push([x, top + 8, "rgba(40,60,40,0.25)"]);   // its shadow on the grass
+  const pal = { K: OUT, W: "#f2f1ec", D: "#4a5256", S: "#a9c4d0", L: "#c9d0d4" };
+  CAMERA_LIE.forEach((r, j) => [...r].forEach((ch, i) => { if (pal[ch]) out.push([left + i, top + j, pal[ch]]); }));
+  // the strap: from the far top corner of the camera up to under her chin, a light band with its darker edge
+  // (it sags on the grass in front of her and goes up round the side of her face, not to her mouth)
+  const ax = side > 0 ? left : left + 11, ay = top + 2, bx = Math.round(fx - side * 7), by = y1 - 4;
+  const n = Math.max(Math.abs(bx - ax), Math.abs(by - ay)) * 2 || 1, seen = new Set();
+  for (let k = 1; k < n; k++) {
+    const q = k / n, x = Math.round(ax + (bx - ax) * q), y = Math.round(ay + (by - ay) * q * q + Math.sin(q * Math.PI) * 1.5);
+    if (seen.has(x + "," + y)) continue; seen.add(x + "," + y);
+    out.push([x, y, CAMERA_PAL.s], [x, y + 1, CAMERA_PAL.t]);
+  }
+  return out;
+}
 ITEM_AUTO.weapon = (grid, pet) => {
   if (!WEAPON_OF[pet] || grid[0].length > 60) return [];
   const o = weaponOffset(grid, pet);
@@ -813,11 +845,12 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
     if (a.auto) {
       if (!img || !img.grid) continue;
       if (a.auto === "teddy" && typeof teddyHugged === "function" && !teddyHugged()) continue;   // the bear is off in the world
-      if (a.auto === "camera" && img.lying && pose && pose.img) continue;   // lying down she is on top of her camera
+      const lie = a.auto === "camera" && img.lying && pose && pose.img;   // lying down: it is on the grass in front of her
       // on the base pose the face is found on the plain sprite, so a blink does not make the item vanish
       const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base ? dy : 0;
       const cache = base ? (ITEM_CACHE["base:" + petId] || (ITEM_CACHE["base:" + petId] = {})) : (img._auto || (img._auto = {}));
-      let px = cache[a.auto] || (cache[a.auto] = autoItemPixels(a.auto, grid, base ? petId + "-base:0" : img.key || "", petId));
+      let px = lie ? cache.cameraLie || (cache.cameraLie = cameraLying(grid, petId))
+        : cache[a.auto] || (cache[a.auto] = autoItemPixels(a.auto, grid, base ? petId + "-base:0" : img.key || "", petId));
       if (a.auto === "bangs" && equip.pajama) {      // in her onesie the new bangs show only in the hood's opening, in its deeper blue
         const key = "bangsPJ";
         if (!cache[key]) {
