@@ -26,6 +26,28 @@ const mixc = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a
 const css = (c, a = 1) => a >= 1 ? `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})` : `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
+// how the scene sits with her and the buttons (they are pastel, outlined in dark ink): an outline round the clouds
+// and the trees ("self": the thing's own deepest tone; "ink": the trees in the ink of her outline, the clouds still in
+// their own, as ink on them is too heavy), and the colours softened
+// towards her warm paper ("soft": a little less saturated, a little creamier). Candidates to pick from: ?look=b
+const LOOKS = { a: { line: "", soft: 0 }, b: { line: "self", soft: 0 }, c: { line: "ink", soft: 0 }, d: { line: "", soft: 1 }, e: { line: "ink", soft: 1 } };
+let LOOK = LOOKS[QS.get("look")] || LOOKS.a; LOOK.key = LOOKS[QS.get("look")] ? QS.get("look") : "a";
+function softc(c) {
+  if (!LOOK.soft) return c;
+  const l = (c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11), k = LOOK.soft;
+  return mixc(mixc(c, [l, l, l], 0.06 * k), [255, 240, 214], 0.13 * k);
+}
+// a 1px line round what is drawn in an image (onto its clear pixels next to it), in col; not below its last row
+function outlineData(d, w, h, col, minA = 128) {
+  const on = (x, y) => x >= 0 && y >= 0 && x < w && y < h && d[(y * w + x) * 4 + 3] >= minA, add = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (on(x, y)) continue;
+    if (on(x - 1, y) || on(x + 1, y) || on(x, y - 1) || (y < h - 1 && on(x, y + 1))) add.push((y * w + x) * 4);
+  }
+  for (const i of add) { d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255; }
+}
+const INK = [58, 42, 26];
+
 // The sky in five bands (straight up down to the horizon) and the clouds in five tones (lit tops down to the deepest
 // shade), through the day in each season. Every colour is taken as it is from the reference pixel-art packs in
 // assets/refs (named at the end of each row): sky bands read off a clear column of the picture, cloud tones its most
@@ -107,6 +129,7 @@ function skyRow(h) {
     const a = T[i], b = T[i + 1], t = smooth(0, 1, (h - a[0]) / (b[0] - a[0]));
     for (let j = 0; j < 2; j++) for (let k = 0; k < 5; k++) { const c = mixc(a[j + 1][k], b[j + 1][k], t); for (let q = 0; q < 3; q++) out[j][k][q] += c[q] * wgt; }
   }
+  if (LOOK.soft) for (const row of out) for (let k = 0; k < 5; k++) row[k] = softc(row[k]);
   return out;
 }
 const sky5 = h => skyRow(h)[0];
@@ -323,12 +346,15 @@ function cloudPal(h) {
 const CLOUD_Q = [0.3, 0.52, 0.71, 0.87], PUFF_Q = [0.42, 0.75, 0.94, 1];
 function paintCloud(c, pal, L) {
   const { w, h, area } = c.shape, tn = blobTones(c.shape, L, area < 90 ? PUFF_Q : CLOUD_Q);
-  if (!c.cv) { c.cv = document.createElement("canvas"); c.cv.width = w; c.cv.height = h; }
-  const g = c.cv.getContext("2d"), img = g.createImageData(w, h);
+  const line = LOOK.line && (c.kind === "cu" || c.kind === "puff") ? 1 : 0, W2 = w + 2 * line, H2 = h + 2 * line;   // (room for an outline)
+  if (!c.cv) { c.cv = document.createElement("canvas"); c.cv.width = W2; c.cv.height = H2; c.pad = line; }
+  const g = c.cv.getContext("2d"), img = g.createImageData(W2, H2);
   for (let i = 0; i < w * h; i++) {
     const k = tn[i]; if (k < 0) continue;
-    const col = pal[k]; img.data[i * 4] = col[0]; img.data[i * 4 + 1] = col[1]; img.data[i * 4 + 2] = col[2]; img.data[i * 4 + 3] = Math.round(255 * c.shape.alpha[i]);
+    const col = pal[k], j = ((Math.floor(i / w) + line) * W2 + i % w + line) * 4;
+    img.data[j] = col[0]; img.data[j + 1] = col[1]; img.data[j + 2] = col[2]; img.data[j + 3] = Math.round(255 * c.shape.alpha[i]);
   }
+  if (line) outlineData(img.data, W2, H2, mixc(pal[4], pal[3], -0.25).map(v => Math.round(clampv(v, 0, 255))), 200);
   g.putImageData(img, 0, 0);
 }
 // how big each kind comes, where it floats (its base, in the sky above the horizon) and how it drifts: the higher
@@ -416,6 +442,7 @@ function sceneResize() {
 function setWorldHour(h) { T_FIX = h; T_FIX_AT = Date.now(); cacheKey = ""; }
 function setSkySeason(name) { skySeason = SKY_TABLE[name] ? name : null; cacheKey = ""; }
 function newSky() { clouds.length = 0; seedClouds(); }
+function setLook(k) { LOOK = LOOKS[k] || LOOKS.a; LOOK.key = k; cacheKey = ""; for (const c of clouds) { c.cv = null; c.key = ""; } }
 
 function lit(c, h, haze = 0, skyH = null) {
   let x = hex(c);
@@ -469,6 +496,7 @@ function landPal() {
     out[f] = out[f] || LAND_TABLE[name][f].map(() => [0, 0, 0]);
     LAND_TABLE[name][f].forEach((c, i) => { for (let q = 0; q < 3; q++) out[f][i][q] += c[q] * wgt; });
   }
+  if (LOOK.soft) for (const f in out) out[f] = out[f].map(softc);
   return out;
 }
 const mainSeason = () => seasonMix().reduce((a, b) => (b[1] > a[1] ? b : a))[0];
@@ -811,11 +839,18 @@ function paintTrees(h, P, skyLow) {
       }
     }
     // the tree itself on a canvas of its own, so the wind can sway its crown (its trunk stays put)
-    const { m, ox } = t, cv = document.createElement("canvas"); cv.width = m.w; cv.height = m.h;
-    const ti = cv.getContext("2d").createImageData(m.w, m.h);
-    for (let i = 0; i < m.w * m.h; i++) { const v = m.t[i]; if (v < 0) continue; const c = pal[v]; ti.data[i * 4] = c[0]; ti.data[i * 4 + 1] = c[1]; ti.data[i * 4 + 2] = c[2]; ti.data[i * 4 + 3] = 255; }
+    // (with room for an outline round it, on the near trees, when the look has one)
+    const { m, ox } = t, line = LOOK.line && at !== "hill" ? 1 : 0, w2 = m.w + 2 * line, h2 = m.h + line;
+    const cv = document.createElement("canvas"); cv.width = w2; cv.height = h2;
+    const ti = cv.getContext("2d").createImageData(w2, h2);
+    for (let i = 0; i < m.w * m.h; i++) {
+      const v = m.t[i]; if (v < 0) continue;
+      const c = pal[v], j = ((Math.floor(i / m.w) + line) * w2 + i % m.w + line) * 4;
+      ti.data[j] = c[0]; ti.data[j + 1] = c[1]; ti.data[j + 2] = c[2]; ti.data[j + 3] = 255;
+    }
+    if (line) outlineData(ti.data, w2, h2, (LOOK.line === "ink" ? mixc(litc(INK, h), pal[n - 1], 0.35) : mixc(pal[n - 1], litc([20, 26, 40], h), 0.4)).map(Math.round));
     cv.getContext("2d").putImageData(ti, 0, 0);
-    TREE_CVS.push({ cv, x: x - ox, y: base - (m.h - 1), stem: kind === "broad" ? 22 : 3, amp: kind === "broad" ? 2.2 : at === "hill" ? 0.8 : 1.3, ph: x * 0.37 });
+    TREE_CVS.push({ cv, x: x - ox - line, y: base - (m.h - 1) - line, stem: kind === "broad" ? 22 : 3, amp: kind === "broad" ? 2.2 : at === "hill" ? 0.8 : 1.3, ph: x * 0.37 });
   }
   g.putImageData(img, 0, 0);
 }
@@ -883,24 +918,38 @@ function drawPrints(g, h) {
   }
   g.globalAlpha = 1;
 }
-// the grass (or the snow) at her feet, over them: a few blades fixed in the ground where she stands, their tips bending
-// with the wind, so her feet are among them and not on top of the meadow; in snow she sinks in a little
+// the grass (or the snow) at her feet, over them. Only her own pixels are covered, with the ground just behind them
+// (as the scene has it, in her shadow), so no grass comes and goes round her. The grass is fixed to the ground: its
+// lowest row with a ragged top, here and there a blade tip a row higher bending with the wind; as she bobs or hops
+// her feet come out of it on their own. In snow she sinks a row. Not while she is held up. Painted after her light
+// (sceneTint) so the ground on her feet stays the ground's colour
+let feetMarks = null;
 function sceneFeet(g, now, box) {
-  if (!landP) return;
-  const h = worldHour(), snow = snowyGround(), y = FEET;
-  if (snow) {                                  // her feet sink in: the snow of the ground she stands on over their lowest row
-    const T = g.getTransform(), sy = y - 1 + T.f, band = [0, 6, 14, 25, 40].filter(b => sy >= horizon + b).length - 1;
-    const c = css(litc(landP.grass[Math.max(0, band)], h)), row = g.getImageData(Math.round(box.x + T.e), Math.round(sy), box.w, 1).data;
-    g.fillStyle = c;
-    for (let i = 0; i < box.w; i++) if (row[i * 4 + 3] > 0) g.fillRect(box.x + i, y - 1, 1, 1);
-    return;
+  feetMarks = null;
+  if (!landP || box.w <= 0 || typeof pet === "undefined" || pet.act === "held") return;
+  const T = g.getTransform(), snow = snowyGround(), x0 = Math.round(box.x + T.e), gy = Math.round(FEET - 1 + T.f);   // the ground's top row
+  if (box.y + box.h < FEET - 2 || gy < 2) return;
+  const d = g.getImageData(x0, gy - 1, box.w, 2).data, mine = (i, r) => d[((1 - r) * box.w + i) * 4 + 3] > 200;   // (her, not her shadow)
+  const out = [];
+  for (let i = 0; i < box.w; i++) {
+    const X = x0 + i, wx = Math.round(X - T.e), k = ((wx * 2654435761) >>> 0) % 7;
+    if (mine(i, 0) && (snow || k < 5)) out.push([X, gy, 0]);                          // the ground row, ragged in the grass
+    if (!snow && k === 0) {                                                           // a blade tip, swaying, over her
+      const sw = Math.round(Math.sin(now / 900 + wx * 0.15) * wind * 0.9);
+      if (i + sw >= 0 && i + sw < box.w && mine(i + sw, 1)) out.push([X + sw, gy - 1, 1]);
+    }
   }
-  const dark = css(litc(mainSeason() === "autumn" ? landP.grass[0] : landP.dark[0], h)), lite = css(litc(landP.grass[1], h));
-  for (let X = box.x - 2; X <= box.x + box.w + 1; X++) {
-    const k = ((X * 2654435761) >>> 0) % 7; if (k > 3) continue;
-    const ht = k === 0 ? 3 : 2, sw = Math.round(Math.sin(now / 900 + X * 0.15) * wind * 0.9);
-    g.fillStyle = dark; g.fillRect(X, y - ht + 1, 1, ht - 1);
-    g.fillStyle = k === 1 ? lite : dark; g.fillRect(X + (ht > 2 ? sw : 0), y - ht, 1, 1);
+  feetMarks = out;
+}
+function paintFeet(g) {
+  if (!feetMarks || !feetMarks.length) return;
+  let ax = 1e9, bx = -1e9, ay = 1e9, by = -1e9;
+  for (const [x, y] of feetMarks) { ax = Math.min(ax, x); bx = Math.max(bx, x); ay = Math.min(ay, y); by = Math.max(by, y); }
+  const w = bx - ax + 1, d = sctx.getImageData(ax, ay, w, by - ay + 1).data, h = worldHour();
+  const tip = litc(mainSeason() === "autumn" ? landP.grass[0] : landP.dark[0], h), sh = [36, 44, 52];
+  for (const [x, y, t] of feetMarks) {
+    const i = ((y - ay) * w + x - ax) * 4, c = t ? tip : [d[i], d[i + 1], d[i + 2]];
+    g.fillStyle = css(mixc(c, sh, 0.2).map(Math.round)); g.fillRect(x, y, 1, 1);    // in her shadow
   }
 }
 // the light of the sky on her (and what she holds): a little of the sky's colour, the gold of a low sun, the blue of
@@ -913,6 +962,7 @@ function sceneTint(g, now) {
   if (wm > 0.02) { g.fillStyle = css(mixc(sky[2], hex("#ff9e72"), 0.7), wm * 0.16); g.fillRect(0, 0, W, H); }
   if (d > 0.02) { g.fillStyle = css(hex("#1b2648"), d * 0.45); g.fillRect(0, 0, W, H); }
   g.restore();
+  paintFeet(g);
   if (typeof pet !== "undefined" && typeof SIGN_Z !== "undefined" && pet.z > SIGN_Z + 0.5) drawSignOver(g, now);
 }
 
@@ -1093,7 +1143,7 @@ function sceneRender(now, signInfo) {
   if (typeof weatherSky === "function") weatherSky(g, now, h);   // an overcast sky, a rainbow (behind the clouds, which grey themselves)
   const L = cloudLight(h), lk = pk + "|" + L.join(",");
   clouds.sort((a, b) => b.base - a.base);
-  for (const c of clouds) { if (c.key !== lk) { c.key = lk; paintCloud(c, pal, L); } g.drawImage(c.cv, Math.round(c.x), Math.round(c.y)); }
+  for (const c of clouds) { if (c.key !== lk) { c.key = lk; paintCloud(c, pal, L); } g.drawImage(c.cv, Math.round(c.x) - (c.pad || 0), Math.round(c.y) - (c.pad || 0)); }
   if (flock) {
     const col = css(mixc(hex("#5b6280"), hex("#3a2a40"), warmAt(h)));
     flock.birds.forEach(b => {
