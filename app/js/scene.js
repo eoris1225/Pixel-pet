@@ -1713,6 +1713,8 @@ function signFoot(g, now, h, base) {
     [["#e39a5c", -6, 0], ["#c9694a", -4, 1], ["#e8b76a", 3, 0], ["#b65a45", 5, 1], ["#d98552", 1, 1]].forEach(([c, dx, dy]) => {
       g.fillStyle = css(lit(c, h)); g.fillRect(SIGN_X + dx, base + dy, 2, 1); });
     g.fillStyle = css(litc(landP.grass[0], h)); [[-3, 3], [2, 2], [4, 3]].forEach(([dx, hh], k) => g.fillRect(SIGN_X + dx + (sw(k) > 0 ? 1 : 0), base - hh + 1, 1, hh));
+    [[-2, 4, 0], [-1, 3, 1], [0, 4, 0], [1, 3, 1]].forEach(([dx, hh, c], k) => {   // dry blades over the post's foot
+      g.fillStyle = css(litc(landP.grass[c], h)); g.fillRect(SIGN_X + dx, base - hh + 2, 1, hh - 1); g.fillRect(SIGN_X + dx + (sw(k + 3) > 0 ? 1 : 0), base - hh + 1, 1, 1); });
     return;
   }
   if (!snowy && se !== "winter") {
@@ -1722,8 +1724,12 @@ function signFoot(g, now, h, base) {
     if (se === "spring") { g.fillStyle = css(lit("#ffd1dc", h)); g.fillRect(SIGN_X - 7 + sw(4), base - 3, 1, 1); g.fillStyle = css(lit("#ffe38a", h)); g.fillRect(SIGN_X - 7 + sw(4), base - 2, 1, 1); }
   }
   // blades in front of the post (over its foot), the grass layer it stands in
-  g.fillStyle = dark; [[-2, 2], [-1, 3], [1, 2], [2, 3]].forEach(([dx, hh], k) => { g.fillRect(SIGN_X + dx, base - hh + 2, 1, hh - 1); g.fillRect(SIGN_X + dx + (sw(k + 5) > 0 ? 1 : 0), base - hh + 1, 1, 1); });
-  g.fillStyle = hi; g.fillRect(SIGN_X - 1, base - 1, 1, 1); g.fillRect(SIGN_X + 2, base - 1, 1, 1);
+  // (light greens on the brown post so they read, a dark root row under them, their tips nodding with the wind)
+  g.fillStyle = dark; g.fillRect(SIGN_X - 3, base, 7, 1);
+  [[-3, 3, mid], [-2, 5, hi], [-1, 3, mid], [0, 4, hi], [1, 5, mid], [2, 3, hi], [3, 2, mid]].forEach(([dx, hh, c], k) => {
+    const o = sw(k + 5) > 0 ? (dx < 0 ? -1 : 1) : 0;
+    g.fillStyle = c; g.fillRect(SIGN_X + dx, base - hh + 2, 1, hh - 1); g.fillRect(SIGN_X + dx + o, base - hh + 1, 1, 1);
+  });
 }
 
 // the sign's shadow from the sun: its board and post, cast on the grass
