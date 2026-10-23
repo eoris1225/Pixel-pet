@@ -561,6 +561,8 @@ function jiggle(key, K, C, max) {
 }
 // where 하와's camera hangs on the screen, kept up to date while she wears it (pet.js takes it off from there for her guitar)
 const CAMS = { neck: null };
+// where 욱's pudding is in her paw on the screen (the bottom middle of its glass), for setting it down when she lies down
+const PUDH = { at: null };
 // lying down, her camera has fallen on the grass in front of her, face down: seen from above, its light top edge, its
 // dark back with the little screen and viewfinder, a shadow under it; its strap runs from it up to her neck
 const CAMERA_LIE = [
@@ -1092,6 +1094,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       if (a.auto === "teddy" && typeof teddyHugged === "function" && !teddyHugged()) continue;   // the bear is off in the world
       if (a.auto === "pass" && typeof licenceWorn === "function" && !licenceWorn()) continue;   // the licence is off in the world
       if (a.auto === "camera" && typeof cameraWorn === "function" && !cameraWorn() && pose === pet._pose) continue;   // off, on the grass
+      if (a.auto === "pudding" && typeof puddingWorn === "function" && !puddingWorn() && pose === pet._pose) continue;   // set down on the grass
       const lie = a.auto === "camera" && img.lying && pose && pose.img;   // lying down: it is on the grass in front of her
       // on the base pose the face is found on the plain sprite, so a blink does not make the item vanish
       const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, shift = base ? dy : 0;
@@ -1142,6 +1145,13 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
         if (each && !on(x, yy)) continue;
         if (c === "clear") { g.clearRect(x, yy, 1, 1); continue; }   // her arm, now round the bear
         g.fillStyle = c === "body" ? body : c === "outline" ? OUT : c; g.fillRect(x, yy, 1, 1);
+      }
+      if (a.auto === "pudding" && px.length && typeof pet !== "undefined" && pose === pet._pose) {   // where it is on the screen
+        const gl = px.filter(p => p[2] === PUDDING_PAL.G || p[2] === PUDDING_PAL.g), m = g.getTransform();
+        if (gl.length) {
+          const lx = gl.reduce((a, p) => a + p[0], 0) / gl.length + 0.5 + (swap ? swap.x : 0), ly = Math.max(...gl.map(p => p[1])) + 2 + whole;
+          PUDH.at = { x: (g.worldX || 0) + m.a * lx + m.e, y: (g.worldY || 0) + m.d * ly + m.f, px: pet.x, dir: m.a < 0 ? -1 : 1 };
+        }
       }
       if (a.auto === "camera" && px.box && typeof pet !== "undefined" && pose === pet._pose) {   // where it hangs on the screen
         const m = g.getTransform(), lx = (keepSide ? fw - px.box.cx - 5 : px.box.cx + 5) + 0.5, ly = px.box.cy + whole + lift;

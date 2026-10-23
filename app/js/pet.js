@@ -680,6 +680,47 @@ function updateWeaponProp(now) {
     if (q >= 1) wprop.state = "held";
   }
 }
+// 욱's pudding, set down on the grass when she lies down (as her pole is, on her other side): she puts it down in a
+// little arc, it lands standing and its custard wobbles, it stays put, and once she is up she walks over and picks it
+// up (the boing). pprop.state: held / place / ground / lift
+const pprop = { state: "held" }, P_PLACE = 340, P_LIFT = 300;
+const puddingOn = () => G.pet === "nori" && !!(G.equip && G.equip.pudding) && typeof PUDDING !== "undefined";
+const puddingWorn = () => !puddingOn() || pprop.state === "held";
+function updatePuddingProp(now) {
+  if (!puddingOn()) { pprop.state = "held"; return; }
+  const rest = G.sleeping || G.wantSleep && pet.act === "lieDown" || ["lieDown", "lie", "getUp", "loaf"].includes(pet.act);
+  if (rest && pprop.state === "held") {
+    const h = PUDH.at && Math.abs(PUDH.at.px - pet.x) < 2 ? PUDH.at : { x: pet.x - 12, y: FEET - 8 };
+    const ws = wprop.state !== "held" && wprop.side ? -wprop.side : (pet.x < W / 2 ? 1 : -1);   // away from her pole
+    Object.assign(pprop, { state: "place", t0: now, fx: h.x, fy: h.y, x: Math.max(8, Math.min(W - 8, pet.x + ws * 19)), y: FEET + 1, z: pet.z, hdx: h.x - pet.x, hdy: h.y - FEET });
+  }
+  if (rest && pprop.state === "ground") pprop.ready = now + 1100;
+  if (pprop.state === "place" && now - pprop.t0 >= P_PLACE) Object.assign(pprop, { state: "ground", tl: now, ready: now + 1100 });
+  if (pprop.state === "lift" && now - pprop.t0 >= P_LIFT) pprop.state = "held";
+}
+function fetchPudding(now) {
+  if (!puddingOn() || pprop.state !== "ground" || now < (pprop.ready || 0) || G.sleeping || G.wantSleep) return false;
+  const dx = pprop.x - pet.x;
+  if (Math.abs(dx) > 11 || Math.abs(pprop.z - pet.z) > 1.5) { pet.act = "walk"; pet.target = pprop.x - Math.sign(dx) * 10; pet.tz = pprop.z; return true; }
+  Object.assign(pprop, { state: "lift", t0: now });
+  pet.dir = Math.sign(dx) || pet.dir; startAct("pickup", now); return true;
+}
+function drawPuddingProp(now) {
+  if (!puddingOn() || pprop.state === "held") return;
+  const sm = q => q * q * (3 - 2 * q), down = pprop.state === "place";
+  const q = pprop.state === "ground" ? 1 : down ? sm(Math.min(1, (now - pprop.t0) / P_PLACE)) : 1 - sm(Math.min(1, (now - pprop.t0) / P_LIFT));
+  // her paw: where it was as she set it down; picking it up, where her paw is now (the same side of her)
+  const hx = down ? pprop.fx : pet.x + pprop.hdx, hy = down ? pprop.fy : FEET - Math.round(pet.z) + pprop.hdy, gy = pprop.y - Math.round(pprop.z);
+  const bx = hx + (pprop.x - hx) * q, by = hy + (gy - hy) * q - Math.sin(q * Math.PI) * 6;
+  const x0 = Math.round(bx) - 3, y0 = Math.round(by) - PUDDING.length;
+  // landed: the custard wobbles side to side and settles
+  const t = pprop.state === "ground" ? now - pprop.tl : 1e9, wob = t < 700 ? Math.round(Math.sin(t / 55) * 1.4 * Math.exp(-t / 220)) : 0;
+  if (q > 0.9) { ctx.fillStyle = "rgba(40,60,40,0.25)"; ctx.fillRect(x0 + 1, Math.round(gy), 5, 1); }
+  PUDDING.forEach((r, j) => [...r].forEach((ch, i) => {
+    if (!PUDDING_PAL[ch]) return;
+    ctx.fillStyle = PUDDING_PAL[ch]; ctx.fillRect(x0 + i + (j <= 2 ? wob : j === 3 ? Math.round(wob / 2) : 0), y0 + j, 1, 1);
+  }));
+}
 // when she is free and her weapon is on the grass, she walks over and picks it up, like her bear
 function fetchWeapon(now) {
   if (!weaponOn() || wprop.state !== "ground" || now < (wprop.ready || 0) || G.sleeping || G.wantSleep) return false;
@@ -1028,10 +1069,12 @@ function petUpdate(now, dt) {
   updateTeddy(now, dt);
   updateWeaponProp(now);
   updateCameraProp(now);
+  updatePuddingProp(now);
   updateLicence(now, dt);
   if (G.still) pet.nextThink = now + 1500;                               // the tutorial is talking: she stands and listens
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && now > prop.ready && fetchTeddy(now)) {}
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && fetchWeapon(now)) {}
+  else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && fetchPudding(now)) {}
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && fetchLicence(now)) {}
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && fetchGuitar(now)) {}
   else if (pet.act === "idle" && !G.sleeping && !G.wantSleep && fetchCamera(now)) {}
@@ -1209,7 +1252,7 @@ function petRender(now) {
   ctx.restore();
   box.y -= Math.round(pet.z);                            // back to screen space, for the Zzz and the speech bubble
   if (pet.z > SIGN_Z + 0.5 && typeof drawSignOver === "function") drawSignOver(ctx, now);   // behind the sign
-  drawTeddy(true); drawWeaponProp(true); drawLicence(true); drawGuitarRest(pose, box, now); drawCameraProp(now);
+  drawTeddy(true); drawWeaponProp(true); drawLicence(true); drawGuitarRest(pose, box, now); drawCameraProp(now); drawPuddingProp(now);
   if (pet.act === "peek" && pet.peek.phase !== "out" && pet.peek.phase !== "in") {
     const pk = pet.peek, t = now - pk.t0, sora = pk.kind === "sora";
     let img = sora ? soraPeekImg(pk, t) : PEEK_IMG[0], off = 0;
