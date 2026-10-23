@@ -155,8 +155,8 @@ const numBadge = n => `<span class="nb f-num s" style="--face:${NUM_COLORS[(n - 
 for (const id of ["tab-stats", "tab-todo", "tab-settings"]) { const c = $("#" + id + " canvas"); c.dataset.fixed = 1; paintIcon(c, id); }
 paintIcons(document);
 paintIcon($("#hud-burn"), "flame");
-// the UI palette (style.css), one for each friend: 치카 lavender evening (c), 하와 airy sky (b), 욱 warm cream (a).
-// ?ui=a/b/c/old (or the test page) holds one palette for every friend
+// the paper and panels of the UI take a tint for each friend (style.css; the accent, keys and ink stay as they are):
+// 치카 lavender (c), 하와 sky blue (b), 욱 cream (a). ?ui=a/b/c (or the test page) holds one tint for every friend
 const PET_UI = { mochi: "c", sora: "b", nori: "a" };
 let uiPick = new URLSearchParams(location.search).get("ui");
 const applyUi = () => setUiLook(uiPick || PET_UI[appEl.dataset.pet] || "a");
