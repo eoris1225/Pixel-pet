@@ -33,7 +33,7 @@ const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a
 // The user picked B (lines in their own tone), then asked for the clouds without lines (as they were before), softer
 // lines on the trees and the warm pastel colours: F
 const LOOKS = { a: { line: "", soft: 0 }, b: { line: "self", soft: 0, clouds: 1 }, c: { line: "ink", soft: 0, clouds: 1 }, d: { line: "", soft: 1 },
-  e: { line: "ink", soft: 1, clouds: 1 }, f: { line: "self", soft: 1 } };
+  e: { line: "ink", soft: 1, clouds: 1 }, f: { line: "self", soft: 1, clouds: 1 } };
 let LOOK = LOOKS[QS.get("look")] || LOOKS.f; LOOK.key = LOOKS[QS.get("look")] ? QS.get("look") : "f";
 // (in the sky the most vivid colours, a sunset's gold on the clouds, are calmed the most: vivid; k: how much)
 function softc(c, k = 1, vivid = 0) {
@@ -45,10 +45,10 @@ function softc(c, k = 1, vivid = 0) {
 }
 // a 1px line round what is drawn in an image (onto its clear pixels next to it): each line pixel is the colour of
 // the thing beside it taken a step towards its own deepest tone D, so the line follows it (light beside its lit edge,
-// deeper beside its shade) and is never black; where its edge is dark already, it needs no line. own(i): whether the
+// deeper beside its shade) and is never black; where its edge is dark already, it needs no line (skip; a cloud is lined all round). own(i): whether the
 // pixel i may be lined (not a tree's trunk). Not below its last row
 const lum = c => c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11;
-function outlineData(d, w, h, D, minA = 128, own = null) {
+function outlineData(d, w, h, D, minA = 128, own = null, k = 0.5, skip = true) {
   const on = (x, y) => x >= 0 && y >= 0 && x < w && y < h && d[(y * w + x) * 4 + 3] >= minA && (!own || own(y * w + x)), add = [], lD = lum(D);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     if (d[(y * w + x) * 4 + 3] >= minA) continue;
@@ -57,8 +57,8 @@ function outlineData(d, w, h, D, minA = 128, own = null) {
       if (Y === h || !on(X, Y)) continue;
       const j = (Y * w + X) * 4, l = lum([d[j], d[j + 1], d[j + 2]]); if (l > bl) { bl = l; best = j; }
     }
-    if (best < 0 || bl < lD * 1.35 + 10) continue;
-    const c = mixc([d[best], d[best + 1], d[best + 2]], D, 0.5);
+    if (best < 0 || (skip && bl < lD * 1.35 + 10)) continue;
+    const c = mixc([d[best], d[best + 1], d[best + 2]], D, k);
     add.push([(y * w + x) * 4, c, d[best + 3]]);
   }
   for (const [i, c, a] of add) { d[i] = Math.round(c[0]); d[i + 1] = Math.round(c[1]); d[i + 2] = Math.round(c[2]); d[i + 3] = a; }
@@ -401,7 +401,7 @@ function paintCloud(c, pal, L) {
     const col = pal[k], j = ((Math.floor(i / w) + line) * W2 + i % w + line) * 4;
     img.data[j] = col[0]; img.data[j + 1] = col[1]; img.data[j + 2] = col[2]; img.data[j + 3] = Math.round(255 * c.shape.alpha[i]);
   }
-  if (line) outlineData(img.data, W2, H2, pal[4].map(v => v * 0.85), 200);
+  if (line) outlineData(img.data, W2, H2, pal[4].map(v => v * 0.8), 200, null, 0.72, false);   // (round all of it, its shade too)
   g.putImageData(img, 0, 0);
 }
 // how big each kind comes, where it floats (its base, in the sky above the horizon) and how it drifts: the higher
@@ -438,54 +438,66 @@ function seedClouds() {
   for (const k in want) for (let i = 0; i < want[k]; i++) { const c = newCloud(k); c.x = Math.random() * (W + c.shape.w) - c.shape.w; clouds.push(c); }
   cloudsReady = true;
 }
-// the cloud with a face that floats by now and then (and says hello)
+// 지나가유: a cloud with a face that floats by now and then and says hello. Its shape is now one of a few that only
+// look a bit like something (not drawn as it: "oh, isn't that a rabbit?"): a few round masses laid out roughly as
+// the thing is, every one a little off, with stray puffs on it, painted as every other cloud; or the plain cloud it
+// first was. [name, lobes (x, y up from the base, r, x-stretch, a big dome?), its face: [on lobe, dx, dy, big?]]
 let faceSeed = 5;
 const FACE_BLOB = cloudShape("tree", 50, 26, () => (faceSeed = (faceSeed * 16807) % 2147483647) / 2147483647);
-// painted like every other cloud, with sleepy happy eyes, a little smile and pink cheeks, like the clouds in the sketch
-function renderFaceCloud(h, pal) {
-  const c = { shape: FACE_BLOB }; paintCloud(c, pal, cloudLight(h));
-  const g = c.cv.getContext("2d"), cx = c.cv.width / 2 | 0, cy = Math.round(FACE_BLOB.base * 0.62);
-  g.fillStyle = "#6a6f8e";
-  g.fillRect(cx - 7, cy, 3, 1); g.fillRect(cx - 8, cy - 1, 1, 1); g.fillRect(cx - 4, cy - 1, 1, 1);
-  g.fillRect(cx + 5, cy, 3, 1); g.fillRect(cx + 4, cy - 1, 1, 1); g.fillRect(cx + 8, cy - 1, 1, 1);
-  g.fillRect(cx - 1, cy + 3, 3, 1); g.fillRect(cx - 2, cy + 2, 1, 1); g.fillRect(cx + 2, cy + 2, 1, 1);
-  g.fillStyle = "#ffb3c7"; g.fillRect(cx - 11, cy + 2, 3, 1); g.fillRect(cx + 9, cy + 2, 3, 1);
-  return c.cv;
-}
-// and now and then, instead, a cloud that only looks a bit like something (not drawn as it: "oh, isn't that a
-// rabbit?"): a few round masses laid out roughly as the thing is, every one a little off, with stray puffs on it,
-// painted as every other cloud. [name, lobes (x, y up from the base, r, x-stretch, a big dome?)]
 const VISITOR_SHAPES = {
+  cloud: ["구름", null, null],
   rabbit: ["토끼", j => [[0, 8, j(10), 1.3, true], [15, 15, j(7), 1, true], [-13, 9, j(3.5)],
-    ...[0, 1, 2, 3, 4].map(i => [13 - i * 0.6, 21 + i * 3, j(2.6) - i * 0.15]), ...[0, 1, 2, 3].map(i => [18 + i * 1.3, 21 + i * 2.6, j(2.4) - i * 0.15])]],
-  bear: ["곰돌이", j => [[0, 10, j(11), 1.15, true], [-10, 20, j(4.5)], [10, 20, j(4.5)], [0, 5, j(4.5), 1.2]]],
-  whale: ["고래", j => [[0, 8, j(9), 2.1, true], [-21, 11, j(3)], [-25, 15, j(3.4)], [-21, 16, j(2.6)], [14, 21, j(2)], [11, 24, j(2.4)], [17, 24, j(2.4)]]],
-  heart: ["하트", j => [[-6, 16, j(7), 1, true], [6, 16, j(7), 1, true], [0, 10, j(7)], [0, 5, j(4.5)], [0, 1.5, j(2.5)]]],
+    ...[0, 1, 2, 3, 4].map(i => [13 - i * 0.6, 21 + i * 3, j(2.6) - i * 0.15]), ...[0, 1, 2, 3].map(i => [18 + i * 1.3, 21 + i * 2.6, j(2.4) - i * 0.15])], [1, 0, -1, 0]],
+  bear: ["곰돌이", j => [[0, 10, j(11), 1.15, true], [-10, 20, j(4.5)], [10, 20, j(4.5)], [0, 5, j(4.5), 1.2]], [0, 0, 1, 1]],
+  whale: ["고래", j => [[0, 8, j(9), 2.1, true], [-21, 11, j(3)], [-25, 15, j(3.4)], [-21, 16, j(2.6)], [14, 21, j(2)], [11, 24, j(2.4)], [17, 24, j(2.4)]], [0, 9, 1, 0]],
+  heart: ["하트", j => [[-6, 16, j(7), 1, true], [6, 16, j(7), 1, true], [0, 10, j(7)], [0, 5, j(4.5)], [0, 1.5, j(2.5)]], [2, 0, 4, 0]],
   sheep: ["양", j => [[0, 10, j(8), 1.6, true], [-8, 15, j(4.5)], [0, 17, j(5)], [8, 15, j(4.5)], [-13, 10, j(4)], [13, 9, j(4)], [18, 9, j(4)],
-    [-7, 2.6, 2.3], [-2, 2.6, 2.3], [4, 2.6, 2.3], [9, 2.6, 2.3]]],
-  fish: ["물고기", j => [[0, 8, j(7), 1.8, true], [-15, 8, j(3)], [-19, 11.5, j(3.2)], [-19, 4.5, j(3.2)], [2, 15, j(2.6)]]],
-  cat: ["고양이", j => [[0, 10, j(10), 1.25, true], [-8, 19, j(3.4)], [-9.5, 22.5, j(2)], [8, 19, j(3.4)], [9.5, 22.5, j(2)]]],
-  pudding: ["푸딩", j => [[0, 7, j(9), 1.5, true], [0, 13, j(7.5), 1.35], [0, 17, j(6), 1.2], [0, 22, j(2.3)]]],
-  bird: ["새", j => [[0, 8, j(6), 1.6, true], [11, 12, j(4)], [-2, 15, j(5), 1.6], [-12, 10, j(2.6)], [15, 12, j(1.6)]]],
+    [-7, 2.6, 2.3], [-2, 2.6, 2.3], [4, 2.6, 2.3], [9, 2.6, 2.3]], [0, 3, 0, 0]],
+  fish: ["물고기", j => [[0, 8, j(7), 1.8, true], [-15, 8, j(3)], [-19, 11.5, j(3.2)], [-19, 4.5, j(3.2)], [2, 15, j(2.6)]], [0, 4, 1, 0]],
+  cat: ["고양이", j => [[0, 10, j(10), 1.25, true], [-8, 19, j(3.4)], [-9.5, 22.5, j(2)], [8, 19, j(3.4)], [9.5, 22.5, j(2)]], [0, 0, 0, 1]],
+  pudding: ["푸딩", j => [[0, 7, j(9), 1.5, true], [0, 13, j(7.5), 1.35], [0, 17, j(6), 1.2], [0, 22, j(2.3)]], [0, 0, 2, 1]],
+  bird: ["새", j => [[0, 8, j(6), 1.6, true], [11, 12, j(4)], [-2, 15, j(5), 1.6], [-12, 10, j(2.6)], [15, 12, j(1.6)]], [0, 3, 1, 0]],
 };
+// what it says as it goes by (mostly its name)
+const VISITOR_LINES = ["지나가유~", "지나가유~", "지나가유~", "쉬엄쉬엄 해유~", "천천히 가유~", "열심히 하네유~", "구경 잘 하고 가유~"];
+// a shape and where its face goes (in the cloud's own pixels)
 function visitorShape(kind) {
-  const R = Math.random, j = r => r * (0.85 + R() * 0.3), lobes = VISITOR_SHAPES[kind][1](j).map(([x, y, r, sx = 1, big = false]) => [x + (R() - 0.5) * 1.6, y + (R() - 0.5) * 1.6, r, sx, big]);
+  if (kind === "cloud") return { shape: FACE_BLOB, face: [FACE_BLOB.w / 2 | 0, Math.round(FACE_BLOB.base * 0.62), 1] };
+  const R = Math.random, j = r => r * (0.85 + R() * 0.3), [, make, [fi, fdx, fdy, big]] = VISITOR_SHAPES[kind];
+  const lobes = make(j).map(([x, y, r, sx = 1, big = false]) => [x + (R() - 0.5) * 1.6, y + (R() - 0.5) * 1.6, r, sx, big]);
   for (let i = 0, n = 2 + (R() * 3 | 0); i < n; i++) {           // a few stray puffs on its edge
     const [x, y, r] = lobes[R() * lobes.length | 0], a = R() * Math.PI;
     lobes.push([x + Math.cos(a) * r * 0.8, y + Math.sin(a) * r * 0.8, r * (0.3 + R() * 0.25)]);
   }
-  return blobLayout(lobes, [], R);
+  const shape = blobLayout(lobes, [], R), [fx, fy] = lobes[fi];
+  return { shape, face: [Math.round(fx + fdx - shape.x0), Math.round(shape.base + 1 - (fy + fdy)), big] };
+}
+// painted like every other cloud, with sleepy happy eyes, a little smile and pink cheeks, like the clouds in the sketch
+// (a smaller face on a smaller head)
+function renderVisitor(v, h, pal) {
+  const c = { shape: v.shape, kind: "cu" }; paintCloud(c, pal, cloudLight(h));
+  const g = c.cv.getContext("2d"), p = c.pad || 0, [fx, fy, big] = v.face, cx = fx + p, cy = fy + p;
+  g.fillStyle = "#6a6f8e";
+  if (big) {
+    g.fillRect(cx - 7, cy, 3, 1); g.fillRect(cx - 8, cy - 1, 1, 1); g.fillRect(cx - 4, cy - 1, 1, 1);
+    g.fillRect(cx + 5, cy, 3, 1); g.fillRect(cx + 4, cy - 1, 1, 1); g.fillRect(cx + 8, cy - 1, 1, 1);
+    g.fillRect(cx - 1, cy + 3, 3, 1); g.fillRect(cx - 2, cy + 2, 1, 1); g.fillRect(cx + 2, cy + 2, 1, 1);
+    g.fillStyle = "#ffb3c7"; g.fillRect(cx - 11, cy + 2, 3, 1); g.fillRect(cx + 9, cy + 2, 3, 1);
+  } else {
+    g.fillRect(cx - 4, cy, 2, 1); g.fillRect(cx - 5, cy - 1, 1, 1); g.fillRect(cx - 2, cy - 1, 1, 1);
+    g.fillRect(cx + 2, cy, 2, 1); g.fillRect(cx + 1, cy - 1, 1, 1); g.fillRect(cx + 4, cy - 1, 1, 1);
+    g.fillRect(cx, cy + 2, 1, 1); g.fillRect(cx - 1, cy + 1, 1, 1); g.fillRect(cx + 1, cy + 1, 1, 1);
+    g.fillStyle = "#ffb3c7"; g.fillRect(cx - 7, cy + 1, 2, 1); g.fillRect(cx + 5, cy + 1, 2, 1);
+  }
+  return c.cv;
 }
 let faceCloud = null, nextFace = performance.now() + 25000, lastVisitor = "";
-// the next visitor: the face cloud now and then, more often a shape (never the same twice running)
+// the next one by (never the same shape twice running)
 function sendVisitor(kind) {
-  if (!kind) {
-    const ks = Object.keys(VISITOR_SHAPES).filter(k => k !== lastVisitor);
-    kind = Math.random() < 0.3 && lastVisitor !== "face" ? "face" : ks[Math.random() * ks.length | 0];
-  }
+  if (!kind) { const ks = Object.keys(VISITOR_SHAPES).filter(k => k !== lastVisitor); kind = ks[Math.random() * ks.length | 0]; }
   lastVisitor = kind;
-  const shape = kind === "face" ? FACE_BLOB : visitorShape(kind);
-  faceCloud = { kind, shape, x: -shape.w - 4, y: 30 + Math.random() * 30, v: kind === "face" ? 5.5 : 4 + Math.random() * 2, t0: performance.now(), key: "", img: null, said: false };
+  const v = visitorShape(kind), line = VISITOR_LINES[Math.random() * VISITOR_LINES.length | 0];
+  faceCloud = { kind, ...v, line, x: -v.shape.w - 4, y: 30 + Math.random() * 30, v: 4.5 + Math.random() * 1.5, t0: performance.now(), key: "", img: null };
 }
 
 /* ---------- critters ---------- */
@@ -939,7 +951,7 @@ function paintTrees(h, P, skyLow) {
     }
     if (line) {                                                       // round its leaves (or snow), not its trunk
       const tone = i => { const X = i % w2 - line, Y = Math.floor(i / w2) - line; return X >= 0 && Y >= 0 && X < m.w ? m.t[Y * m.w + X] : -1; };
-      outlineData(ti.data, w2, h2, LOOK.line === "ink" ? mixc(litc(INK, h), pal[n - 1], 0.35) : pal[n - 1].map(v => v * 0.85), 128, i => tone(i) < n);
+      outlineData(ti.data, w2, h2, LOOK.line === "ink" ? mixc(litc(INK, h), pal[n - 1], 0.35) : pal[n - 1].map(v => v * 0.85), 128, i => tone(i) < n, 0.68);
     }
     cv.getContext("2d").putImageData(ti, 0, 0);
     TREE_CVS.push({ cv, x: x - ox - line, y: base - (m.h - 1) - line, stem: kind === "broad" ? 22 : 3, amp: kind === "broad" ? 2.2 : at === "hill" ? 0.8 : 1.3, ph: x * 0.37 });
@@ -1097,17 +1109,8 @@ function sceneUpdate(now, dt) {
   }
   for (const k in want) for (let n = have[k] || 0; n < want[k]; n++) clouds.push(newCloud(k));   // more drifting in
   if (!faceCloud && now > nextFace) sendVisitor();
-  if (faceCloud) {
-    faceCloud.x += faceCloud.v * s;
-    if (faceCloud.x > W + 8) { faceCloud = null; nextFace = now + 70000 + rnd() * 100000; }
-    else if (faceCloud.kind !== "face" && !faceCloud.said && faceCloud.x + faceCloud.shape.w / 2 > W * 0.4) {   // she notices it, now and then
-      faceCloud.said = true;
-      if (Math.random() < 0.6 && typeof say === "function" && typeof S !== "undefined" && S.pet && !(typeof G !== "undefined" && G.sleeping) && !(typeof bubbleUntil !== "undefined" && now < bubbleUntil)) {
-        const n = VISITOR_SHAPES[faceCloud.kind][0], l = [`어? 저 구름 ${n} 닮았다!`, `저 구름… ${n} 같지 않아?`, `${n} 구름이다~`];
-        say(l[Math.random() * l.length | 0], 3000);
-      }
-    }
-  }
+  if (faceCloud) { faceCloud.x += faceCloud.v * s; if (faceCloud.x > W + 8) { faceCloud = null; nextFace = now + 70000 + rnd() * 100000; } }
+
 
   if (!flock && now > nextFlock && dark < 0.45 && !foul) {
     const dir = rnd() < 0.5 ? 1 : -1, n = 2 + (rnd() * 4 | 0);
@@ -1271,8 +1274,7 @@ function sceneRender(now, signInfo) {
   const ck = pk + "|" + cloudLight(h).join(",");                 // (the visiting cloud greys with the weather as the others do)
   if (faceCloud && faceCloud.key !== ck) {
     faceCloud.key = ck;
-    if (faceCloud.kind === "face") faceCloud.img = renderFaceCloud(h, pal);
-    else { const c = { shape: faceCloud.shape, kind: "cu" }; paintCloud(c, pal, cloudLight(h)); faceCloud.img = c.cv; }
+    faceCloud.img = renderVisitor(faceCloud, h, pal);
   }
   const g = sctx;
   g.imageSmoothingEnabled = false;
@@ -1354,8 +1356,8 @@ function sceneRender(now, signInfo) {
 
 // speech from the world (the passing cloud) in game pixels, for the HTML layer
 function sceneSpeech(now) {
-  if (!faceCloud || !faceCloud.img || faceCloud.kind !== "face") return null;
+  if (!faceCloud || !faceCloud.img) return null;
   const x = faceCloud.x + faceCloud.img.width / 2;
   if (x < 20 || x > W - 10) return null;
-  return { x, y: faceCloud.y - 2, text: "지나가유~" };
+  return { x, y: faceCloud.y - 2, text: faceCloud.line };
 }

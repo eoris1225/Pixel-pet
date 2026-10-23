@@ -4,7 +4,7 @@
    their location), falling back to the game's own weather when that cannot be fetched.
    It greys and darkens the sky and brings grey clouds, wets the grass, piles snow on the land and the sign, lays fog
    low over the meadow, rains or snows over everything (the pet too), flashes lightning, leaves a rainbow when the rain
-   stops in the daytime, blows the grass about, and the pet says something when it changes.
+   stops in the daytime, and blows the grass about.
    Preview with ?weather=rain (clear, cloudy, rain, storm, snow, fog). */
 "use strict";
 
@@ -20,7 +20,7 @@ const WX_LOOK = {
   fog:    { cover: 0.45, rain: 0, snow: 0, fog: 0.85, storm: 0, wind: 0 },
 };
 const WX = { kind: "clear", force: null, real: null, realAt: 0, realErr: "", cover: 0.05, rain: 0, snow: 0, fog: 0, storm: 0, wind: 0,
-  wet: 0, depth: 0, bow: 0, bowT: 0, flash: 0, strike: null, far: null, nextBolt: 0, nextFar: 0, shake: 0, said: "", sayAt: -1e9 };
+  wet: 0, depth: 0, bow: 0, bowT: 0, flash: 0, strike: null, far: null, nextBolt: 0, nextFar: 0, shake: 0 };
 { const q = new URLSearchParams(location.search).get("weather"); if (WX_KINDS.includes(q)) WX.force = q; }
 
 /* ---------- which weather ---------- */
@@ -86,7 +86,7 @@ function newFlake(top) { return { x: Math.random() * W, y: top ? -Math.random() 
 
 function weatherUpdate(now, dt) {
   const s = Math.min(0.1, dt / 1000), w = weatherNow(), L = WX_LOOK[w.kind], day = darkAt(worldHour()) < 0.5;
-  const before = WX.kind; WX.kind = w.kind; WX.src = w.src;
+  WX.kind = w.kind; WX.src = w.src;
   // opening the game, it is already raining (or snowing, the snow lying): the weather is there from the first frame
   if (!WX.started) { WX.started = true; Object.assign(WX, L); WX.wet = L.rain ? 0.7 : 0; WX.depth = L.snow ? 0.8 : 0; return; }
   // ease every part towards the new weather over some seconds (rain and snow start a little after the clouds come)
@@ -138,9 +138,6 @@ function weatherUpdate(now, dt) {
     if (f.y >= f.gy) { f.y = f.gy; f.rest = now; }
   }
   for (let i = SPLASH.length - 1; i >= 0; i--) if (now - SPLASH[i].t > 120) SPLASH.splice(i, 1);
-  // the pet says something when the weather turns (not at every little flicker, and not while studying hard)
-  if (before !== WX.kind && now > 4000 && now - WX.sayAt > 20000) { WX.sayAt = now; WX.said = WX.kind; weatherSay(WX.kind); }
-  if (WX.bowT && now - WX.bowT > 3500 && now - WX.bowT < 3600 && now - WX.sayAt > 5000) { WX.sayAt = now; weatherSay("rainbow"); }
 }
 function startStrike(now) {
   const near = Math.random() < 0.6, main = near ? 1 : 0.6;   // a near strike blazes and cracks; a far one glows and grumbles
@@ -167,20 +164,6 @@ function shakeStage(now) {
   if (WX.shake > 0.05) {
     if (now - shakeAt > 50) { shakeAt = now; const a = Math.round(WX.shake * (Math.random() < 0.5 ? -1 : 1)), b = Math.random() < WX.shake * 0.3 ? 1 : 0; el.style.transform = `translate(${a}px,${b}px)`; shakeOn = true; }
   } else if (shakeOn) { el.style.transform = ""; shakeOn = false; }
-}
-const WX_SAY = {
-  clear: ["날이 개었다!", "해님 나왔다~", "하늘 맑다!"],
-  cloudy: ["구름이 많아졌네", "하늘이 꾸물꾸물…"],
-  rain: ["비 온다…", "빗소리 들으면서 공부하기 좋다", "우산 없는데…"],
-  storm: ["천둥이다!! 무서워…", "번쩍했어!", "으아 비 엄청 와"],
-  snow: ["눈이다!!", "하얗게 쌓이겠다~", "손 시려…"],
-  fog: ["안개 꼈네", "앞이 잘 안 보여…"],
-  rainbow: ["무지개다!!", "우와 무지개!"],
-};
-function weatherSay(kind) {
-  if (typeof say !== "function" || typeof S === "undefined" || !S.pet || (typeof G !== "undefined" && G.sleeping)) return;
-  if (typeof bubbleUntil !== "undefined" && performance.now() < bubbleUntil) return;
-  const l = WX_SAY[kind]; if (l) say(l[Math.random() * l.length | 0], 3000);
 }
 
 /* ---------- drawing ---------- */
