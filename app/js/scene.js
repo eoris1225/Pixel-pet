@@ -401,7 +401,7 @@ function paintCloud(c, pal, L) {
     const col = pal[k], j = ((Math.floor(i / w) + line) * W2 + i % w + line) * 4;
     img.data[j] = col[0]; img.data[j + 1] = col[1]; img.data[j + 2] = col[2]; img.data[j + 3] = Math.round(255 * c.shape.alpha[i]);
   }
-  if (line) outlineData(img.data, W2, H2, pal[4].map(v => v * 0.8), 200, null, 0.72, false);   // (round all of it, its shade too)
+  if (line) outlineData(img.data, W2, H2, pal[4].map(v => v * 0.8), 200, null, 0.52, false);   // (round all of it, its shade too)
   g.putImageData(img, 0, 0);
 }
 // how big each kind comes, where it floats (its base, in the sky above the horizon) and how it drifts: the higher
