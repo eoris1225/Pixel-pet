@@ -31,7 +31,7 @@
 @font-face { font-family: "Roborobo"; src: url("../fonts/pixelroborobo.woff2?v=2") format("woff2"); font-display: block; }
 
 :root {
-  /* the UI colours as they were (ink, keys, the friend's own accent, the dark toast); only the cream of the paper and
+  /* the UI colours as they were (ink, keys, the dark toast) with one pink accent; only the cream of the paper and
      the panels changes with the friend (PET_UI in app.js): 욱 cream (this), 하와 sky blue (b), 치카 lavender (c) */
   --ink: #3a2a1a;
   --edge: #5b4433;       /* outlines: the friends' own outline colour (OUT in pet.js), so the frames and the sprites match */
@@ -48,7 +48,7 @@
   --hud: rgba(255, 250, 240, .94); --plaque: rgba(255, 244, 220, .92);
   --dim: rgba(44, 32, 50, .38); --dot: #f7e9c9;
   --body: #f1e6d6;          /* the page round the screen: one cream for every friend */
-  --accent: #ffb3c7; --accent-soft: #ffe3ea; --accent-deep: #e88fa8;
+  --accent: #ffc6d4; --accent-soft: #ffedf2; --accent-deep: #f0a3b8;   /* one pink for every friend, a little lighter (user) */
   /* a 2px pixel-rounded corner */
   --r2: polygon(2px 0, calc(100% - 2px) 0, calc(100% - 2px) 1px, calc(100% - 1px) 1px, calc(100% - 1px) 2px, 100% 2px,
     100% calc(100% - 2px), calc(100% - 1px) calc(100% - 2px), calc(100% - 1px) calc(100% - 1px), calc(100% - 2px) calc(100% - 1px),
@@ -57,9 +57,6 @@
   --px: .5px;            /* half a game pixel: text scales with the frame but is not tied to its pixel grid */
   color-scheme: light;
 }
-#app[data-pet="mochi"] { --accent: #ffb3c7; --accent-soft: #ffe3ea; --accent-deep: #e88fa8; }
-#app[data-pet="sora"]  { --accent: #9fd3f5; --accent-soft: #e0f2fd; --accent-deep: #6cb8e6; }
-#app[data-pet="nori"]  { --accent: #ffd96b; --accent-soft: #fff3c4; --accent-deep: #f2b93b; --bar: #fcc63f; }
 /* b: the cream turned a pale sky blue (하와) */
 :root[data-ui="b"] { --paper: #fafcfe; --ivory: #eaf3fa; --ivory-2: #d4e4f0; --line: #c9dbea; --muted: #8b9aab; --sub: #5f6e7e;
   --off: #e8edf2; --off-sh: #d3dbe4; --off-t: #a8b3bf; --hud: rgba(250, 252, 254, .94); --plaque: rgba(234, 243, 250, .92); --dot: #dce9f3; }
