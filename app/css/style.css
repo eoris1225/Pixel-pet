@@ -57,6 +57,10 @@
   --px: .5px;            /* half a game pixel: text scales with the frame but is not tied to its pixel grid */
   color-scheme: light;
 }
+/* the level bar keeps each friend's own colour (as it always had): 치카 pink, 하와 sky blue, 욱 yellow */
+#app[data-pet="mochi"] { --bar: #ffb3c7; --bar-soft: #ffe3ea; }
+#app[data-pet="sora"]  { --bar: #9fd3f5; --bar-soft: #e0f2fd; }
+#app[data-pet="nori"]  { --bar: #fcc63f; --bar-soft: #fff3c4; }
 /* b: airy, a touch of the sky (하와) */
 :root[data-ui="b"] { --ink: #574a44; --paper: #fcfcf8; --ivory: #f3f5f1; --ivory-2: #e2e8e2; --line: #dde4dd; --muted: #9aa09c; --sub: #737a76;
   --mint: #cdeccf; --mint-d: #a5d2ab; --lilac: #dfe0fb; --lilac-d: #b8bbea; --peach: #ffe0d2; --peach-d: #efbba5;
@@ -174,7 +178,7 @@ h2, h3, h4, p, ul, ol, dl, dd { margin: 0; padding: 0; font-weight: normal; }
 @keyframes glint { 0% { left: 0; opacity: 1; } 30% { left: calc(100% - 2px); opacity: 1; } 31%, 100% { left: calc(100% - 2px); opacity: 0; } }
 .bar b { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(58,42,26,.18); }
 .bar.burning i { background: #ffb08a; }
-.bar.max i { background: repeating-linear-gradient(90deg, var(--bar, var(--accent)) 0 3px, var(--accent-soft) 3px 6px); }
+.bar.max i { background: repeating-linear-gradient(90deg, var(--bar, var(--accent)) 0 3px, var(--bar-soft, var(--accent-soft)) 3px 6px); }
 
 /* ---------- side tab ---------- */
 #sidetab { position: absolute; z-index: 10; left: 3px; top: 33px; display: flex; align-items: flex-start; transition: transform .25s steps(5); }
