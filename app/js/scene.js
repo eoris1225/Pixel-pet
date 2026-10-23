@@ -143,7 +143,7 @@ const SKY_TABLE = {
     [11.5, "76b9e3 76b9e3 76b9e3 b1cae1 dce5ec", "eaf6fc dce5ec b1cae1 6c9dc4 56729a"],   // nature 3
     [15.5, "b6d7d9 b6d7d9 b6d7d9 c9d5d3 dae0dc", "f4f4f4 d8d8d8 bfbfbf 9abbc4 8db2c2"],   // autumn 4
     [17.3, "a3bedb a3bedb ababb5 d8b3a3 f1c6a3", "f1c6a3 e4bca3 d9b2a3 9ea5b5 7e91ac"],   // Ocean 8
-    [18.4, "8e9db2 a3bedb ababb5 d8b3a3 f1c6a3", "f1c6a3 d9b2a3 8e9db2 6d85a7 495c88"],   // Ocean 8
+    [18.4, "6d85a7 8e9db2 b9a3b8 e2ac9c f4c69c", "f6cfa4 eab39c c39aa8 8e8fb0 6d85a7"],   // Ocean 8, warmed towards Ocean 2
     [19.2, "3e517b 495c88 536897 5d75a1 d8b3a3", "d8b3a3 7e91ac 6d85a7 536897 3e517b"],   // Ocean 8, its lower clouds
     [20.4, "0d1328 121830 171f43 19265d 192561", "446b96 374d65 303e4b 2a3642 232d37"],
     [24,   "0d1328 121830 171f43 19265d 192561", "446b96 374d65 303e4b 2a3642 232d37"],
@@ -736,10 +736,13 @@ function setSkySeason(name) { skySeason = SKY_TABLE[name] ? name : null; cacheKe
 function newSky() { clouds.length = 0; seedClouds(); }
 function setLook(k) { LOOK = LOOKS[k] || LOOKS.f; LOOK.key = k; cacheKey = ""; for (const c of clouds) { c.cv = null; c.key = ""; } }
 
+// how much a low sun warms a colour: a little for the dark ones, much more for the bright (snow takes the alpenglow of
+// winter 4 and 6, peach at sunrise and sunset)
+const warmK = c => 0.14 + 0.24 * clampv(((c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11) - 150) / 100, 0, 1);
 function lit(c, h, haze = 0, skyH = null) {
   let x = hex(c);
   if (haze && skyH) x = mixc(x, skyH, haze);
-  x = mixc(x, hex("#ff9e72"), warmAt(h) * 0.16);
+  x = mixc(x, hex("#ff9e72"), warmAt(h) * warmK(x));
   x = mixc(x, hex("#172a5e"), darkAt(h) * 0.64);
   return x;
 }
@@ -796,7 +799,7 @@ const mainSeason = () => seasonMix().reduce((a, b) => (b[1] > a[1] ? b : a))[0];
 function litc(c, h, haze = 0, skyH = null) {
   let x = c;
   if (haze && skyH) x = mixc(x, skyH, haze);
-  x = mixc(x, hex("#ff9e72"), warmAt(h) * 0.16);
+  x = mixc(x, hex("#ff9e72"), warmAt(h) * warmK(x));
   return mixc(x, hex("#172a5e"), darkAt(h) * 0.64).map(Math.round);
 }
 // the land's layout, the same every time (its own seeded random)
@@ -1618,21 +1621,39 @@ function sceneFront(g, now) { drawCritters(g, now, worldHour(), true); }
 // moon bigger near perigee (its "supermoon"), and both bigger low on the horizon
 const dayNum = () => (typeof gameDate === "function" ? gameDate() : new Date()).getTime() / 86400000;
 function rings(g, x, y, r, col, a) { for (let k = 3; k >= 1; k--) { g.fillStyle = css(col, a * (4 - k) / 3); disc(g, x, y, r + k * 3 + 1); } }
+// where the sun is: it rises between the firs on the hill and sets before the big tree, so it is seen both times
+function sunPos(h) {
+  const p = (h - 6) / 13, alt = Math.sin(Math.PI * clampv(p, -0.06, 1.06));   // (below 0: still behind the hills)
+  return { x: 64 + 42 * clampv(p, -0.05, 1.05), y: horizon - 12 - alt * (horizon - 56), alt, low: 1 - Math.max(0, alt) };
+}
 function drawSun(h, g) {
   if (h < 5.3 || h > 19.6) return;
-  const p = (h - 6) / 13, x = 12 + (W - 24) * Math.max(-0.05, Math.min(1.05, p));
-  const alt = Math.sin(Math.PI * Math.max(0, Math.min(1, p))), y = horizon - 6 - alt * (horizon - 50), low = 1 - alt;
+  const { x, y, low } = sunPos(h);
+  // the sky glows round a low sun: wide flat bands of gold and peach along the horizon (behind the hills)
+  const gw = warmAt(h) * (1 - (typeof WX !== "undefined" ? WX.cover || 0 : 0) * 0.85);
+  if (gw > 0.03) {
+    const gc = mixc(hex("#ffe2a8"), hex("#ff9f80"), low);
+    for (const [rx, ry, a] of [[96, 30, 0.1], [64, 19, 0.14], [38, 11, 0.2], [20, 5, 0.24]]) {
+      g.fillStyle = css(gc, a * gw);
+      for (let dy = -ry; dy <= ry; dy++) { const hw = Math.round(rx * Math.sqrt(1 - (dy / ry) ** 2)); g.fillRect(Math.round(x) - hw, horizon - 4 + dy, hw * 2 + 1, 1); }
+    }
+  }
   const doy = (dayNum() % 365.25) / 365.25, r = Math.round(6 + 0.8 * Math.cos(2 * Math.PI * doy) + low * 2.4);
   // (Ocean's sun: a flat cream disc, a touch warmer at its edge, hardly any glow; gold-peach low down)
   const core = mixc(hex("#fffef0"), hex("#fffbd0"), low), mid = mixc(hex("#fff7cc"), hex("#ffe7a8"), low), rim = mixc(hex("#ffeaa0"), hex("#ffc58a"), low);
   rings(g, x, y, r, mixc(hex("#fff8dc"), hex("#ffd2a0"), low), 0.06 + low * 0.06);
-  g.fillStyle = css(rim); disc(g, x, y, r);
-  g.fillStyle = css(mid); disc(g, x - 0.5, y - 0.5, r - 1);
-  g.fillStyle = css(core); disc(g, x - 1, y - 1, Math.max(1, r - 3));
+  g.fillStyle = css(rim); roundDisc(g, x, y, r);
+  g.fillStyle = css(mid); roundDisc(g, x - 0.5, y - 0.5, r - 1);
+  g.fillStyle = css(core); roundDisc(g, x - 1, y - 1, Math.max(1, r - 3));
   if (low > 0.55) {                                       // low: thin streaks of the sky drawn across its lower half
     const band = css(skyAt(h)[2], Math.min(1, (low - 0.55) * 3)), X = Math.round(x), Y = Math.round(y);
     [[2, 0.9], [4, 1.1], [6, 0.8]].forEach(([dy, w]) => { if (dy < r) { const hw = Math.round(Math.sqrt(r * r - dy * dy) * w); g.fillStyle = band; g.fillRect(X - hw - 1, Y + dy, hw * 2 + 3, 1); } });
   }
+}
+// a disc without the single-pixel nubs at its top, bottom and sides (the sun's)
+function roundDisc(g, cx, cy, r) {
+  cx = Math.round(cx); cy = Math.round(cy);
+  for (let dy = -r; dy <= r; dy++) { const hw = Math.floor(Math.sqrt(r * r + r * 0.6 - dy * dy)); if (Math.abs(dy) === r && hw < 2) continue; g.fillRect(cx - hw, cy + dy, hw * 2 + 1, 1); }
 }
 function disc(g, cx, cy, r) {
   cx = Math.round(cx); cy = Math.round(cy);
