@@ -456,8 +456,8 @@ const LAND_TABLE = {
             leaf: "6d974d 1e8e60 1f7f41 156a33 02592e 0b4423", bark: "5a4e44 4a4039 423934", pine: "5c9e56 40924a 2d6818 26521f 21412c",   // nature 5, summer 4
             fleck: "ffe58a ffffff 9fd3f5" },
   autumn: { hill: "a59760 89855c", wood: "935949 774d3a 4f3327", grass: "a59760 89855c 85895c 7a6543 676a47", dark: "6f5a3a",   // autumn 1
-            leaf: "e6bf06 e6bf06 af5f02 876f01 6e3c03 5f3201", bark: "4f3327 341919 211313", pine: "436648 37593e 2a4937 25402d 203025",   // autumn 1, autumn 4, nature 4
-            fleck: "e6bf06 af5f02 a59760" },                                                                                     // fallen leaves (autumn 4), dry grass
+            leaf: "cb8b61 cb8b61 cb8b61 935949 774d3a 4f3327", bark: "4f3327 341919 211313", pine: "436648 37593e 2a4937 25402d 203025",   // autumn 1, nature 4
+            fleck: "cb8b61 935949 a59760" },                                                                                     // fallen leaves, dry grass
   winter: { hill: "c9d1dc a3bfd6", wood: "54697c 4e616f 344d5f", grass: "ffffff c9d1dc becfdf a3bfd6 9cafbd", dark: "7c8992",   // winter nature 1, 3
             leaf: "ffffff c9d1dc becfdf a3bfd6 84aed2 5e95c5", bark: "5a4e44 4a4039 423934", pine: "ffffff 4e616f 344d5f 2c3841 17202c",   // snow (winter nature 1), firs (winter nature 3)
             fleck: "54697c 4e616f 7c8992" },                                                                                     // dry stalks through the snow
@@ -611,18 +611,27 @@ function tracedTree(rows) {
   rows.forEach((r, Y) => { for (let X = 0; X < w; X++) if (r[X] !== ".") m.t[Y * w + X] = +r[X]; });
   return { m, ox: rows[h - 1].indexOf("8") + 2 };
 }
-// in winter, as in winter nature 3, the same tree bare: its very trunk (and the bough forking off it), a leader on up
+// in winter, as in winter nature 3, the same tree bare: its very trunk, a leader on up
 // to where its top was, and boughs off it alternately left and right, reaching about as far as its leaves did, bending
 // up in three pieces with twigs forking off at the bends; snow along the tops (0 snow, 1 its shade, 6 and 8 bark)
 function bareTree(rows, R) {
   const w = rows[0].length, h = rows.length, m = toneMap(w, h);
-  rows.forEach((r, Y) => { for (let X = 0; X < w; X++) if (r[X] === "6" || r[X] === "8") m.t[Y * w + X] = +r[X]; });
+  // the trunk itself: followed up from the ground, a run of bark at a time, as far as it goes on straight
+  let tx = Math.round((rows[h - 1].indexOf("8") + rows[h - 1].lastIndexOf("8")) / 2), ty = h - 1;
+  for (let Y = h - 1; Y >= 0; Y--) {
+    const r = rows[Y]; let a = tx, b = tx;
+    if (r[tx] !== "8" && r[tx] !== "6") { if (r[tx - 1] === "8") a = b = tx - 1; else if (r[tx + 1] === "8") a = b = tx + 1; else break; }
+    while (a > 0 && (r[a - 1] === "8" || r[a - 1] === "6") && tx - a < 3) a--;
+    while (b < w - 1 && (r[b + 1] === "8" || r[b + 1] === "6") && b - tx < 3) b++;
+    for (let X = a; X <= b; X++) m.t[Y * w + X] = X === a && b - a >= 2 ? 6 : 8;
+    tx = Math.round((a + b) / 2); ty = Y;
+  }
   const span = rows.map(r => { const a = r.search(/[0-5]/); return a < 0 ? null : [a, Math.max(...[..."012345"].map(c => r.lastIndexOf(c)))]; });
   const top = span.findIndex(v => v), bot = span.length - 1 - [...span].reverse().findIndex(v => v);
   const spanAt = Y => { for (let d = 0; d < 10; d++) { if (span[Y + d]) return span[Y + d]; if (span[Y - d]) return span[Y - d]; } return [0, w - 1]; };
-  const r0 = rows[bot + 1], tx = Math.round((r0.indexOf("8") + r0.lastIndexOf("8")) / 2), topX = Math.round((span[top][0] + span[top][1]) / 2);
-  const leader = Y => Math.round(tx + (topX - tx) * (bot + 1 - Y) / (bot + 1 - top));
-  for (let Y = bot + 1; Y >= top; Y--) { m.set(leader(Y), Y, 8); if (Y > bot - (bot - top) * 0.4) m.set(leader(Y) - 1, Y, 6); }
+  const topX = Math.round((span[top][0] + span[top][1]) / 2);
+  const leader = Y => Math.round(tx + (topX - tx) * (ty - Y) / (ty - top));        // on up from the trunk's very top, as thick at first
+  for (let Y = ty; Y >= top; Y--) { m.set(leader(Y), Y, 8); if (Y > ty - (ty - top) * 0.45) m.set(leader(Y) + 1, Y, 8); }
   const line = (x, y, ang, len, thick) => {                // ang from straight up; in the grid (y down)
     const pts = [];
     for (let k = 0; k <= len; k++) { const X = x + Math.sin(ang) * k, Y = y - Math.cos(ang) * k; pts.push([X, Y]); m.set(X, Y, 8); if (k < len * 0.4 && thick > 1) m.set(X, Y + 1, 8); }
@@ -641,31 +650,6 @@ function bareTree(rows, R) {
     });
   }
   return { m, ox: rows[h - 1].indexOf("8") + 2 };
-}
-// in autumn, as in autumn 4, the same tree turned: orange over its lit side and brown in its shade, with clumps of
-// leaves laid over it in the shapes of autumn 4's own (cut from it as they are, flipped now and then): yellow ones
-// over the lit side, orange ones over the shade
-const AUTUMN_CLUMPS = [
-  [".....####......", "...###.####....", "...###...####..", "..#####.....##.", ".#####...##.###", ".#####.####..#.", "############.##", "############...", ".############..", ".############..", ".###########...", "...#######.....", "..###..#......."],
-  ["............#####...", "...........#######..", "..........#########.", ".........###########", "........############", "........###########.", "..##...############.", ".#####..##########..", "#######.#######.#...", "..##############....", ".#######.######.....", "#######...####......", ".#######...##.......", "...#####............", "....###.............", ".....#.............."],
-  ["......#.....", "......###...", ".....####...", ".....#####..", "....######..", "...########.", "...########.", ".#...#######", ".###.#####..", "##########..", ".########...", ".#.####.....", "....#......."],
-  ["....###..", ".########", ".########", "#######..", "#######..", "#######..", "######...", ".#####..."],
-  ["...##....", "#####....", ".######..", ".######..", ".#######.", "..######.", "...#####.", ".....####", "......###", ".......#."],
-  ["............#.....", "..........###.#...", ".........######...", "........########..", ".......##########.", "......############", ".....#############", "....##############", ".#################", "###############...", "..#############...", "....##########....", ".......######.....", ".........####.....", "..........###.....", "..........###....."],
-];
-function autumnTree(rows, R) {
-  const t = tracedTree(rows), { m } = t;
-  for (let i = 0; i < m.t.length; i++) if (m.t[i] === 0 || m.t[i] === 1) m.t[i] = 2;      // its small flecks go
-  const leafAt = (X, Y) => { const v = m.get(X, Y); return v >= 0 && v <= 5; };
-  const lay = (cl, X0, Y0, flip, tone) => cl.forEach((r, dy) => { for (let dx = 0; dx < r.length; dx++) if (r[dx] === "#") {
-    const X = X0 + (flip ? r.length - 1 - dx : dx), Y = Y0 + dy; if (leafAt(X, Y)) m.set(X, Y, tone);
-  } });
-  for (let k = 0, tries = 0; k < 9 && tries < 200; tries++) {           // yellow clumps where it is lit, orange where it is shaded
-    const cl = AUTUMN_CLUMPS[R() * AUTUMN_CLUMPS.length | 0], X = Math.round(R() * (m.w - 6)) - 4, Y = Math.round(R() * (m.h - 30)) - 4;
-    const cx = X + (cl[0].length >> 1), cy = Y + (cl.length >> 1), v = m.get(cx, cy); if (v < 0 || v > 5) continue;
-    lay(cl, X, Y, R() < 0.5, v <= 3 ? 0 : 2); k++;
-  }
-  return t;
 }
 // a fir: tiers of drooping boughs, each wider at its foot with its tips hanging a pixel lower, lit on the left and
 // shaded on the right, darker clumps here and there, a thin spire on top and a stub of trunk under it
@@ -720,7 +704,7 @@ const TREE_OBJS = [   // [kind, x, how far below the horizon it stands (or "hill
 ];
 for (const o of TREE_OBJS) if (o[0] === "pine") o[3].snow = snowy(o[3], lrng);
 const seeded = q => () => (q = (q * 48271) % 2147483647) / 2147483647;
-const BARE_TREE = bareTree(TREE_N5, seeded(77)), AUTUMN_TREE = autumnTree(TREE_N5, seeded(23));
+const BARE_TREE = bareTree(TREE_N5, seeded(77));
 const FALLEN = Array.from({ length: 26 }, () => [lrng(), lrng(), lrng()]);   // leaves on the grass round the big tree in autumn
 const BAND_Y = [0, 6, 14, 25, 40];                 // where each band of the meadow starts, below the horizon
 
@@ -782,7 +766,7 @@ function paintTrees(h, P, skyLow) {
   const hill = x => ridge(x, horizon - 9, [[5, 0.028, 4], [2, 0.08, 1]]);
   for (const [kind, x, at, tree] of TREE_OBJS) {
     const haze = at === "hill" ? 0.25 : 0, base = at === "hill" ? Math.round(hill(x)) + 1 : horizon + at;
-    const t = kind !== "broad" ? (se === "winter" ? tree.snow : tree) : se === "winter" ? BARE_TREE : se === "autumn" ? AUTUMN_TREE : tree;
+    const t = kind !== "broad" ? (se === "winter" ? tree.snow : tree) : se === "winter" ? BARE_TREE : tree;
     // firs: 0-4 needles, 5-7 bark; the big tree: 0-5 leaves, 6-8 bark. The sky's colour falls on them: the lit
     // tones take a little of the sky low down, the shaded ones a little of the sky overhead (gold at sunset, blue at night)
     const leaves = kind === "pine" ? P.pine : P.leaf, n = leaves.length;
