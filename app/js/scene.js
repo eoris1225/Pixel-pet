@@ -1,7 +1,8 @@
 /* The world behind the pet: a sky that follows the user's local clock (dawn, day, golden hour, sunset, dusk, night)
    and the season (its colours, and its clouds', taken from the reference pixel-art packs), sun and a moon in its real
    phase, stars, drifting clouds of many kinds and sizes (now and then one with a face), birds, a sparrow that visits
-   the sign, butterflies, fireflies, swaying grass and flowers, and the wooden sign clock.
+   the sign, butterflies, fireflies, hills with a wood, a big tree and little pines, the meadow with swaying grass and
+   flowers, and the wooden sign clock.
    Preview any time of day with ?hour=18.5, a season with ?season=autumn, and fast-forward with ?speed=600. */
 "use strict";
 
@@ -126,16 +127,101 @@ const SIGN_X = 26;
 
 
 /* ---------- clouds ---------- */
-// Clouds as in the reference pixel art: no outline and nothing see-through, built of rounded lobes. Each lobe is lit
-// on the side facing the sun (or the moon) and shades round to its underside, and the lobes lower down sit in front of
-// the ones above, so the lit top of each lobe shows against the shade under the one behind it (the cauliflower look).
-// The whole cloud also gets darker towards its base, which is made of smaller, flatter lobes (uneven, never cut
-// straight), sometimes trailing thin wisps. Five kinds: towering cumulus, small puffs, long lumpy stratocumulus
-// sheets, and flat streaks of cirrus in stepped strips. Sizes run from a few pixels to half the sky.
+// Clouds as in the reference pixel art: no outline and nothing see-through. A cloud is one soft mass with a lumpy
+// outline of small round bumps; its light is worked out over the whole mass (lit on the side towards the sun or the
+// moon, shading down and away from it) and laid down in a few broad flat tones. Where two tones meet, the lighter one
+// bulges into the darker in little round scallops, as in those pictures. The base is uneven, sometimes trailing thin
+// wisps. Five kinds: towering cumulus, small puffs, long stratocumulus sheets and flat stepped streaks of cirrus.
 const clampv = (v, a, b) => Math.max(a, Math.min(b, v));
-function cloudShape(kind, w0, h0) {
-  const R = Math.random, lobes = [], fixed = [];        // lobes: [x, y (up from the base), r, x-stretch, wobble, wobble]
-  const lobe = (x, y, r, sx = 1) => lobes.push([x, y, r, sx, R() * 6, R() * 6]);
+// a box blur (run twice it is close to a soft gaussian), zero outside the grid
+function blurGrid(src, w, h, r) {
+  r = Math.max(1, Math.round(r));
+  let a = src;
+  for (let pass = 0; pass < 2; pass++) {
+    const t = new Float32Array(w * h), o = new Float32Array(w * h), ps = new Float32Array(Math.max(w, h) + 1), d = 2 * r + 1;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) ps[x + 1] = ps[x] + a[y * w + x];
+      for (let x = 0; x < w; x++) t[y * w + x] = (ps[Math.min(w, x + r + 1)] - ps[Math.max(0, x - r)]) / d;
+    }
+    for (let x = 0; x < w; x++) {
+      for (let y = 0; y < h; y++) ps[y + 1] = ps[y] + t[y * w + x];
+      for (let y = 0; y < h; y++) o[y * w + x] = (ps[Math.min(h, y + r + 1)] - ps[Math.max(0, y - r)]) / d;
+    }
+    a = o;
+  }
+  return a;
+}
+// lay a soft mass out on a pixel grid from round lobes [x, y (up from the base), r, x-stretch] and pixels of a set
+// tone [x, y, tone]: its outline (with small round bumps added along it), which way its surface faces at every pixel
+// (from the outline blurred at two sizes, so the whole mass and its big swellings are rounded, not each lobe), how high
+// each pixel sits in it, and the spots the scallops grow from
+function blobLayout(lobes, fixed, R, dotSize = 1) {
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  for (const [x, y, r, sx = 1] of lobes) { x0 = Math.min(x0, x - r * sx); x1 = Math.max(x1, x + r * sx); y0 = Math.min(y0, y - r); y1 = Math.max(y1, y + r); }
+  for (const [x, y] of fixed) { x0 = Math.min(x0, x); x1 = Math.max(x1, x + 1); y0 = Math.min(y0, y); y1 = Math.max(y1, y + 1); }
+  const pad = 4; x0 = Math.floor(x0) - pad; y0 = Math.floor(y0) - pad;
+  const w = Math.ceil(x1) + pad - x0 + 1, h = Math.ceil(y1) + pad - y0 + 1, n = w * h, m = new Float32Array(n);
+  const discG = (cx, cy, rx, ry) => {             // in grid pixels (y down)
+    for (let Y = Math.max(0, Math.floor(cy - ry)); Y <= Math.min(h - 1, cy + ry); Y++) for (let X = Math.max(0, Math.floor(cx - rx)); X <= Math.min(w - 1, cx + rx); X++) {
+      const dx = (X + 0.5 - cx) / rx, dy = (Y + 0.5 - cy) / ry; if (dx * dx + dy * dy <= 1) m[Y * w + X] = 1;
+    }
+  };
+  // the big domes as round caps standing out of the picture: their height over every pixel is what the light falls on
+  // (the small lobes only shape the outline)
+  const zc = new Float32Array(n);
+  for (const [x, y, r, sx = 1, big] of lobes) {
+    const cx = x - x0, cy = h - (y - y0); discG(cx, cy, r * sx, r);
+    if (big) for (let Y = Math.max(0, Math.floor(cy - r)); Y <= Math.min(h - 1, cy + r); Y++) for (let X = Math.max(0, Math.floor(cx - r * sx)); X <= Math.min(w - 1, cx + r * sx); X++) {
+      const dx = (X + 0.5 - cx) / (r * sx), dy = (Y + 0.5 - cy) / r, d2 = dx * dx + dy * dy;
+      if (d2 <= 1) zc[Y * w + X] = Math.max(zc[Y * w + X], 0.7 * r * Math.sqrt(1 - d2));
+    }
+  }
+  let top = h, bot = 0;
+  for (let k = 0; k < n; k++) if (m[k]) { const Y = k / w | 0; top = Math.min(top, Y); bot = Math.max(bot, Y); }
+  const tone = new Int8Array(n).fill(-2);
+  let area = 0; for (let k = 0; k < n; k++) if (m[k]) { tone[k] = -1; area++; }
+  for (const [x, y, t] of fixed) { const X = x - x0, Y = h - 1 - (y - y0); if (X >= 0 && X < w && Y >= 0 && Y < h && tone[Y * w + X] === -2) tone[Y * w + X] = t; }
+  // where there are no domes (sheets, the small lobes), the outline blurred stands in for the height
+  const size = Math.sqrt(area), zs = clampv(size * 0.12, 1.5, 8), Bm = blurGrid(m, w, h, clampv(size * 0.12, 1, 6));
+  for (let k = 0; k < n; k++) zc[k] = Math.max(zc[k], Bm[k] * zs);
+  const z = blurGrid(zc, w, h, 1);
+  const nx = new Float32Array(n), ny = new Float32Array(n), nz = new Float32Array(n), up = new Float32Array(n);
+  for (let Y = 1; Y < h - 1; Y++) for (let X = 1; X < w - 1; X++) {
+    const k = Y * w + X; if (tone[k] !== -1) continue;
+    const vx = -(z[k + 1] - z[k - 1]) / 2, vy = (z[k + w] - z[k - w]) / 2, l = Math.hypot(vx, vy, 1);   // vy: up the picture
+    nx[k] = vx / l; ny[k] = vy / l; nz[k] = 1 / l; up[k] = 1 - (Y - top) / Math.max(1, bot - top);
+  }
+  const dots = [], gs = clampv(size * 0.07, 1.6, 3.4) * dotSize;
+  for (let Y = top; Y <= bot; Y += gs) for (let X = 0; X < w; X += gs) {
+    const px = X + R() * gs, py = Y + R() * gs, k = (py | 0) * w + (px | 0);
+    if (k >= 0 && k < n && tone[k] === -1) dots.push(px, py, gs * (0.75 + R() * 0.6), (R() - 0.5) * 0.02);
+  }
+  return { w, h, base: h - 1 + y0, nx, ny, nz, up, tone, dots: new Float32Array(dots), area };
+}
+// the tone (0 lightest .. 4 darkest) of every pixel of a laid-out mass under light L: the light over the mass, split
+// into tones so each covers its share (q: how much of it is in the lightest, the two lightest, ...), then the
+// scallops laid from the darkest up, so the lighter tones bulge into the darker ones
+function blobTones(s, L, q) {
+  const { w, h, nx, ny, nz, up, tone, dots } = s, n = w * h, sv = new Float32Array(n), vals = [];
+  for (let i = 0; i < n; i++) if (tone[i] === -1) { const v = 0.8 * (nx[i] * L[0] + ny[i] * L[1] + nz[i] * L[2]) + 0.2 * up[i]; sv[i] = v; vals.push(v); }
+  vals.sort((a, b) => b - a);
+  const T = q.map(f => vals[Math.min(vals.length - 1, Math.floor(f * vals.length))]);
+  const tq = v => v > T[0] ? 0 : v > T[1] ? 1 : v > T[2] ? 2 : v > T[3] ? 3 : 4;
+  const out = Int8Array.from(tone);
+  for (let i = 0; i < n; i++) if (tone[i] === -1) out[i] = tq(sv[i]);
+  const byTone = [[], [], [], [], []];
+  for (let d = 0; d < dots.length; d += 4) { const k = (dots[d + 1] | 0) * w + (dots[d] | 0); byTone[tq(sv[k] + dots[d + 3])].push(d); }
+  for (let t = 4; t >= 0; t--) for (const d of byTone[t]) {
+    const cx = dots[d], cy = dots[d + 1], r = dots[d + 2];
+    for (let Y = Math.max(0, Math.floor(cy - r)); Y <= Math.min(h - 1, cy + r); Y++) for (let X = Math.max(0, Math.floor(cx - r)); X <= Math.min(w - 1, cx + r); X++) {
+      const k = Y * w + X; if (tone[k] === -1 && (X + 0.5 - cx) ** 2 + (Y + 0.5 - cy) ** 2 <= r * r) out[k] = t;
+    }
+  }
+  return out;
+}
+function cloudShape(kind, w0, h0, R = Math.random) {
+  const lobes = [], fixed = [];        // lobes: [x, y (up from the base), r, x-stretch, a big dome?]
+  const lobe = (x, y, r, sx = 1, big = false) => lobes.push([x, y, r, sx, big]);
   if (kind === "cirrus") {
     // a few flat strips stacked like steps, each shifted along a little, lighter on top
     const rows = 2 + (R() * 3 | 0); let x0 = R() * w0 * 0.2, x1 = w0 - R() * w0 * 0.2;
@@ -154,54 +240,37 @@ function cloudShape(kind, w0, h0) {
     }
     lobes.sort((p, q) => q[1] - p[1]);
   } else {
-    // a cumulus (or a little puff): a few towers of different heights over a broad low base, filled with lobes in
-    // rows from the top down, big lobes high up and smaller ones lower
-    const nT = kind === "puff" ? 1 + (R() < 0.35) : 1 + (R() * 3 | 0), T = [];
-    for (let i = 0; i < nT; i++) T.push([(i + 0.5 + (R() - 0.5) * 0.7) / nT, (0.32 + R() * 0.35) / Math.sqrt(nT) + 0.08, 0.45 + R() * 0.5, (R() - 0.5) * 0.25]);
-    T[R() * nT | 0][2] = 1;
-    const base = 0.16 + R() * 0.24;
-    const top = u => Math.max(base * Math.pow(Math.max(0, Math.sin(Math.PI * clampv(u, 0, 1))), 0.35),
-      ...T.map(([c, w, hh, lean]) => { const v = (u - c - lean * (1 - u)) / w; return Math.abs(v) < 1 ? hh * Math.pow(Math.cos(v * Math.PI / 2), 0.7) : 0; }));
-    const rMax = clampv(h0 * (kind === "puff" ? 0.5 : 0.34), 2.5, 14), rMin = clampv(rMax * 0.5, 2, 7);
-    for (let yy = h0 - rMax * 0.7; yy > rMin * 0.9;) {
-      const r = rMin + (rMax - rMin) * clampv(yy / h0, 0, 1);
-      for (let x = R() * r; x <= w0;) {
-        if (top(x / w0) * h0 >= yy + r * 0.25) { lobe(x + (R() - 0.5) * r * 0.4, yy + (R() - 0.5) * r * 0.5, r * (0.65 + R() * 0.7)); x += r * (0.9 + R() * 0.7); }
-        else x += 1;
+    // a cumulus (or a little puff), grown like a cauliflower: a flat base, a few big round domes of different
+    // heights on it, smaller domes round the top of each, and smaller ones again on those; the underside a row of
+    // small flattened swellings, a little up and down
+    const nB = kind === "puff" ? 1 + (R() < 0.5) : 2 + (R() * 3 | 0), domes = [];
+    lobe(w0 / 2, h0 * 0.2, h0 * 0.2, w0 / (h0 * 0.4) * 0.92, true);
+    for (let i = 0; i < nB; i++) {
+      const tall = i === (kind === "tree" ? nB >> 1 : nB * R() | 0) ? 1 : kind === "tree" ? 0.62 + R() * 0.2 : 0.35 + R() * 0.5, r = Math.max(clampv(h0 * (0.28 + R() * 0.14), 2, 40) * (0.75 + tall * 0.25), w0 / nB * (0.55 + R() * 0.15));
+      const x = w0 * (i + 0.5 + (R() - 0.5) * 0.7) / nB, y = Math.max(r * (0.95 + R() * 0.2), h0 * tall - r);
+      lobe(x, y, r, 1, true); domes.push([x, y, r, 1]);
+    }
+    for (let lv = 0; lv < 2; lv++) {
+      const next = [];
+      for (const [cx, cy, r] of domes) {
+        const rs = r * (0.38 + R() * 0.16); if (rs < 1.6) continue;
+        for (let k = 0, nk = 2 + (R() * 3 | 0); k < nk; k++) {
+          const ang = Math.PI * (0.12 + 0.76 * (k + 0.5 + (R() - 0.5) * 0.6) / nk), d = r * (0.78 + R() * 0.12);
+          const x = cx + Math.cos(ang) * d, y = cy + Math.sin(ang) * d * 0.95;
+          lobe(x, y, rs * (0.8 + R() * 0.4), 1, lv === 0); next.push([x, y, rs, 1]);
+        }
       }
-      yy -= r * (1.0 + R() * 0.4);
+      domes.length = 0; domes.push(...next);
     }
-    // the underside: small flattened lobes along the base, a little up and down
-    for (let x = rMin; x < w0 - rMin; x += rMin * (1.0 + R() * 0.8)) {
-      if (top(x / w0) * h0 < rMin * 1.2) continue;
-      lobe(x, rMin * (0.55 + (R() - 0.5) * 0.9), rMin * (0.75 + R() * 0.5), 1.25 + R() * 0.5);
-    }
+    const rb = clampv(h0 * 0.12, 1.5, 6);
+    for (let x = rb * 2; x < w0 - rb * 2; x += rb * (1.4 + R() * 1.2)) lobe(x, rb * (0.6 + (R() - 0.5) * 0.9), rb * (0.8 + R() * 0.5), 1.4 + R() * 0.6);
     // now and then thin wisps trailing under it
     if (kind === "cu" && R() < 0.55) for (let k = 0, n = 1 + (R() * 2 | 0); k < n; k++) {
       const len = w0 * (0.2 + R() * 0.45), x0 = R() * (w0 - len), y = -1 - k * 2 - (R() * 2 | 0);
       for (let x = Math.round(x0); x < x0 + len; x++) fixed.push([x, y, 4]);
     }
   }
-  // lay it out on a pixel grid: for each pixel the front-most lobe over it, and which way its surface faces there
-  let x0 = 0, x1 = w0, y0 = 0, y1 = h0;
-  for (const [x, y, r, sx] of lobes) { x0 = Math.min(x0, x - r * sx * 1.2); x1 = Math.max(x1, x + r * sx * 1.2); y0 = Math.min(y0, y - r * 1.2); y1 = Math.max(y1, y + r * 1.2); }
-  for (const [x, y] of fixed) { x0 = Math.min(x0, x); x1 = Math.max(x1, x + 1); y0 = Math.min(y0, y); y1 = Math.max(y1, y + 1); }
-  x0 = Math.floor(x0); y0 = Math.floor(y0);
-  const w = Math.ceil(x1 - x0) + 1, h = Math.ceil(y1 - y0) + 1, n = w * h;
-  const nx = new Float32Array(n), ny = new Float32Array(n), nz = new Float32Array(n), up = new Float32Array(n), cu = new Float32Array(n), tone = new Int8Array(n).fill(-2);
-  for (const [cx, cy, r, sx, p1, p2] of lobes) {            // back to front: each lobe over the ones before it
-    const rx = r * sx * 1.12, ry = r * 1.12;
-    for (let py0 = Math.floor(cy - ry); py0 <= cy + ry; py0++) for (let px0 = Math.floor(cx - rx); px0 <= cx + rx; px0++) {
-      const X = px0 - x0, Y = h - 1 - (py0 - y0); if (X < 0 || X >= w || Y < 0 || Y >= h) continue;
-      const px = px0 + 0.5, py = py0 + 0.5, dx = (px - cx) / (r * sx), dy = (py - cy) / r;      // dy up
-      const ang = Math.atan2(dy, dx), rr = 1 + 0.07 * Math.sin(3 * ang + p1) + 0.035 * Math.sin(5 * ang + p2), d2 = (dx * dx + dy * dy) / (rr * rr);
-      if (d2 > 1) continue;
-      const k = Y * w + X; nx[k] = dx / rr; ny[k] = dy / rr; nz[k] = Math.sqrt(1 - d2);
-      up[k] = clampv((py - y0) / Math.max(1, y1 - y0), 0, 1); cu[k] = clampv((cy - y0) / Math.max(1, y1 - y0), 0, 1); tone[k] = -1;
-    }
-  }
-  for (const [x, y, t] of fixed) { const X = x - x0, Y = h - 1 - (y - y0); if (X >= 0 && X < w && Y >= 0 && Y < h && tone[Y * w + X] === -2) tone[Y * w + X] = t; }
-  return { w, h, base: h - 1 + y0, nx, ny, nz, up, cu, tone };
+  return blobLayout(lobes, fixed, R);
 }
 // where the light comes from: the sun's side by day (low and from the side at sunrise and sunset, from above at noon),
 // the moon's at night; in steps, so the clouds are only repainted now and then
@@ -211,7 +280,7 @@ function cloudLight(h) {
   else p = 1 - ((h >= 18 ? h - 18 : h + 6) - 0.4) / 12.4;      // the moon crosses from right to left
   p = clampv(p, -0.05, 1.05);
   const alt = Math.sin(Math.PI * clampv(p, 0, 1));
-  const lx = Math.round(clampv((p - 0.5) * 1.4, -0.65, 0.65) * 5) / 5, ly = Math.round((0.45 + 0.55 * alt) * 10) / 10, lz = 0.55;
+  const sx = (p - 0.5) * 1.4, lx = Math.round(clampv(Math.sign(sx || -1) * Math.max(0.3, Math.abs(sx)), -0.5, 0.5) * 10) / 10, ly = 0.7, lz = 0.5;
   const m = Math.hypot(lx, ly, lz);
   return [lx / m, ly / m, lz / m];
 }
@@ -225,19 +294,14 @@ function cloudPal(h) {
   }
   return pal;
 }
+// how much of a cloud is in its lightest tone, its two lightest, ... (small clouds in fewer tones)
+const CLOUD_Q = [0.3, 0.52, 0.71, 0.87], PUFF_Q = [0.42, 0.75, 0.94, 1];
 function paintCloud(c, pal, L) {
-  const { w, h, nx, ny, nz, up, cu, tone } = c.shape;
+  const { w, h, area } = c.shape, tn = blobTones(c.shape, L, area < 90 ? PUFF_Q : CLOUD_Q);
   if (!c.cv) { c.cv = document.createElement("canvas"); c.cv.width = w; c.cv.height = h; }
   const g = c.cv.getContext("2d"), img = g.createImageData(w, h);
   for (let i = 0; i < w * h; i++) {
-    let k = tone[i]; if (k === -2) continue;
-    if (k === -1) {
-      // each lobe in one flat tone by how high it sits in the cloud, a lighter cap where it faces the light and a
-      // darker rim where it turns away
-      const lam = nx[i] * L[0] + ny[i] * L[1] + nz[i] * L[2], u = 0.7 * cu[i] + 0.3 * up[i];
-      k = (u > 0.6 ? 1 : u > 0.36 ? 2 : u > 0.14 ? 3 : 4) - (lam > 0.76 ? 1 : 0) + (lam < 0.16 ? 1 : 0);
-      k = k < 0 ? 0 : k > 4 ? 4 : k;
-    }
+    const k = tn[i]; if (k < 0) continue;
     const col = pal[k]; img.data[i * 4] = col[0]; img.data[i * 4 + 1] = col[1]; img.data[i * 4 + 2] = col[2]; img.data[i * 4 + 3] = 255;
   }
   g.putImageData(img, 0, 0);
@@ -277,37 +341,20 @@ function seedClouds() {
   cloudsReady = true;
 }
 // the cloud with a face that floats by now and then (and says hello)
-const FACE_SHAPE = [[11,13,8],[22,10,11],[34,12,9],[44,15,6],[16,17,6],[30,17,7]];
-function renderCloud(circles, fill, shade, rim, face) {
-  let x1 = 0, y1 = 0;
-  circles.forEach(([x, y, r]) => { x1 = Math.max(x1, x + r + 2); y1 = Math.max(y1, y + r + 2); });
-  const w = Math.ceil(x1), h = Math.ceil(y1);
-  const inside = (x, y) => circles.some(([cx, cy, r]) => (x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2 <= r * r);
-  const c = document.createElement("canvas"); c.width = w; c.height = h;
-  const g = c.getContext("2d"), img = g.createImageData(w, h);
-  let top = h, bot = 0;
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (inside(x, y)) { top = Math.min(top, y); bot = Math.max(bot, y); }
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    if (!inside(x, y)) continue;
-    const edge = !inside(x - 1, y) || !inside(x + 1, y) || !inside(x, y - 1) || !inside(x, y + 1);
-    const lower = (y - top) / Math.max(1, bot - top) > 0.62 + 0.08 * Math.sin(x * 0.7);
-    const col = edge ? rim : lower ? shade : fill;
-    const i = (y * w + x) * 4;
-    img.data[i] = col[0]; img.data[i + 1] = col[1]; img.data[i + 2] = col[2]; img.data[i + 3] = 255;
-  }
-  g.putImageData(img, 0, 0);
-  if (face) {                                   // sleepy happy eyes and a little smile, like the clouds in the sketch
-    const cx = w / 2 | 0, cy = (top + bot) / 2 + 1 | 0;
-    g.fillStyle = "#6a6f8e";
-    g.fillRect(cx - 7, cy, 3, 1); g.fillRect(cx - 8, cy - 1, 1, 1); g.fillRect(cx - 4, cy - 1, 1, 1);
-    g.fillRect(cx + 5, cy, 3, 1); g.fillRect(cx + 4, cy - 1, 1, 1); g.fillRect(cx + 8, cy - 1, 1, 1);
-    g.fillRect(cx - 1, cy + 3, 3, 1); g.fillRect(cx - 2, cy + 2, 1, 1); g.fillRect(cx + 2, cy + 2, 1, 1);
-    g.fillStyle = "rgba(255,150,180,0.55)"; g.fillRect(cx - 11, cy + 2, 3, 2); g.fillRect(cx + 9, cy + 2, 3, 2);
-  }
-  return c;
+let faceSeed = 5;
+const FACE_BLOB = cloudShape("tree", 50, 26, () => (faceSeed = (faceSeed * 16807) % 2147483647) / 2147483647);
+// painted like every other cloud, with sleepy happy eyes, a little smile and pink cheeks, like the clouds in the sketch
+function renderFaceCloud(h) {
+  const c = { shape: FACE_BLOB }; paintCloud(c, cloudPal(h).map(x => x.map(Math.round)), cloudLight(h));
+  const g = c.cv.getContext("2d"), cx = c.cv.width / 2 | 0, cy = Math.round(FACE_BLOB.base * 0.62);
+  g.fillStyle = "#6a6f8e";
+  g.fillRect(cx - 7, cy, 3, 1); g.fillRect(cx - 8, cy - 1, 1, 1); g.fillRect(cx - 4, cy - 1, 1, 1);
+  g.fillRect(cx + 5, cy, 3, 1); g.fillRect(cx + 4, cy - 1, 1, 1); g.fillRect(cx + 8, cy - 1, 1, 1);
+  g.fillRect(cx - 1, cy + 3, 3, 1); g.fillRect(cx - 2, cy + 2, 1, 1); g.fillRect(cx + 2, cy + 2, 1, 1);
+  g.fillStyle = "#ffb3c7"; g.fillRect(cx - 11, cy + 2, 3, 1); g.fillRect(cx + 9, cy + 2, 3, 1);
+  return c.cv;
 }
 let faceImg = null, cloudKey = "";
-function cloudColors(h) { const p = cloudPal(h); return [p[0], p[2], p[3]]; }
 let faceCloud = null, nextFace = performance.now() + 25000;
 
 /* ---------- critters ---------- */
@@ -326,13 +373,13 @@ const SPARROW_IMG = SPARROW.map(g => gridToCanvas(g.map(r => r.replace(/\./g, "B
 /* ---------- cached sky + land ---------- */
 const skyCv = document.createElement("canvas"), skyG = skyCv.getContext("2d");
 const landCv = document.createElement("canvas"), landG = landCv.getContext("2d");
+const treeCv = document.createElement("canvas"), treeG = treeCv.getContext("2d");
 let cacheKey = "";
-const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map(v => (v + 0.5) / 16);
 
 function sceneResize() {
   horizon = FEET - 46;
   bg.width = W; bg.height = H;
-  skyCv.width = W; skyCv.height = H; landCv.width = W; landCv.height = H;
+  skyCv.width = W; skyCv.height = H; landCv.width = W; landCv.height = H; treeCv.width = W; treeCv.height = H;
   cacheKey = "";
   STARS.forEach(s => s.yy = 4 + s.y * (horizon - 30));
   TUFTS.forEach(t => t.yy = horizon + 6 + t.y * (H - horizon - 8));
@@ -354,67 +401,151 @@ function lit(c, h, haze = 0, skyH = null) {
 }
 const ridge = (x, base, parts) => base + parts.reduce((a, [amp, f, p]) => a + amp * Math.sin(x * f + p), 0);
 
-// in flat bands, as in pixel art: each of the five steps split in three, with an ordered dither where two bands meet
+// in flat bands as in the reference skies: each of the five steps split in three, every band one flat colour, and
+// only where two bands meet a short strip of checkered pixels of both
 const SKY_AT = [0, 0.3, 0.56, 0.8, 1];
 function paintSky(h) {
   const c5 = sky5(h), pal = [];
-  for (let k = 0; k < 4; k++) for (let j = 0; j < 3; j++) pal.push(mixc(c5[k], c5[k + 1], j / 3));
-  pal.push(c5[4]);
+  for (let k = 0; k < 4; k++) for (let j = 0; j < 3; j++) pal.push(mixc(c5[k], c5[k + 1], j / 3).map(Math.round));
+  pal.push(c5[4].map(Math.round));
   const img = skyG.createImageData(W, H), N = pal.length - 1;
   for (let y = 0; y < H; y++) {
     const t = Math.min(1, y / horizon);
     let k = 0; while (k < 3 && SKY_AT[k + 1] <= t) k++;
     const f = (k + (t - SKY_AT[k]) / (SKY_AT[k + 1] - SKY_AT[k])) * 3, i0 = Math.min(N, Math.floor(f)), fr = f - i0;
     for (let x = 0; x < W; x++) {
-      const c = pal[Math.min(N, fr > BAYER[(y & 3) * 4 + (x & 3)] ? i0 + 1 : i0)];
+      const c = pal[Math.min(N, fr > 0.82 && (x + y) & 1 ? i0 + 1 : i0)];
       const i = (y * W + x) * 4; img.data[i] = c[0]; img.data[i + 1] = c[1]; img.data[i + 2] = c[2]; img.data[i + 3] = 255;
     }
   }
   skyG.putImageData(img, 0, 0);
 }
-// the meadow under the sky: far hills hazy with the sky's colour, a line of trees, a rounder near hill, all with their
-// crests catching the light (gold and pink at sunrise and sunset), and the grass in front textured with little strokes
-// of light and shade that get bigger towards you, as in painted pixel landscapes
+// the land in each season, its colours taken as they are from the reference packs: far hills, the wood along the
+// near hill, the meadow in bands from the far plain (lightest) to the front (darkest) and its dark tufts, the big
+// tree's leaves (lit to deepest) and bark, and the little pines
+const LAND_TABLE = {
+  spring: { hill: "94cba3 82bc9c", wood: "347e5d 295d50 244c44", grass: "8ec44c 67b75b 52b155 4fa760 369f5c", dark: "299b68",   // nature 2, nature 1
+            leaf: "9ac34b 42b567 299b68 347e5d 295d50", bark: "5a4e44 4a4039 423934", pine: "40924a 2d6818 21412c" },      // nature 1, summer 4
+  summer: { hill: "589d66 438f6c", wood: "4a7a54 476750 345948", grass: "89c07d 7eb03f 6dab48 5da245 599442", dark: "4a7a54",   // summer 2, summer 5
+            leaf: "42b567 299b68 347e5d 295d50 244c44", bark: "5a4e44 4a4039 423934", pine: "40924a 2d6818 21412c" },      // nature 1, summer 4
+  autumn: { hill: "a59760 89855c", wood: "935949 774d3a 4f3327", grass: "a59760 89855c 85895c 7a6543 676a47", dark: "694636",   // autumn 1
+            leaf: "e6bf06 b5980e af5f02 876f01 6e3c03", bark: "694636 4f3327 341919", pine: "436648 37593e 2a4937" },      // autumn 4, autumn 1, nature 4
+  winter: { hill: "9cafbd 8598a8", wood: "54697c 4e616f 344d5f", grass: "92ac53 8ca351 84964a 648e8d 557568", dark: "436648",   // winter nature 3, nature 4
+            leaf: "9cafbd 7c8992 677d92 54697c 344d5f", bark: "5a4e44 4a4039 423934", pine: "37593e 2a4937 203025" },      // winter nature 3, nature 1, nature 4
+};
+for (const k in LAND_TABLE) for (const f in LAND_TABLE[k]) LAND_TABLE[k][f] = LAND_TABLE[k][f].split(" ").map(x => hex("#" + x));
+function landPal() {
+  const out = {};
+  for (const [name, wgt] of seasonMix()) for (const f in LAND_TABLE[name]) {
+    out[f] = out[f] || LAND_TABLE[name][f].map(() => [0, 0, 0]);
+    LAND_TABLE[name][f].forEach((c, i) => { for (let q = 0; q < 3; q++) out[f][i][q] += c[q] * wgt; });
+  }
+  return out;
+}
+// a land colour at this hour: hazed towards the sky low down (far off), warmed by a low sun, darkened at night
+function litc(c, h, haze = 0, skyH = null) {
+  let x = c;
+  if (haze && skyH) x = mixc(x, skyH, haze);
+  x = mixc(x, hex("#ff9e72"), warmAt(h) * 0.16);
+  return mixc(x, hex("#1b2648"), darkAt(h) * 0.64).map(Math.round);
+}
+// the land's layout, the same every time (its own seeded random)
 let lseed = 11;
 const lrng = () => (lseed = (lseed * 48271) % 2147483647) / 2147483647;
-const STROKES = Array.from({ length: 260 }, () => ({ x: lrng(), y: lrng(), l: lrng(), k: lrng() }));
+const TEETH = Array.from({ length: 5 * 180 }, () => lrng());
+const PATCHES = Array.from({ length: 9 }, () => ({ x: lrng() * 200 - 10, b: 1 + (lrng() * 3 | 0), w: 14 + lrng() * 30, d: 1 + lrng() * 3, p: lrng() * 6 }));
+const DOTS = Array.from({ length: 70 }, () => ({ x: lrng(), y: lrng(), c: lrng() }));
+const MARKS = Array.from({ length: 90 }, () => ({ x: lrng(), y: lrng(), k: lrng() }));
+const CROWNS = []; for (let x = 92; x < 186; x += 2.5 + lrng() * 2.5) CROWNS.push([x, 2 + lrng() * 2.2, lrng() * 3]);
+for (let x = -6; x < 14; x += 2.5 + lrng() * 2) CROWNS.push([x, 1.8 + lrng() * 1.8, lrng() * 2]);
+const PINES = [[40, 13], [48, 9], [70, 11]];
+// the big tree: a canopy grown like a cloud (domes on domes), lit from the upper left, on a trunk with two boughs
+const TREE_X = 140, TREE_CANOPY = cloudShape("tree", 56, 44, lrng);
+const TREE_TONES = blobTones(TREE_CANOPY, (() => { const v = [-0.5, 0.75, 0.5], m = Math.hypot(...v); return v.map(c => c / m); })(), [0.16, 0.36, 0.58, 0.8]);
+const TREE_LEAVES = Array.from({ length: 160 }, () => [lrng(), lrng(), lrng()]);
+const BAND_Y = [0, 6, 14, 25, 40];                 // where each band of the meadow starts, below the horizon
+
+let landP = null;                                    // this minute's land colours (for the swaying grass)
 function paintLand(h) {
-  const g = landG, skyLow = skyAt(h)[2], wm = warmAt(h);
+  const g = landG, skyLow = skyAt(h)[2], P = landP = landPal();
   g.clearRect(0, 0, W, H);
-  const fill = (fn, col) => { g.fillStyle = css(col); for (let x = 0; x < W; x++) { const y = Math.round(fn(x)); g.fillRect(x, y, 1, H - y); } };
-  const crest = (fn, col, n = 1) => { g.fillStyle = css(col); for (let x = 0; x < W; x++) g.fillRect(x, Math.round(fn(x)), 1, n); };
-  const sunlit = (c, haze, k = 0.6) => mixc(lit(c, h, haze, skyLow), hex("#ffcf8a"), wm * k * (1 - darkAt(h)));   // a crest in the low sun
-  const far = x => ridge(x, horizon - 17, [[5, 0.035, 1], [3, 0.09, 2]]);
-  const mid = x => ridge(x, horizon - 7, [[4, 0.05, 4], [2, 0.12, 0]]);
-  const near = x => ridge(x, horizon + 2, [[1.5, 0.08, 1]]);
-  fill(far, lit("#a9d6c8", h, 0.5, skyLow));
-  crest(far, sunlit("#cdeadb", 0.45));
-  // little round trees on the far hill
-  [[132, 3], [141, 4], [150, 3], [22, 3]].forEach(([tx, r]) => {
-    const y = Math.round(far(tx));
-    g.fillStyle = css(lit("#8a7a6c", h, 0.4, skyLow)); g.fillRect(tx, y - 3, 1, 4);
-    g.fillStyle = css(lit("#86c39a", h, 0.4, skyLow));
-    for (let dy = -r; dy <= r; dy++) { const hw = Math.round(Math.sqrt(r * r - dy * dy)); g.fillRect(tx - hw, y - 4 - r + dy, hw * 2 + 1, 1); }
-    g.fillStyle = css(sunlit("#a9dbb3", 0.35)); g.fillRect(tx - Math.round(r * 0.6), y - 4 - r * 2 + 1, Math.round(r), 1);   // lit on top
-  });
-  fill(mid, lit("#8fcf9e", h, 0.22, skyLow));
-  crest(mid, sunlit("#b8e6bf", 0.18));
-  // the mid hill shades a little into its dip behind the near one
-  g.fillStyle = css(lit("#7fc291", h, 0.22, skyLow)); for (let x = 0; x < W; x++) { const y0 = Math.round(near(x)) - 3; if (Math.round(mid(x)) < y0) g.fillRect(x, y0, 1, 3); }
-  fill(near, lit("#80c886", h));
-  crest(near, sunlit("#b2e5a6", 0, 0.7));
-  // the meadow gets a touch deeper towards the front, in dithered steps
-  const deep = lit("#6cb575", h);
-  for (let y = horizon + 18; y < H; y++) {
-    const q = Math.min(1, (y - horizon - 18) / 60);
-    for (let x = 0; x < W; x++) if (q > BAYER[(y & 3) * 4 + (x & 3)]) { g.fillStyle = css(deep); g.fillRect(x, y, 1, 1); }
+  const col = (c, haze = 0) => css(litc(c, h, haze, skyLow));
+  const fillTo = (fn, c, y1 = H) => { g.fillStyle = c; for (let x = 0; x < W; x++) { const y = Math.round(fn(x)); if (y < y1) g.fillRect(x, y, 1, y1 - y); } };
+  // the far hills: big soft shapes hazy with the sky, each a little darker on its lower slope
+  const back = x => ridge(x, horizon - 22, [[7, 0.021, 1.3], [3, 0.06, 0.4]]);
+  const front = x => ridge(x, horizon - 9, [[5, 0.028, 4], [2, 0.08, 1]]);
+  fillTo(back, col(P.hill[0], 0.6)); fillTo(x => back(x) + 7 + 4 * Math.sin(x * 0.04 + 2), col(P.hill[1], 0.6));
+  // the wood along the near hill: round crowns in a jagged line, lit on their upper left
+  const crowns = CROWNS.map(([x, r, k]) => [x, front(x) - r * 0.6 - k, r]);
+  for (const [cx, cy, r] of crowns) { g.fillStyle = col(P.wood[2], 0.25); disc(g, cx, cy, Math.round(r)); }
+  for (const [cx, cy, r] of crowns) { g.fillStyle = col(P.wood[1], 0.25); disc(g, cx - 0.6, cy - 0.6, Math.max(1, Math.round(r) - 1)); }
+  for (const [cx, cy, r] of crowns) { g.fillStyle = col(P.wood[0], 0.25); g.fillRect(Math.round(cx - r * 0.6), Math.round(cy - r * 0.7), Math.max(1, Math.round(r * 0.8)), 1); }
+  fillTo(front, col(P.hill[0], 0.3)); fillTo(x => front(x) + 5 + 3 * Math.sin(x * 0.05), col(P.hill[1], 0.3));
+  // the meadow, band by band, each with a ragged top edge of grass blades
+  for (let b = 0; b < 5; b++) {
+    g.fillStyle = col(P.grass[b], b ? 0 : 0.15);
+    for (let x = 0; x < W; x++) {
+      const t = TEETH[b * 180 + x], y = Math.round(horizon + BAND_Y[b] + (b ? 1.5 * Math.sin(x * 0.07 + b * 2) : 0)) - (b && t > 0.55 ? (t > 0.85 ? 2 : 1) : 0);
+      g.fillRect(x, y, 1, H - y);
+    }
   }
-  // strokes of light (the sun's side) and shade in the grass, small far off and longer close by
-  const hi = sunlit("#a7dc9c", 0, 0.5), lo = lit("#5ea86a", h), top = horizon + 6;
-  for (const st of STROKES) {
-    const y = Math.round(top + st.y * st.y * (H - top)), near_ = (y - top) / (H - top), len = 1 + Math.round(st.l * (1 + near_ * 5));
-    g.fillStyle = css(st.k < 0.55 ? hi : lo); g.fillRect(Math.round(st.x * W), y, len, 1);
+  // lighter patches in the grass, ragged along the top like the bands
+  for (const pt of PATCHES) {
+    const y0 = horizon + BAND_Y[pt.b] + 3 + pt.d * 2;
+    g.fillStyle = col(P.grass[pt.b - 1]);
+    for (let x = Math.round(pt.x); x < pt.x + pt.w; x++) {
+      const u = (x - pt.x) / pt.w, th = Math.round((1.2 + pt.d) * Math.sin(Math.PI * u)), t = TEETH[(pt.b * 180 + x * 7) % 900];
+      if (th > 0) g.fillRect(x, Math.round(y0 - th - (t > 0.7 ? 1 : 0)), 1, th * 2);
+    }
   }
+  // little flowers dotted over the far and middle grass, and dark marks of grass nearer
+  const fl = [hex("#ffe58a"), hex("#ffffff"), hex("#9fd3f5")];
+  for (const d of DOTS) { g.fillStyle = col(fl[d.c * 3 | 0]); g.fillRect(Math.round(d.x * W), Math.round(horizon + 3 + d.y * d.y * 34), 1, 1); }
+  for (const m of MARKS) {
+    const y = Math.round(horizon + 16 + m.y * (H - horizon - 16)), x = Math.round(m.x * W), big = y > FEET;
+    g.fillStyle = col(m.k < 0.6 ? P.dark[0] : P.grass[m.k < 0.8 ? 1 : 2]);
+    g.fillRect(x, y, 1, 1); g.fillRect(x - 1, y + 1, 1, 1); g.fillRect(x + 1, y + 1, 1, 1); if (big) g.fillRect(x, y - 1, 1, 1);
+  }
+  paintTrees(h, P, skyLow);
+}
+// the trees: little pines on the near hill and the big tree on the right, drawn over the snow (their own layer)
+function paintTrees(h, P, skyLow) {
+  const g = treeG, col = (c, haze = 0) => css(litc(c, h, haze, skyLow));
+  g.clearRect(0, 0, W, H);
+  // pines: stacked tiers, lit on the left
+  for (const [px, ht] of PINES) {
+    const by = Math.round(ridge(px, horizon - 9, [[5, 0.028, 4], [2, 0.08, 1]])) + 1, tiers = Math.max(2, Math.round(ht / 4));
+    g.fillStyle = col(P.bark[1], 0.2); g.fillRect(px, by - 2, 1, 3);
+    for (let j = 0; j < ht; j++) {
+      const tier = j * tiers / ht, hw = Math.round(1 + (tier % 1) * 1.5 + (tier | 0) * 1.1 * (ht / 12)), y = by - 2 - ht + j;
+      g.fillStyle = col(P.pine[2], 0.2); g.fillRect(px - hw, y, hw * 2 + 1, 1);
+      g.fillStyle = col(P.pine[1], 0.2); g.fillRect(px - hw, y, hw + 1, 1);
+      g.fillStyle = col(P.pine[0], 0.2); if (hw > 1) g.fillRect(px - hw + 1, y, Math.max(1, hw - 1), 1);
+    }
+  }
+  // the big tree's shade on the grass, its trunk and boughs, then the canopy and the flecks of its leaves
+  const base = horizon + 13, cv = TREE_CANOPY, top = base - 20 - cv.base;
+  g.fillStyle = col(P.dark[0]);
+  for (let dy = 0; dy < 3; dy++) { const hw = 15 - dy * 3; g.fillRect(TREE_X - hw, base + dy - 1, hw * 2, 1); }
+  for (let y = base - 24; y <= base; y++) {
+    const hw = y > base - 3 ? 3 : 2;
+    g.fillStyle = col(P.bark[1]); g.fillRect(TREE_X - hw, y, hw * 2, 1);
+    g.fillStyle = col(P.bark[0]); g.fillRect(TREE_X - hw, y, 1, 1);
+    g.fillStyle = col(P.bark[2]); g.fillRect(TREE_X + hw - 1, y, 1, 1);
+  }
+  g.fillStyle = col(P.bark[2]);
+  for (let k = 0; k < 7; k++) { g.fillRect(TREE_X - 2 - k, base - 16 - k, 2, 1); g.fillRect(TREE_X + 1 + k, base - 14 - k, 2, 1); }
+  const cx0 = Math.round(TREE_X - cv.w / 2), img = g.getImageData(0, 0, W, H), pal = P.leaf.map(c => litc(c, h));
+  const put = (X, Y, c) => { const x = cx0 + X, y = top + Y; if (x < 0 || x >= W || y < 0 || y >= H) return; const i = (y * W + x) * 4; img.data[i] = c[0]; img.data[i + 1] = c[1]; img.data[i + 2] = c[2]; img.data[i + 3] = 255; };
+  for (let i = 0; i < cv.w * cv.h; i++) { const k = TREE_TONES[i]; if (k >= 0) put(i % cv.w, i / cv.w | 0, pal[k]); }
+  // flecks: little leaves a tone lighter on the shaded parts, a tone darker on the lit parts
+  for (const [u, v, q] of TREE_LEAVES) {
+    const X = u * cv.w | 0, Y = v * cv.h | 0, k = TREE_TONES[Y * cv.w + X];
+    if (k < 0 || TREE_TONES[Y * cv.w + X + 1] < 0) continue;
+    const c = pal[clampv(k + (k < 2 ? 1 : -1), 0, 4)];
+    put(X, Y, c); if (q < 0.6) put(X + 1, Y, c); else put(X + 1, Y - 1, c);
+  }
+  g.putImageData(img, 0, 0);
 }
 
 /* ---------- update ---------- */
@@ -540,7 +671,7 @@ function drawSign(g, now, h, info, over = false) {
   if (mode === "run" && Math.floor(now / 600) % 2) { g.fillStyle = "#e2504a"; g.fillRect(SIGN_X - 1, by - 3, 3, 2); g.fillRect(SIGN_X, by - 4, 1, 4); }
   if (mode === "rest") text("Z", bx + bw - 4, by - 6 - (Math.floor(now / 500) % 2), "#6a63b8", g);
   // a few blades of grass around the post
-  g.fillStyle = css(lit("#5fae6b", h));
+  g.fillStyle = css(landP ? litc(landP.dark[0], h) : lit("#5fae6b", h));
   [[-4, 3], [-3, 2], [3, 2], [4, 3]].forEach(([dx, hh]) => g.fillRect(SIGN_X + dx, base - hh + 1, 1, hh));
 }
 
@@ -568,7 +699,7 @@ function sceneRender(now, signInfo) {
   const key = (Math.round(h * 60)) + ":" + H;          // the sky and land are repainted once a game-minute
   if (key !== cacheKey) { cacheKey = key; paintSky(h); paintLand(h); }
   const ck = Math.round(h * 12) + "";
-  if (ck !== cloudKey) { cloudKey = ck; const [f, s, r] = cloudColors(h); faceImg = renderCloud(FACE_SHAPE, f, s, r, true); }
+  if (ck !== cloudKey) { cloudKey = ck; faceImg = renderFaceCloud(h); }
   const pal = cloudPal(Math.round(h * 60) / 60).map(c => c.map(v => Math.round(v))), pk = pal.map(c => c.join(",")).join("|");
   const g = sctx;
   g.imageSmoothingEnabled = false;
@@ -604,8 +735,9 @@ function sceneRender(now, signInfo) {
   if (faceCloud && faceImg) g.drawImage(faceImg, Math.round(faceCloud.x), Math.round(faceCloud.y + Math.sin(now / 900) * 1.5));
   g.drawImage(landCv, 0, 0);
   if (typeof weatherLand === "function") weatherLand(g, now, h);   // wet grass, snow
+  g.drawImage(treeCv, 0, 0);
   // grass tufts and flowers sway in the wind
-  const blade = css(lit("#5fae6b", h)), bladeHi = css(lit("#a8e0a2", h));
+  const blade = css(litc(landP.dark[0], h)), bladeHi = css(litc(landP.grass[1], h));
   for (const t of TUFTS) {
     const sw = Math.round(Math.sin(now / 900 + t.x * 0.15 + t.p) * wind * 0.9);
     const x = Math.round(t.x), y = Math.round(t.yy);
