@@ -88,9 +88,9 @@
 | `app/js/pet.js` | 행동과 상태 머신, 모션 선택(`petPose`), 그리기(`drawSprite`: 오프스크린에서 합성) |
 | `app/js/item-auto.js` | 얼굴, 눈, 볼 찾기(`faceOf`, `findEyes`, `armOff`), 자동 아이템(눈물, 곰인형, 파자마, 앞머리). 스튜디오와 같이 써요 |
 | `app/js/items.js` | 아이템 그림과 배치, 무기 그리기(`drawWeapon`), `drawItems` |
-| `app/js/scene.js` | 배경. 하늘·구름 색은 `SKY_TABLE`, 땅·나무 색은 `LAND_TABLE`(계절별, 레퍼 색 그대로)이에요. 구름은 하나의 덩어리로 빛을 받고 넓은 단색 면 + 둥근 물결 경계로 칠해요(`blobLayout`, `blobTones`). 긴 구름은 끝이 뾰족한 납작한 판(`ribbon`)이에요. 나무는 하나씩 만든 오브젝트예요(`makeBroadleaf`, `makePine`, `TREE_OBJS`). 활엽수는 따로 떨어진 잎 덩어리(패드) 여러 개, 뾰족한 잎끝 외곽(아래는 짙게 처짐), 작은 잎 무늬 질감으로 그려요(summer 1, nature 1). 구름과 다른 방식이에요. 하늘은 평평한 띠 + 경계 체크무늬예요. `?season=autumn`으로 미리보기 |
+| `app/js/scene.js` | 배경. 하늘·구름 색은 `SKY_TABLE`, 땅·나무 색은 `LAND_TABLE`(계절별, 레퍼 색 그대로)이에요. 구름은 하나의 덩어리로 빛을 받고 넓은 단색 면 + 둥근 물결 경계로 칠해요(`blobLayout`, `blobTones`). 긴 구름은 끝이 뾰족한 납작한 판(`ribbon`)이에요. 나무는 하나씩 만든 오브젝트예요(`makeBroadleaf`, `makePine`, `TREE_OBJS`). 큰 나무는 nature 5의 작은 나무를 픽셀 그대로 트레이싱한 톤 맵(`TREE_N5`)이고, 계절마다 색만 바꿔요. 겨울에는 같은 실루엣 안에 앙상한 가지를 그려요(`bareTree`). 하늘은 평평한 띠 + 경계 체크무늬예요. `?season=autumn`으로 미리보기 |
 | `app.js` / `data.js` | 앱 로직과 UI, 대사·레벨·아이템 데이터 |
-| `assets/refs/` | 배경·구름 레퍼런스 픽셀아트 팩(zip). 하늘 띠 색, 구름 명암, 원근 색 참고용이에요. 게임에 그대로 넣지 않아요 |
+| `assets/refs/` | 배경·구름 레퍼런스 픽셀아트 팩(zip, Craftpix 무료 라이선스). 하늘 띠 색, 구름 명암, 원근 색 참고용이에요. 게임에 그대로 넣지 않아요. 예외: 큰 나무(`TREE_N5`)는 사용자 요청으로 nature 5에서 트레이싱했어요 |
 | `app/js/weather.js` | 날씨(맑음·흐림·비·천둥번개·눈·안개). 기본은 계절·시간으로 게임이 정하고, 설정에서 실제 날씨(위치 + Open-Meteo)로 바꿀 수 있어요. `?weather=rain`으로 미리보기 |
 | `app/test.html`, `app/js/test.js` | 테스트 페이지. Lv10, 아이템 착용 패널, 모든 동작 버튼, 날씨·계절·시간 바꾸기, 구름 새로 띄우기가 있어요 |
 | `app/studio/` | 프레임 픽셀 에디터와 아이템 위치 보정(`item-fix.js`) |

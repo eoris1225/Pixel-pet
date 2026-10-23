@@ -445,13 +445,13 @@ function paintSky(h) {
 // tree's leaves (lit to deepest) and bark, and the little pines
 const LAND_TABLE = {
   spring: { hill: "94cba3 82bc9c", wood: "347e5d 295d50 244c44", grass: "8ec44c 67b75b 52b155 4fa760 369f5c", dark: "299b68",   // nature 2, nature 1
-            leaf: "8ec44c 67b75b 52b155 369f5c 299b68", bark: "5a4e44 4a4039 423934", pine: "5c9e56 40924a 2d6818 26521f 21412c" },   // nature 2, nature 1, summer 4
-  summer: { hill: "589d66 438f6c", wood: "4a7a54 476750 345948", grass: "89c07d 7eb03f 6dab48 5da245 599442", dark: "4a7a54",   // summer 2, summer 5
-            leaf: "9ac34b 42b567 299b68 347e5d 295d50", bark: "5a4e44 4a4039 423934", pine: "5c9e56 40924a 2d6818 26521f 21412c" },   // nature 1, summer 4
+            leaf: "8ec44c 67b75b 52b155 4fa760 369f5c 299b68", bark: "5a4e44 4a4039 423934", pine: "5c9e56 40924a 2d6818 26521f 21412c" },   // nature 2, nature 1, summer 4
+  summer: { hill: "589d66 438f6c", wood: "4a7a54 476750 345948", grass: "89c07d 7eb03f 6dab48 5da245 599442", dark: "4a7a54",   // summer 2, summer 5, nature 5
+            leaf: "6d974d 1e8e60 1f7f41 156a33 02592e 0b4423", bark: "5a4e44 4a4039 423934", pine: "5c9e56 40924a 2d6818 26521f 21412c" },   // nature 1, summer 4
   autumn: { hill: "a59760 89855c", wood: "935949 774d3a 4f3327", grass: "a59760 89855c 85895c 7a6543 676a47", dark: "694636",   // autumn 1
-            leaf: "e6bf06 b5980e af5f02 876f01 6e3c03", bark: "694636 4f3327 341919", pine: "436648 37593e 2a4937 25402d 203025" },   // autumn 4, autumn 1, nature 4
+            leaf: "e6bf06 b5980e af5f02 876f01 6e3c03 5f3201", bark: "694636 4f3327 341919", pine: "436648 37593e 2a4937 25402d 203025" },   // autumn 4, autumn 1, nature 4
   winter: { hill: "9cafbd 8598a8", wood: "54697c 4e616f 344d5f", grass: "92ac53 8ca351 84964a 648e8d 557568", dark: "436648",   // winter nature 3, nature 4
-            leaf: "9cafbd 7c8992 677d92 54697c 344d5f", bark: "5a4e44 4a4039 423934", pine: "37593e 2a4937 25402d 203025 16261b" },   // winter nature 3, nature 1, nature 4
+            leaf: "9cafbd 7c8992 677d92 54697c 344d5f 2c3841", bark: "5a4e44 4a4039 423934", pine: "37593e 2a4937 25402d 203025 16261b" },   // winter nature 3, nature 1, nature 4
 };
 for (const k in LAND_TABLE) for (const f in LAND_TABLE[k]) LAND_TABLE[k][f] = LAND_TABLE[k][f].split(" ").map(x => hex("#" + x));
 function landPal() {
@@ -492,63 +492,135 @@ function bough(m, ox, x, y, ang, len, thick) {
   }
   return [x + Math.sin(ang) * len, y + Math.cos(ang) * len];
 }
-// a broadleaf tree as in summer 1 and nature 1: a trunk flaring at the root whose boughs fork out to a few separate
-// pads of leaves, with the boughs and the sky showing between them. Each pad is a rounded mass lit on its upper left;
-// its outline is the pointed tips of leaves, longer and darker hanging under it; inside it is all little leaves, a
-// tone lighter or darker than where they lie, the lightest ones scattered over its lit side. Bare, just the boughs and
-// their twigs (for winter)
-const LEAF_MARKS = [[[0, 0], [1, 0], [1, -1]], [[0, 0], [-1, 0], [-1, -1]], [[0, 0], [0, 1], [1, 1]], [[0, 0], [1, 1]], [[0, 0], [1, 0]], [[0, 0], [-1, 1], [0, 1]]];
-function makeBroadleaf(W_, H_, R, bare) {
-  const w = W_ + 16, h = H_ + 6, m = toneMap(w, h), cx = w >> 1, trunkH = Math.round(H_ * (bare ? 0.4 : 0.34));
-  for (let y = 0; y <= trunkH + 3; y++) {
-    const hw = Math.round(3 + (y < 4 ? (4 - y) * 0.9 : 0) - y / trunkH * 1.2);
-    for (let x = -hw; x < hw; x++) m.set(cx + x, h - 1 - y, x <= -hw + (hw > 3 ? 1 : 0) ? 5 : x >= hw - 2 ? 7 : 6);
-    if (R() < 0.3) { const bx = cx + (R() * 2 * hw | 0) - hw + 1; m.set(bx, h - 1 - y, 7); m.set(bx, h - 2 - y, 7); }   // bark furrows
-  }
-  if (bare) {
-    const grow = (x, y, ang, len, thick, depth) => {
-      bough(m, cx, x, y, ang, len, thick);
-      if (depth > 0) for (const d of [-1, 1]) if (R() < 0.85) grow(x + Math.sin(ang) * len * 0.55, y + Math.cos(ang) * len * 0.55, ang + d * (0.35 + R() * 0.4), len * (0.45 + R() * 0.2), Math.max(1, thick - 1), depth - 1);
-    };
-    for (const a of [-0.75, -0.25, 0.2, 0.65]) grow(a * 1.5, trunkH - 2, a + (R() - 0.5) * 0.2, H_ * 0.3 * (1 + R() * 0.3), 3, 3);
-    return { m, ox: cx };
-  }
-  // the pads: [x, y (up), half width, half height, fork height on the trunk]
-  const j = () => (R() - 0.5) * 4;
-  const pads = [[2 + j(), H_ * 0.76, 15, 11, trunkH], [-19 + j(), H_ * 0.6 + j(), 11, 8.5, trunkH], [19 + j(), H_ * 0.63 + j(), 12, 9, trunkH],
-                [-12 + j(), H_ * 0.42, 8, 6, trunkH * 0.75], [13 + j(), H_ * 0.45, 8.5, 6.5, trunkH * 0.85]];
-  for (const [x, y, , , fy] of pads) {                                 // a bough from the trunk out to each pad
-    const ang = Math.atan2(x, y - fy), len = Math.hypot(x, y - fy) * 0.85;
-    bough(m, cx, (x > 0 ? 1 : -1), fy, ang, len, 3);
-  }
-  pads.sort((p, q) => q[1] - p[1]);                                    // the high pads first, the low ones in front
-  const L = [-0.6, 0.62, 0.5], lm = Math.hypot(...L);
-  pads.forEach(([px, py, rx, ry], pi) => {
-    const nLeaf = Math.round((rx + ry) * 1.1), ph = R(), len = Array.from({ length: nLeaf }, () => 0.06 + R() * 0.16);
-    const X0 = cx + px, Y0 = h - 1 - py, inPad = new Map();
-    for (let Y = Math.floor(Y0 - ry * 1.5); Y <= Y0 + ry * 1.6; Y++) for (let X = Math.floor(X0 - rx * 1.35); X <= X0 + rx * 1.35; X++) {
-      const dx = (X + 0.5 - X0) / rx, dy = (Y0 - Y - 0.5) / ry, d = Math.hypot(dx, dy), th = Math.atan2(dy, dx);
-      const f = ((th / (2 * Math.PI) + 1) * nLeaf + ph) % 1, li = Math.floor((th / (2 * Math.PI) + 1) * nLeaf + ph) % nLeaf;
-      const down = Math.max(0, -Math.sin(th)), tip = Math.pow(1 - Math.abs(2 * f - 1), 3) * len[li] * (1 + 1.4 * down);   // a pointed leaf
-      if (d > 1 + tip) continue;
-      let t;
-      if (d > 1) t = down > 0.3 ? 4 : 3;                               // the leaf tips round the edge, the hanging ones darkest
-      else {
-        const nz = Math.sqrt(Math.max(0, 1 - d * d)), v = 0.8 * (dx * L[0] + dy * L[1] + nz * L[2]) / lm + 0.2 * (dy + 1) / 2;
-        t = v > 0.6 ? 1 : v > 0.4 ? 2 : v > 0.2 ? 3 : 4;
-        if (d > 0.84 && dy < -0.25) t = 4;                             // the dark underside
-      }
-      m.set(X, Y, t); inPad.set(Y * w + X, t);
+// the big tree, traced pixel for pixel from the small tree in nature 5 (its outline, its leaf clumps and their light,
+// its trunk): 0-5 its leaves from the lightest flecks to the darkest, 6 and 8 its bark; only the colours change, with
+// the seasons. In winter the same outline holds bare boughs instead: a leader up the middle and boughs off it,
+// angled up and out, with twigs
+const TREE_N5 = [
+  ".....................22......................",
+  ".....................223.....................",
+  "....................20033....................",
+  "..................33000333...................",
+  ".................3330011133..................",
+  "................22.22231133..................",
+  "...............222.2233333...................",
+  ".............332222333333....................",
+  "............33322223333333..33...............",
+  "............332222333333333333...............",
+  "...............222333333333333...............",
+  ".............222222311333333333..............",
+  ".............2222221113333333333.............",
+  "............21200221133334433333.............",
+  "...........2110002222333444433...............",
+  ".........22111002222223444444................",
+  ".........2111122222222344444444..............",
+  "..........211122222222233444444..............",
+  "...........212222233322344444445.............",
+  "...........22..2223333334444444555...........",
+  "................222322333344444455...........",
+  "..........22..11122222223444.4445............",
+  ".........20011111222222224433................",
+  ".......2200011111222222222344444.............",
+  ".......22002111122223222223444444............",
+  "........222222222223322223334444455..........",
+  ".........22222222222332233334444555..........",
+  "..........222222222223334434444455...........",
+  ".........222222222222344444444444............",
+  ".........222222222222244444444444............",
+  "........2222222222222224444444544............",
+  "........222222222222322344444555.............",
+  "........22.222222200333344444455.............",
+  "............22222000333444444444.55..........",
+  "............22222001133444444444.555.........",
+  "...33...22222222222111334444444.55544........",
+  "...333..22222222222111133444444445444.444....",
+  "....3311.22222222222111333444444444444444....",
+  "....2111..00022222223333344434444444444445...",
+  "...2211110000222222223333443344444444444555..",
+  "...2221110002222222223443333444444444444455..",
+  "..222221111222222233334443344444444444444....",
+  "..2222222222222222233444443444444444444......",
+  ".....2222222222332234444444444444444444......",
+  "...222222222223333334444444444444444444.44...",
+  "...222222222233223333344444444444444444444...",
+  "....222222223322232233344444444444444444444..",
+  "....2222222222222222344444444444444444444444.",
+  "...33222222222222222244444444444444444444444.",
+  "..333233222222222222234444444444444444444....",
+  "..33.333222222222222223444444444444444444455.",
+  ".....3311122222222232233444444444444444444555",
+  ".......11112222233333333344444444444444444335",
+  "........111222222223333334444444444444444333.",
+  "....222211122222222233344444444444444443333..",
+  "....22222222222222222334444444444444444433...",
+  ".222222222222222222223334444444444444444433..",
+  "33222222222222222223333444444444444444444333.",
+  "33322222222222222233333444444444444444333333.",
+  "3332222222222222223322244433444444443333333..",
+  ".32222222222222222222222333344444444333..33..",
+  "..222222222222222222232233344444444433.......",
+  "..22222222222222222223333344444444554........",
+  "..22222222222222222223333344444444555........",
+  "...2222222222222222222223333444344455........",
+  "....32222222222222222222333344333444.33......",
+  "...332222222222222222223333333333443333......",
+  "..333222222222222222222333333333333333.......",
+  "..33222222222222222222233333333333333........",
+  "....222.332222222222222223333333333333.......",
+  ".......3332222222222222222333333333333.......",
+  ".......3322222222222223222333333.3333........",
+  "........222222222222223333333333...33........",
+  "........222222222222222333...................",
+  "..........22282222222223333..................",
+  "............8822.222.833333..................",
+  "..............88..88.8833....................",
+  "...............88.88.888.....................",
+  "................6666.888.....................",
+  ".................666.888.....................",
+  "..................666688.....................",
+  "...................66688.....................",
+  "....................6688.....................",
+  ".....................888.....................",
+  ".....................88......................",
+  "....................888......................",
+  "....................888......................",
+  "....................888......................",
+  "....................888......................",
+  "....................888......................",
+  "....................8888.....................",
+  "....................8888.....................",
+  "...................88888.....................",
+  "...................88888.....................",
+  "...................88888.....................",
+  "...................88888.....................",
+  "...................88888.....................",
+  "...................88888.....................",
+];
+function tracedTree(rows) {
+  const w = rows[0].length, h = rows.length, m = toneMap(w, h);
+  rows.forEach((r, Y) => { for (let X = 0; X < w; X++) if (r[X] !== ".") m.t[Y * w + X] = +r[X]; });
+  return { m, ox: rows[h - 1].indexOf("8") + 2 };
+}
+function bareTree(rows, R) {
+  const w = rows[0].length, h = rows.length, m = toneMap(w, h);
+  const span = rows.map(r => { const a = r.search(/[0-5]/), b = Math.max(...[..."012345"].map(c => r.lastIndexOf(c))); return a < 0 ? null : [a, b]; });
+  rows.forEach((r, Y) => { for (let X = 0; X < w; X++) if (r[X] === "6" || r[X] === "8") m.t[Y * w + X] = +r[X]; });
+  const top = span.findIndex(v => v), bot = span.length - 1 - [...span].reverse().findIndex(v => v);
+  const baseX = rows[h - 1].indexOf("8") + 2, topX = Math.round((span[top][0] + span[top][1]) / 2);
+  const stem = Y => Math.round(baseX + (topX - baseX) * Math.pow((bot + 4 - Y) / (bot + 4 - top), 1.3));   // a gentle lean up to the top
+  for (let Y = bot + 4; Y >= top + 1; Y--) { m.set(stem(Y), Y, 8); if (Y > top + 30) m.set(stem(Y) - 1, Y, 6); }
+  // boughs off the leader, alternately left and right, rising at about 45 degrees, thick at the root, each forking
+  // into a twig that turns more upright near its end
+  for (let Y = bot - 2, side = R() < 0.5 ? 1 : -1; Y > top + 5; Y -= 5 + (R() * 3 | 0), side = -side) {
+    const [a, b] = span[Y], x0 = stem(Y), reach = Math.max(3, (side > 0 ? b - x0 : x0 - a) * (0.65 + R() * 0.25));
+    let x = x0, y = Y;
+    for (let k = 1; k <= reach; k++) {
+      x += side; if (k % 3 !== 0) y--;
+      m.set(x, y, 8); if (k < reach * 0.35) m.set(x, y + 1, 6);
+      if (k === Math.round(reach * 0.55)) for (let j = 1, tx = x, ty = y; j <= reach * 0.4; j++) { if (j % 2) tx += side; ty--; m.set(tx, ty, 8); }
     }
-    // the little leaves: a tone lighter on the lit side (the lightest scattered over the most lit), darker in shade
-    const keys = [...inPad.keys()];
-    for (let k = 0; k < keys.length * 0.16; k++) {
-      const key = keys[R() * keys.length | 0], t = inPad.get(key), X = key % w, Y = key / w | 0;
-      const nt = t <= 1 ? (R() < 0.6 ? 0 : 2) : t === 2 ? (R() < 0.45 ? 1 : 3) : t === 3 ? (R() < 0.3 ? 2 : 4) : 3;
-      for (const [ddx, ddy] of LEAF_MARKS[R() * LEAF_MARKS.length | 0]) if (inPad.has((Y + ddy) * w + X + ddx)) m.set(X + ddx, Y + ddy, nt);
-    }
-  });
-  return { m, ox: cx };
+  }
+  return { m, ox: rows[h - 1].indexOf("8") + 2 };
 }
 // a fir: tiers of drooping boughs, each wider at its foot with its tips hanging a pixel lower, lit on the left and
 // shaded on the right, darker clumps here and there, a thin spire on top and a stub of trunk under it
@@ -582,9 +654,9 @@ function makePine(Hh, R) {
 const TREE_OBJS = [   // [kind, x, how far below the horizon it stands (or "hill"), the tree]
   ["pine", 46, "hill", makePine(14, lrng)], ["pine", 54, "hill", makePine(10, lrng)], ["pine", 79, "hill", makePine(17, lrng)],
   ["pine", 7, 9, makePine(46, lrng)],
-  ["broad", 140, 14, makeBroadleaf(62, 70, lrng, false)],
+  ["broad", 140, 14, tracedTree(TREE_N5)],
 ];
-const BARE_TREE = makeBroadleaf(60, 72, (() => { let q = 77; return () => (q = (q * 48271) % 2147483647) / 2147483647; })(), true);
+const BARE_TREE = bareTree(TREE_N5, (() => { let q = 77; return () => (q = (q * 48271) % 2147483647) / 2147483647; })());
 const BAND_Y = [0, 6, 14, 25, 40];                 // where each band of the meadow starts, below the horizon
 
 let landP = null;                                    // this minute's land colours (for the swaying grass)
@@ -638,7 +710,7 @@ function paintTrees(h, P, skyLow) {
   for (const [kind, x, at, tree] of TREE_OBJS) {
     const haze = at === "hill" ? 0.25 : 0, base = at === "hill" ? Math.round(hill(x)) + 1 : horizon + at;
     const t = kind === "broad" && winter > 0.5 ? BARE_TREE : tree;
-    const pal = [...(kind === "pine" ? P.pine : P.leaf), ...P.bark].map(c => litc(c, h, haze, skyLow));
+    const pal = [...(kind === "pine" ? P.pine : P.leaf), ...P.bark].map(c => litc(c, h, haze, skyLow));   // firs: 0-4 needles, 5-7 bark; the big tree: 0-5 leaves, 6-8 bark
     if (at !== "hill") {                                              // its shadow on the grass
       const sh = litc(P.dark[0], h), hw = Math.round(t.m.w * 0.32);
       for (let dy = 0; dy < 3; dy++) for (let dx = -hw + dy * 3; dx < hw - dy * 3; dx++) { const i = ((base + dy - 1) * W + x + dx) * 4; img.data.set([...sh, 255], i); }
