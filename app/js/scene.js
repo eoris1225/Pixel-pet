@@ -196,7 +196,7 @@ function blobLayout(lobes, fixed, R, dotSize = 1) {
     const px = X + R() * gs, py = Y + R() * gs, k = (py | 0) * w + (px | 0);
     if (k >= 0 && k < n && tone[k] === -1) dots.push(px, py, gs * (0.75 + R() * 0.6), (R() - 0.5) * 0.02);
   }
-  return { w, h, base: h - 1 + y0, nx, ny, nz, up, tone, dots: new Float32Array(dots), area };
+  return { w, h, x0, base: h - 1 + y0, nx, ny, nz, up, tone, dots: new Float32Array(dots), area };
 }
 // the tone (0 lightest .. 4 darkest) of every pixel of a laid-out mass under light L: the light over the mass, split
 // into tones so each covers its share (q: how much of it is in the lightest, the two lightest, ...), then the
@@ -228,7 +228,7 @@ function ribbon(fixed, x0, y0, w0, h0, R) {
   for (let x = 0; x < w0; x++) {
     const u = x / w0, v = u < peak ? u / peak : (1 - u) / (1 - peak), env = Math.pow(clampv(v, 0, 1), 0.7);
     let hump = 0; for (const [c, wd, a] of humps) hump += a * Math.exp(-(((u - c) / wd) ** 2));
-    if (run-- <= 0) { run = 5 + (R() * 10 | 0); jt = R() < 0.6 ? 0 : 1; jb = R() < 0.75 ? 0 : 1; }   // the edges step out now and then, in long runs
+    if (run-- <= 0) { run = 2 + (R() * 5 | 0); jt = R() < 0.5 ? 0 : R() < 0.5 ? 1 : -1; jb = R() < 0.6 ? 0 : 1; }   // the edges step now and then
     const top = Math.round(h0 * env * (0.5 + 0.5 * Math.min(1, hump)) + (env > 0.3 ? jt : 0)), bot = -Math.round(h0 * 0.28 * env + (env > 0.3 ? jb : 0));
     const th = top - bot; if (th < 1) continue;
     for (let y = bot; y < top; y++) {
@@ -236,10 +236,14 @@ function ribbon(fixed, x0, y0, w0, h0, R) {
       fixed.push([Math.round(x0 + x), Math.round(y0 + y), th <= 2 ? 1 : fromBot === 0 && th > 4 ? 3 : fromBot <= (th > 6 ? 1 : 0) ? 2 : fromTop < Math.max(1, th * 0.45) ? 0 : 1]);
     }
   }
-  // the tails: a thin line drawn out from each end (one end longer), a pixel higher or lower partway along
-  for (const [end, dir, f] of [[0, -1, 0.06 + R() * 0.1], [w0 - 1, 1, 0.1 + R() * 0.18]]) {
-    const len = Math.round(2 + w0 * f), kink = R() < 0.5 ? Math.round(len * (0.4 + R() * 0.3)) : len + 1, dy = R() < 0.5 ? 1 : -1;
-    for (let k = 1; k <= len; k++) fixed.push([Math.round(x0 + end + dir * k), Math.round(y0 + (k > kink ? dy : 0)), 1]);
+  // the tails: a thin line out from each end, stepping a pixel now and then, broken into dashes at its very tip
+  for (const [end, dir] of [[0, -1], [w0 - 1, 1]]) {
+    const len = 3 + R() * Math.min(24, w0 * 0.25); let y = 0;
+    for (let k = 1; k <= len; k++) {
+      if (k > len * 0.5 && R() < 0.12) y += R() < 0.5 ? 1 : -1;
+      if (k > len * 0.7 && k % 2) continue;
+      fixed.push([Math.round(x0 + end + dir * k), Math.round(y0 + y), 1]);
+    }
   }
 }
 function cloudShape(kind, w0, h0, R = Math.random) {
@@ -247,9 +251,9 @@ function cloudShape(kind, w0, h0, R = Math.random) {
   const lobe = (x, y, r, sx = 1, big = false) => lobes.push([x, y, r, sx, big]);
   if (kind === "cirrus") {
     // thin streaks high up: two or three long slivers, staggered, each drawn out into pointed tails
-    for (let j = 0, n = 1 + (R() < 0.4); j < n; j++) {
-      const ww = w0 * (j ? 0.4 + R() * 0.3 : 1);
-      ribbon(fixed, j ? w0 * (0.2 + R() * 0.5) : 0, j * (3 + (R() * 2 | 0)), ww, 2.2 + R() * 1.6, R);
+    for (let j = 0, n = 1 + (R() * 3 | 0); j < n; j++) {
+      const ww = w0 * (0.5 + R() * 0.5);
+      ribbon(fixed, (w0 - ww) * R(), j * (3 + (R() * 3 | 0)), ww, 1.6 + R() * 1.8, R);
     }
   } else if (kind === "strato") {
     // a long flat sheet, now and then with a smaller one lying behind it
@@ -330,7 +334,7 @@ function newCloud(kind, x) {
   let w, h, base;
   if (kind === "cu") { w = 32 * Math.pow(150 / 32, Math.pow(R(), 1.5)); h = w * (0.35 + R() * 0.45); base = w > 80 ? horizon - 2 - R() * 22 : horizon - 10 - R() * (horizon * 0.45); }
   else if (kind === "puff") { w = logr(7, 26); h = w * (0.35 + R() * 0.3); base = 22 + R() * (horizon - 50); }
-  else if (kind === "strato") { w = logr(50, 150); h = 7 + R() * 10; base = 24 + R() * (horizon - 70); }
+  else if (kind === "strato") { w = logr(40, 140); h = 5 + R() * 8; base = 24 + R() * (horizon - 70); }
   else { w = logr(16, 90); h = 4; base = 8 + R() * (horizon * 0.55); }
   h = Math.min(h, horizon * 0.5);
   const shape = cloudShape(kind, Math.round(w), Math.round(h)), near = 1 - clampv(base / horizon, 0, 1);
@@ -504,40 +508,29 @@ function makeBroadleaf(W_, H_, R, bare) {
     const [tx, ty] = bough(m, cx, x, y, ang, len, thick); tips.push([tx, ty]);
     if (depth > 0) for (const d of [-1, 1]) if (R() < 0.85) grow(x + Math.sin(ang) * len * 0.55, y + Math.cos(ang) * len * 0.55, ang + d * (0.35 + R() * 0.4), len * (0.45 + R() * 0.2), Math.max(1, thick - 1), depth - 1);
   };
-  for (const a of [-1.0, -0.4, 0.25, 0.85]) grow(a * 1.5, trunkH - 2, a + (R() - 0.5) * 0.2, H_ * (0.28 + R() * 0.08), 3, bare ? 3 : 1);
+  for (const a of [-0.75, -0.25, 0.2, 0.65]) grow(a * 1.5, trunkH - 2, a + (R() - 0.5) * 0.2, H_ * (bare ? 0.3 : 0.22) * (1 + R() * 0.3), 3, bare ? 3 : 1);
   if (bare) return { m, ox: cx };
-  // the crown: a few big clumps in a lumpy dome over the boughs, and smaller ones round its edge, lower down over the
-  // trunk's top so only the lower part of it shows
-  const ccy = trunkH + (H_ - trunkH) * 0.42, rx = W_ / 2, ry = (H_ - trunkH) / 2 + 6, clumps = [];
-  const big = 5 + (R() * 3 | 0);
-  for (let k = 0; k < big; k++) {
-    const a = (k + 0.5) / big * Math.PI * 1.6 - Math.PI * 0.8 + (R() - 0.5) * 0.3, d = 0.35 + R() * 0.25;
-    clumps.push([Math.sin(a) * rx * d * 1.1, ccy + Math.cos(a) * ry * d, 10 + R() * 4]);
+  // the crown, painted the way the clouds are but at the size of leaves: big clumps of leaves, each a round mass lit
+  // on its upper left with a dark crease where it meets the next, its outline and the edges of its tones made of
+  // little round bunches of leaves. A wide, uneven crown: a big middle clump, others round it at different heights,
+  // and bunches round the outside of each
+  const ccy = trunkH + (H_ - trunkH) * 0.45, rx = W_ / 2, ry = (H_ - trunkH) / 2 + 5, lobes = [];
+  const clumps = [[(R() - 0.5) * 6, ccy + 2, 12 + R() * 2]];
+  for (let k = 0, n = 7 + (R() * 2 | 0); k < n; k++) {
+    const a = -Math.PI * 0.8 + (k + 0.5 + (R() - 0.5) * 0.5) / n * Math.PI * 1.6, d = 0.55 + R() * 0.25, low = Math.abs(a) > 1.9;
+    clumps.push([Math.sin(a) * rx * d * (low ? 0.9 : 1), ccy + Math.cos(a) * ry * d, (low ? 6 : 8) + R() * 4]);   // the low ones at the sides hang below
   }
-  clumps.push([(R() - 0.5) * rx * 0.3, ccy, 12 + R() * 2]);
-  for (let a = -2.3; a <= 2.3; a += 0.55 + R() * 0.3) clumps.push([Math.sin(a) * rx * 0.85, ccy + Math.cos(a) * ry * 0.8, 6 + R() * 3]);
-  clumps.sort((p, q) => q[1] - p[1]);                                // the top ones first, the lower ones over them
-  const leafy = (x, y, r, tone, seed) => {                             // a clump with ragged leafy edges
-    const X0 = cx + x, Y0 = h - 1 - y;
-    for (let Y = Math.floor(Y0 - r - 1); Y <= Y0 + r + 1; Y++) for (let X = Math.floor(X0 - r - 1); X <= X0 + r + 1; X++) {
-      const dx = X + 0.5 - X0, dy = Y + 0.5 - Y0, a = Math.atan2(dy, dx), notch = ((Math.floor((a + 4) * r * 0.7) * 7 + seed) % 3) - 1;
-      if (dx * dx + dy * dy <= (r + notch * 0.9) ** 2) m.set(X, Y, tone);
+  for (const [x, y, r] of clumps) {
+    lobes.push([x, y, r, 1, true]);
+    for (let a = -2.7; a <= 2.7; a += 2.6 / r + R() * 0.25) {       // leaf bunches round its outside (barely underneath)
+      const rr = 1.6 + R() * 1.2; lobes.push([x + Math.sin(a) * r * 0.97, y + Math.cos(a) * r * 0.97, rr, 1, false]);
     }
-  };
-  clumps.forEach(([x, y, r], i) => {
-    const side = 0.55 * (x / rx) + 0.7 * (1 - (y - trunkH) / (H_ - trunkH)) - 0.1, b = side < 0.2 ? 1 : side < 0.55 ? 2 : 3;
-    leafy(x, y, r, Math.min(4, b + 1), i);                             // its shaded rim
-    leafy(x - 0.8, y + 0.8, r - 1.6, b, i + 1);                        // its body
-    if (r > 5) leafy(x - r * 0.25, y + r * 0.32, r * 0.6, b - 1, i + 2);   // its lit cap
-    if (b === 1) {                                                     // the lightest leaves in little bunches, not one flat patch
-      const X0 = cx + x - r * 0.25, Y0 = h - 1 - (y + r * 0.32);
-      for (let Y = Math.floor(Y0 - r * 0.6); Y <= Y0 + r * 0.6; Y++) for (let X = Math.floor(X0 - r * 0.6); X <= X0 + r * 0.6; X++)
-        if (m.get(X, Y) === 0 && (X * 3 + Y * 5 + (Y >> 1)) % 4 !== 0 && R() < 0.4) m.set(X, Y, 1);
-    }
-  });
-  for (let k = 0; k < W_ * H_ * 0.02; k++) {                          // a few leaf marks a tone darker
-    const X = R() * w | 0, Y = R() * h | 0, t = m.get(X, Y);
-    if (t >= 1 && t <= 3 && m.get(X + 1, Y) === t && m.get(X, Y + 1) === t) { m.set(X, Y, t + 1); m.set(X + 1, Y + 1, t + 1); }
+  }
+  const crown = blobLayout(lobes, [], R, 0.55), L = [-0.55, 0.65, 0.5], lm = Math.hypot(...L);
+  const tones = blobTones(crown, L.map(c => c / lm), [0.12, 0.36, 0.66, 0.88]);
+  for (let Y = 0; Y < crown.h; Y++) for (let X = 0; X < crown.w; X++) {
+    const v = tones[Y * crown.w + X]; if (v < 0) continue;
+    m.set(cx + X + crown.x0, h - 1 - (crown.base - Y), v);
   }
   return { m, ox: cx };
 }
