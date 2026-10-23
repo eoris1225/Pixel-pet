@@ -913,9 +913,13 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}, stage = "all") {
     const vb = pet.act === "fall" ? pet.vy : pet.act === "pet" && tj > 280 && tj < 760 ? -150 * (1 - 2 * (tj - 280) / 480) : 0;
     // the bend d (ends down +, up -) is a spring: a sudden change in her speed (springing off, landing, the bounce)
     // flings it, the air holds its ends back while she falls, and it boings back and forth to rest
-    if (now - st.t > 300) Object.assign(st, { d: 0, dv: 0, vb });
+    // walking, each little bob of her step (her paws a pixel up or down on the screen) gives it a small flick too
+    const tr = g.getTransform(), Y = (g.worldY || 0) + tr.f + y;
+    if (now - st.t > 300) Object.assign(st, { d: 0, dv: 0, vb, Y });
     else {
       st.dv -= (vb - st.vb) * 1.0; st.vb = vb;
+      if (pet.act === "walk") st.dv += (Y - st.Y) * 60;
+      st.Y = Y;
       for (let left = Math.min(0.05, (now - st.t) / 1000); left > 0; left -= 0.004) {
         const h = Math.min(0.004, left);
         st.dv += (-900 * st.d - 8 * st.dv - 6 * vb) * h; st.d += st.dv * h;
