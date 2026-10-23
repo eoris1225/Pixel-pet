@@ -22,6 +22,15 @@
   - 회귀 확인으로 곰인형, 기타 치기, 욱 장대도 다시 돌려 봐요.
 - 확인하지 못한 건 확인 못 했다고 말해요.
 
+### 아티팩트 주소
+
+| 페이지 | 주소 |
+| --- | --- |
+| 게임 (`app/index.html`) | https://claude.ai/artifact/VXdbjEdow7ejeE3rhJ7mrz |
+| 테스트 (`app/test.html`) | https://claude.ai/artifact/VBE651spq4V8k5bf3JCSEP |
+
+- 다른 세션에서는 이 주소를 `url`로 넘겨서 업데이트해요. 그래야 같은 링크가 유지돼요.
+
 ## 2. 절대 규칙
 
 1. **원본 스프라이트는 수정하지 않아요.** 대상은 `app/js/sprites.js`와 그 안의 모션 프레임이에요. 아이템은 모두 그 위나 뒤에 그리는 **레이어**예요.
