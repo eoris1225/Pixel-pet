@@ -542,8 +542,8 @@ ITEM_AUTO.camera = (grid, pet) => {
   out.noMirror = true; out.box = { cx, cy };
   return out;
 };
-// something loose on her (her camera on its strap, her pochette, the bear in her arms, the licence on her forehead, a
-// weapon in her paws) jerked about as she is carried and shaken: it lags behind her and springs back, a little spring
+// something loose on her (her camera on its strap, her pochette, the bear in her arms, the licence on her forehead)
+// jerked about as she is carried and shaken: it lags behind her and springs back, a little spring
 // per thing driven by how sharply she is moved (HM, pet.js). Once per drawing of her
 const JIG = {};
 function jiggle(key, K, C, max) {
@@ -939,7 +939,7 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}, stage = "all") {
       st.Y = Y;
       for (let left = Math.min(0.05, (now - st.t) / 1000); left > 0; left -= 0.004) {
         const h = Math.min(0.004, left);
-        st.dv += (-900 * st.d - 8 * st.dv - 6 * vb - (pet.act === "held" ? HM.ay * 0.9 + Math.abs(HM.ax) * 0.25 : 0)) * h; st.d += st.dv * h;
+        st.dv += (-900 * st.d - 8 * st.dv - 6 * vb - (pet.act === "held" ? HM.ay * 0.35 + Math.abs(HM.ax) * 0.08 : 0)) * h; st.d += st.dv * h;
       }
     }
     st.t = now;
@@ -992,8 +992,7 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}, stage = "all") {
     for (const [x, y, c] of off) { if (c === "clear") g.clearRect(x, y + shift, 1, 1); else { g.fillStyle = OUT; g.fillRect(x, y + shift, 1, 1); } }
     if (stage === "arms") return;
   }
-  const jw = typeof pet !== "undefined" && pose === pet._pose ? jiggle("weapon", 120, 6, 6) : null;   // jerked about, it tips
-  const pj = equip.pajama && WEAPON_PJ[petId], sway = weaponSway() + (jw ? Math.max(-0.4, Math.min(0.4, jw.y * 0.06 * (g.getTransform().a < 0 ? -1 : 1))) : 0);
+  const pj = equip.pajama && WEAPON_PJ[petId], sway = weaponSway();
   // facing away it is behind her at the height of her arms above her feet, whatever the frame's size
   let ox = o ? o.dx : Math.round(w / 2 - 14), oy = (o ? o.dy : soles(grid) - soles(SPRITES[petId]) - (petId === "nori" ? 4 : 0)) + shift;
   if (o && !base && typeof pet !== "undefined") {             // a traced motion: ease from frame to frame
@@ -1126,8 +1125,8 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       // the same hip of hers, so on a mirrored base pose it is mirrored back
       const keepSide = (a.auto === "carry" && base || px.noMirror === true) && g.getTransform().a < 0, fw = (grid[0] || "").length - 1;
       // jerked about: what hangs (camera, pochette) swings from where it hangs, more the lower down; the bear and the
-      // licence just jiggle
-      const JP = { camera: [170, 7, 3], carry: [140, 6, 3], teddy: [420, 12, 1.2], pass: [520, 9, 1.2] }[a.auto];
+      // licence just jiggle (gently: the camera hangs close on its strap; the licence only twitches as it works loose)
+      const JP = { camera: [320, 10, 1.6], carry: [140, 6, 3], teddy: [420, 12, 1.2], pass: [1200, 16, 0.7] }[a.auto];
       const jg = JP && !lie && typeof pet !== "undefined" && pose === pet._pose ? jiggle(a.auto, ...JP) : null, jsx = g.getTransform().a < 0 ? -1 : 1;
       let jy0 = 0, jy1 = 1;
       if (jg) { jy0 = a.auto === "camera" && px.box ? px.box.cy - 7 : px.reduce((m, p) => Math.min(m, p[1]), 1e9); jy1 = a.auto === "camera" && px.box ? px.box.cy : px.reduce((m, p) => Math.max(m, p[1]), -1e9); }
