@@ -88,7 +88,7 @@
 | `app/js/pet.js` | 행동과 상태 머신, 모션 선택(`petPose`), 그리기(`drawSprite`: 오프스크린에서 합성) |
 | `app/js/item-auto.js` | 얼굴, 눈, 볼 찾기(`faceOf`, `findEyes`, `armOff`), 자동 아이템(눈물, 곰인형, 파자마, 앞머리). 스튜디오와 같이 써요 |
 | `app/js/items.js` | 아이템 그림과 배치, 무기 그리기(`drawWeapon`), `drawItems` |
-| `app/js/scene.js` | 배경. 하늘·구름 색은 `SKY_TABLE`, 땅·나무 색은 `LAND_TABLE`(계절별, 레퍼 색 그대로)이에요. 구름은 하나의 덩어리로 빛을 받고 넓은 단색 면 + 둥근 물결 경계로 칠해요(`blobLayout`, `blobTones`). 긴 구름은 끝이 뾰족한 납작한 판(`ribbon`)이에요. 나무는 하나씩 만든 오브젝트예요(`makeBroadleaf`, `makePine`, `TREE_OBJS`). 활엽수 수관은 구름과 같은 방식을 잎 크기로 써요. 하늘은 평평한 띠 + 경계 체크무늬예요. `?season=autumn`으로 미리보기 |
+| `app/js/scene.js` | 배경. 하늘·구름 색은 `SKY_TABLE`, 땅·나무 색은 `LAND_TABLE`(계절별, 레퍼 색 그대로)이에요. 구름은 하나의 덩어리로 빛을 받고 넓은 단색 면 + 둥근 물결 경계로 칠해요(`blobLayout`, `blobTones`). 긴 구름은 끝이 뾰족한 납작한 판(`ribbon`)이에요. 나무는 하나씩 만든 오브젝트예요(`makeBroadleaf`, `makePine`, `TREE_OBJS`). 활엽수는 따로 떨어진 잎 덩어리(패드) 여러 개, 뾰족한 잎끝 외곽(아래는 짙게 처짐), 작은 잎 무늬 질감으로 그려요(summer 1, nature 1). 구름과 다른 방식이에요. 하늘은 평평한 띠 + 경계 체크무늬예요. `?season=autumn`으로 미리보기 |
 | `app.js` / `data.js` | 앱 로직과 UI, 대사·레벨·아이템 데이터 |
 | `assets/refs/` | 배경·구름 레퍼런스 픽셀아트 팩(zip). 하늘 띠 색, 구름 명암, 원근 색 참고용이에요. 게임에 그대로 넣지 않아요 |
 | `app/js/weather.js` | 날씨(맑음·흐림·비·천둥번개·눈·안개). 기본은 계절·시간으로 게임이 정하고, 설정에서 실제 날씨(위치 + Open-Meteo)로 바꿀 수 있어요. `?weather=rain`으로 미리보기 |

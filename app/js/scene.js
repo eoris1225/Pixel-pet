@@ -445,9 +445,9 @@ function paintSky(h) {
 // tree's leaves (lit to deepest) and bark, and the little pines
 const LAND_TABLE = {
   spring: { hill: "94cba3 82bc9c", wood: "347e5d 295d50 244c44", grass: "8ec44c 67b75b 52b155 4fa760 369f5c", dark: "299b68",   // nature 2, nature 1
-            leaf: "9ac34b 42b567 299b68 347e5d 295d50", bark: "5a4e44 4a4039 423934", pine: "5c9e56 40924a 2d6818 26521f 21412c" },   // nature 1, summer 4
+            leaf: "8ec44c 67b75b 52b155 369f5c 299b68", bark: "5a4e44 4a4039 423934", pine: "5c9e56 40924a 2d6818 26521f 21412c" },   // nature 2, nature 1, summer 4
   summer: { hill: "589d66 438f6c", wood: "4a7a54 476750 345948", grass: "89c07d 7eb03f 6dab48 5da245 599442", dark: "4a7a54",   // summer 2, summer 5
-            leaf: "42b567 299b68 347e5d 295d50 244c44", bark: "5a4e44 4a4039 423934", pine: "5c9e56 40924a 2d6818 26521f 21412c" },   // nature 1, summer 4
+            leaf: "9ac34b 42b567 299b68 347e5d 295d50", bark: "5a4e44 4a4039 423934", pine: "5c9e56 40924a 2d6818 26521f 21412c" },   // nature 1, summer 4
   autumn: { hill: "a59760 89855c", wood: "935949 774d3a 4f3327", grass: "a59760 89855c 85895c 7a6543 676a47", dark: "694636",   // autumn 1
             leaf: "e6bf06 b5980e af5f02 876f01 6e3c03", bark: "694636 4f3327 341919", pine: "436648 37593e 2a4937 25402d 203025" },   // autumn 4, autumn 1, nature 4
   winter: { hill: "9cafbd 8598a8", wood: "54697c 4e616f 344d5f", grass: "92ac53 8ca351 84964a 648e8d 557568", dark: "436648",   // winter nature 3, nature 4
@@ -492,46 +492,62 @@ function bough(m, ox, x, y, ang, len, thick) {
   }
   return [x + Math.sin(ang) * len, y + Math.cos(ang) * len];
 }
-// a broadleaf tree: a trunk flaring at the root, boughs forking up into a crown of leaf clumps. Each clump is lit on
-// its upper left and darker round its lower edge, with ragged leafy edges; the crown is darker on the right and
-// underneath, the lit clumps flecked with the lightest leaves, a gap or two with a twig across. Bare, just the boughs
-// and their twigs (for winter)
+// a broadleaf tree as in summer 1 and nature 1: a trunk flaring at the root whose boughs fork out to a few separate
+// pads of leaves, with the boughs and the sky showing between them. Each pad is a rounded mass lit on its upper left;
+// its outline is the pointed tips of leaves, longer and darker hanging under it; inside it is all little leaves, a
+// tone lighter or darker than where they lie, the lightest ones scattered over its lit side. Bare, just the boughs and
+// their twigs (for winter)
+const LEAF_MARKS = [[[0, 0], [1, 0], [1, -1]], [[0, 0], [-1, 0], [-1, -1]], [[0, 0], [0, 1], [1, 1]], [[0, 0], [1, 1]], [[0, 0], [1, 0]], [[0, 0], [-1, 1], [0, 1]]];
 function makeBroadleaf(W_, H_, R, bare) {
-  const w = W_ + 12, h = H_ + 4, m = toneMap(w, h), cx = w >> 1, trunkH = Math.round(H_ * 0.4);
-  for (let y = 0; y <= trunkH + 4; y++) {
+  const w = W_ + 16, h = H_ + 6, m = toneMap(w, h), cx = w >> 1, trunkH = Math.round(H_ * (bare ? 0.4 : 0.34));
+  for (let y = 0; y <= trunkH + 3; y++) {
     const hw = Math.round(3 + (y < 4 ? (4 - y) * 0.9 : 0) - y / trunkH * 1.2);
     for (let x = -hw; x < hw; x++) m.set(cx + x, h - 1 - y, x <= -hw + (hw > 3 ? 1 : 0) ? 5 : x >= hw - 2 ? 7 : 6);
     if (R() < 0.3) { const bx = cx + (R() * 2 * hw | 0) - hw + 1; m.set(bx, h - 1 - y, 7); m.set(bx, h - 2 - y, 7); }   // bark furrows
   }
-  const tips = [];
-  const grow = (x, y, ang, len, thick, depth) => {
-    const [tx, ty] = bough(m, cx, x, y, ang, len, thick); tips.push([tx, ty]);
-    if (depth > 0) for (const d of [-1, 1]) if (R() < 0.85) grow(x + Math.sin(ang) * len * 0.55, y + Math.cos(ang) * len * 0.55, ang + d * (0.35 + R() * 0.4), len * (0.45 + R() * 0.2), Math.max(1, thick - 1), depth - 1);
-  };
-  for (const a of [-0.75, -0.25, 0.2, 0.65]) grow(a * 1.5, trunkH - 2, a + (R() - 0.5) * 0.2, H_ * (bare ? 0.3 : 0.22) * (1 + R() * 0.3), 3, bare ? 3 : 1);
-  if (bare) return { m, ox: cx };
-  // the crown, painted the way the clouds are but at the size of leaves: big clumps of leaves, each a round mass lit
-  // on its upper left with a dark crease where it meets the next, its outline and the edges of its tones made of
-  // little round bunches of leaves. A wide, uneven crown: a big middle clump, others round it at different heights,
-  // and bunches round the outside of each
-  const ccy = trunkH + (H_ - trunkH) * 0.45, rx = W_ / 2, ry = (H_ - trunkH) / 2 + 5, lobes = [];
-  const clumps = [[(R() - 0.5) * 6, ccy + 2, 12 + R() * 2]];
-  for (let k = 0, n = 7 + (R() * 2 | 0); k < n; k++) {
-    const a = -Math.PI * 0.8 + (k + 0.5 + (R() - 0.5) * 0.5) / n * Math.PI * 1.6, d = 0.55 + R() * 0.25, low = Math.abs(a) > 1.9;
-    clumps.push([Math.sin(a) * rx * d * (low ? 0.9 : 1), ccy + Math.cos(a) * ry * d, (low ? 6 : 8) + R() * 4]);   // the low ones at the sides hang below
+  if (bare) {
+    const grow = (x, y, ang, len, thick, depth) => {
+      bough(m, cx, x, y, ang, len, thick);
+      if (depth > 0) for (const d of [-1, 1]) if (R() < 0.85) grow(x + Math.sin(ang) * len * 0.55, y + Math.cos(ang) * len * 0.55, ang + d * (0.35 + R() * 0.4), len * (0.45 + R() * 0.2), Math.max(1, thick - 1), depth - 1);
+    };
+    for (const a of [-0.75, -0.25, 0.2, 0.65]) grow(a * 1.5, trunkH - 2, a + (R() - 0.5) * 0.2, H_ * 0.3 * (1 + R() * 0.3), 3, 3);
+    return { m, ox: cx };
   }
-  for (const [x, y, r] of clumps) {
-    lobes.push([x, y, r, 1, true]);
-    for (let a = -2.7; a <= 2.7; a += 2.6 / r + R() * 0.25) {       // leaf bunches round its outside (barely underneath)
-      const rr = 1.6 + R() * 1.2; lobes.push([x + Math.sin(a) * r * 0.97, y + Math.cos(a) * r * 0.97, rr, 1, false]);
+  // the pads: [x, y (up), half width, half height, fork height on the trunk]
+  const j = () => (R() - 0.5) * 4;
+  const pads = [[2 + j(), H_ * 0.76, 15, 11, trunkH], [-19 + j(), H_ * 0.6 + j(), 11, 8.5, trunkH], [19 + j(), H_ * 0.63 + j(), 12, 9, trunkH],
+                [-12 + j(), H_ * 0.42, 8, 6, trunkH * 0.75], [13 + j(), H_ * 0.45, 8.5, 6.5, trunkH * 0.85]];
+  for (const [x, y, , , fy] of pads) {                                 // a bough from the trunk out to each pad
+    const ang = Math.atan2(x, y - fy), len = Math.hypot(x, y - fy) * 0.85;
+    bough(m, cx, (x > 0 ? 1 : -1), fy, ang, len, 3);
+  }
+  pads.sort((p, q) => q[1] - p[1]);                                    // the high pads first, the low ones in front
+  const L = [-0.6, 0.62, 0.5], lm = Math.hypot(...L);
+  pads.forEach(([px, py, rx, ry], pi) => {
+    const nLeaf = Math.round((rx + ry) * 1.1), ph = R(), len = Array.from({ length: nLeaf }, () => 0.06 + R() * 0.16);
+    const X0 = cx + px, Y0 = h - 1 - py, inPad = new Map();
+    for (let Y = Math.floor(Y0 - ry * 1.5); Y <= Y0 + ry * 1.6; Y++) for (let X = Math.floor(X0 - rx * 1.35); X <= X0 + rx * 1.35; X++) {
+      const dx = (X + 0.5 - X0) / rx, dy = (Y0 - Y - 0.5) / ry, d = Math.hypot(dx, dy), th = Math.atan2(dy, dx);
+      const f = ((th / (2 * Math.PI) + 1) * nLeaf + ph) % 1, li = Math.floor((th / (2 * Math.PI) + 1) * nLeaf + ph) % nLeaf;
+      const down = Math.max(0, -Math.sin(th)), tip = Math.pow(1 - Math.abs(2 * f - 1), 3) * len[li] * (1 + 1.4 * down);   // a pointed leaf
+      if (d > 1 + tip) continue;
+      let t;
+      if (d > 1) t = down > 0.3 ? 4 : 3;                               // the leaf tips round the edge, the hanging ones darkest
+      else {
+        const nz = Math.sqrt(Math.max(0, 1 - d * d)), v = 0.8 * (dx * L[0] + dy * L[1] + nz * L[2]) / lm + 0.2 * (dy + 1) / 2;
+        t = v > 0.6 ? 1 : v > 0.4 ? 2 : v > 0.2 ? 3 : 4;
+        if (d > 0.84 && dy < -0.25) t = 4;                             // the dark underside
+      }
+      m.set(X, Y, t); inPad.set(Y * w + X, t);
     }
-  }
-  const crown = blobLayout(lobes, [], R, 0.55), L = [-0.55, 0.65, 0.5], lm = Math.hypot(...L);
-  const tones = blobTones(crown, L.map(c => c / lm), [0.12, 0.36, 0.66, 0.88]);
-  for (let Y = 0; Y < crown.h; Y++) for (let X = 0; X < crown.w; X++) {
-    const v = tones[Y * crown.w + X]; if (v < 0) continue;
-    m.set(cx + X + crown.x0, h - 1 - (crown.base - Y), v);
-  }
+    // the little leaves: a tone lighter on the lit side (the lightest scattered over the most lit), darker in shade
+    const keys = [...inPad.keys()];
+    for (let k = 0; k < keys.length * 0.16; k++) {
+      const key = keys[R() * keys.length | 0], t = inPad.get(key), X = key % w, Y = key / w | 0;
+      const nt = t <= 1 ? (R() < 0.6 ? 0 : 2) : t === 2 ? (R() < 0.45 ? 1 : 3) : t === 3 ? (R() < 0.3 ? 2 : 4) : 3;
+      for (const [ddx, ddy] of LEAF_MARKS[R() * LEAF_MARKS.length | 0]) if (inPad.has((Y + ddy) * w + X + ddx)) m.set(X + ddx, Y + ddy, nt);
+    }
+  });
   return { m, ox: cx };
 }
 // a fir: tiers of drooping boughs, each wider at its foot with its tips hanging a pixel lower, lit on the left and
@@ -566,7 +582,7 @@ function makePine(Hh, R) {
 const TREE_OBJS = [   // [kind, x, how far below the horizon it stands (or "hill"), the tree]
   ["pine", 46, "hill", makePine(14, lrng)], ["pine", 54, "hill", makePine(10, lrng)], ["pine", 79, "hill", makePine(17, lrng)],
   ["pine", 7, 9, makePine(46, lrng)],
-  ["broad", 140, 14, makeBroadleaf(60, 72, lrng, false)],
+  ["broad", 140, 14, makeBroadleaf(62, 70, lrng, false)],
 ];
 const BARE_TREE = makeBroadleaf(60, 72, (() => { let q = 77; return () => (q = (q * 48271) % 2147483647) / 2147483647; })(), true);
 const BAND_Y = [0, 6, 14, 25, 40];                 // where each band of the meadow starts, below the horizon
