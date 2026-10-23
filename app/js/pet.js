@@ -517,7 +517,7 @@ function petPose(now) {
     }
     case "fall": {
       if (G.pet === "nori") {                            // let go, she boings into her jump pose (its own lift taken out: she is where she was held)
-        const f = pet.vy < 0 ? 4 : 8; a.img = JUMP_IMG[f]; a.yoff = JUMP_GAP[f];
+        const f = pet.vy < 0 || G.equip && G.equip.pencil ? 4 : 8; a.img = JUMP_IMG[f]; a.yoff = JUMP_GAP[f];   // (her pole up in her paw all the way down)
         if (t < 260) { const q = t / 260; a.sy = 1 + 0.16 * Math.cos(q * Math.PI * 1.5) * (1 - q); a.sx = 2 - a.sy; }
       }
       else if (G.pet === "mochi" && pet.skyDrop) { a.hopF = FEET - pet.hy < 14 && pet.vy > 0 ? HOP_NEAR_F : HOP_FALL_F; a.img = MOCHIHOP_IMG[a.hopF]; }

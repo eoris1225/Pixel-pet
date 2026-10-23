@@ -896,15 +896,20 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}, stage = "all") {
     const tr = g.getTransform(), fx = tr.a < 0 ? -1 : 1, ox = (g.worldX || 0) + tr.e, oy = (g.worldY || 0) + tr.f;
     const scr = (x, y) => [ox + fx * x, oy + y + shift];
     const [LX, LY] = scr(mid + o.dx + Math.cos(flatA) * (G7 - mid), arm + 1.5 + o.dy + Math.sin(flatA) * (G7 - mid));
+    // In her jump it goes with how high she is: up as she springs off, held high at the top, coming down as she
+    // drops and down in both paws just as she lands. Dropped from a height (let go) it swings up while she falls
+    // (whoosh) and comes down as she lands
     const now = performance.now(), st = NORI_JUMP, UP = -2.1, raw = hand ? 1 : 0;
+    const ji = pet.act === "pet" ? JUMP_IMG.indexOf(img) : -1, air = ji >= 0 ? JUMP_GAP[ji] / 6 : pet.act === "fall" ? 1 : pet.act === "land" ? 0 : null;
     if (hand) [st.hx, st.hy] = scr(hand[0], hand[1]);
-    if (now - st.t > 300) Object.assign(st, { r: raw, vr: 0, want: raw, raw, since: now, fx, hx: st.hx || LX, hy: st.hy || LY });
+    if (now - st.t > 300) Object.assign(st, { r: air !== null ? air : raw, vr: 0, want: raw, raw, since: now, fx, hx: st.hx || LX, hy: st.hy || LY });
     else {                                                   // (turned round as a frame changes: it carries on easing)
       if (raw !== st.raw) Object.assign(st, { raw, since: now });
       if (now - st.since >= 60) st.want = st.raw;
+      const want = air !== null ? air : st.want, w = ji >= 0 ? 30 : pet.act === "fall" ? 11 : pet.act === "land" ? 26 : 15;
       for (let left = Math.min(0.05, (now - st.t) / 1000); left > 0; left -= 0.004) {
-        const h = Math.min(0.004, left), w = 15;
-        st.vr += (w * w * (st.want - st.r) - 2 * w * st.vr) * h; st.r += st.vr * h;
+        const h = Math.min(0.004, left);
+        st.vr += (w * w * (want - st.r) - 2 * w * st.vr) * h; st.r += st.vr * h;
       }
       st.r = Math.max(0, Math.min(1, st.r));
     }
