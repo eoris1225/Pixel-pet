@@ -893,6 +893,7 @@ function loop(now) {
     if (now - hudT > 250) { hudT = now; updateHud(); }
     sceneRender(now, signInfo());
     if (S.pet) petRender(now); else ctx.clearRect(0, 0, W, H);
+    if (S.pet && typeof sceneTint === "function") sceneTint(ctx, now);   // the sky's light on her
     weatherFront(ctx, now);
     drawPortraits(now);
     // bubbles follow the pet and the passing cloud

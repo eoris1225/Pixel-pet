@@ -1249,6 +1249,7 @@ function petRender(now) {
   ctx.save(); ctx.translate(0, -Math.round(pet.z));     // her depth on the grass
   const box = pose.hidden ? { x: pet.x, y: FEET - 30, w: 0, h: 30 } : drawSprite(ctx, G.pet, pose, pet.x, FEET, pet.dir, G.equip);
   pet._box = box;
+  if (!pose.hidden && typeof sceneFeet === "function") sceneFeet(ctx, now, box);   // the grass (or snow) round her feet, over them
   if (G.pet === "mochi" && pet.act === "fall" && pet.skyDrop) hopLines(box, pose.hopF, now);
   if (G.pet === "mochi" && pet.act === "skyland" && now - pet.t0 < SKYLAND_RUN) { const f = skylandFrame(Math.max(0, now - pet.t0)); hopLines(box, f, now); hopDust(box, f); }
   if (pet.act === "dash" && !pose.hidden) dashDust(box, true);

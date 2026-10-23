@@ -792,6 +792,7 @@ function paintLand(h) {
 // the season has it (green, autumn 1's peach and rust with fallen leaves round it, bare with snow on its boughs)
 function paintTrees(h, P, skyLow) {
   const g = treeG, img = g.createImageData(W, H), se = mainSeason();
+  TREE_CVS.length = 0;
   const sky3 = skyAt(h);
   const hill = x => ridge(x, horizon - 9, [[5, 0.028, 4], [2, 0.08, 1]]);
   for (const [kind, x, at, tree] of TREE_OBJS) {
@@ -809,20 +810,117 @@ function paintTrees(h, P, skyLow) {
         for (const dx of [0, 1]) img.data.set([...col, 255], (fy * W + fx + dx) * 4);
       }
     }
-    const { m, ox } = t;
-    for (let Y = 0; Y < m.h; Y++) for (let X = 0; X < m.w; X++) {
-      const v = m.t[Y * m.w + X]; if (v < 0) continue;
-      const px = x - ox + X, py = base - (m.h - 1 - Y); if (px < 0 || px >= W || py < 0 || py >= H) continue;
-      const c = pal[v], i = (py * W + px) * 4; img.data[i] = c[0]; img.data[i + 1] = c[1]; img.data[i + 2] = c[2]; img.data[i + 3] = 255;
-    }
+    // the tree itself on a canvas of its own, so the wind can sway its crown (its trunk stays put)
+    const { m, ox } = t, cv = document.createElement("canvas"); cv.width = m.w; cv.height = m.h;
+    const ti = cv.getContext("2d").createImageData(m.w, m.h);
+    for (let i = 0; i < m.w * m.h; i++) { const v = m.t[i]; if (v < 0) continue; const c = pal[v]; ti.data[i * 4] = c[0]; ti.data[i * 4 + 1] = c[1]; ti.data[i * 4 + 2] = c[2]; ti.data[i * 4 + 3] = 255; }
+    cv.getContext("2d").putImageData(ti, 0, 0);
+    TREE_CVS.push({ cv, x: x - ox, y: base - (m.h - 1), stem: kind === "broad" ? 22 : 3, amp: kind === "broad" ? 2.2 : at === "hill" ? 0.8 : 1.3, ph: x * 0.37 });
   }
   g.putImageData(img, 0, 0);
+}
+const TREE_CVS = [];   // this minute's trees: { canvas, where, how tall its trunk is, how far its top sways, phase }
+
+/* ---------- the wind in the trees, falling leaves, prints in the snow ---------- */
+// the trees sway in the wind: each row of a crown is shifted by whole pixels, more the higher it is, nothing down the
+// trunk; a slow swing with a quicker flutter on it, stronger as the wind gets up
+function drawTrees(g, now) {
+  for (const t of TREE_CVS) {
+    // leaning with the wind (it blows left to right, as the clouds go) and swinging about that
+    const sw = 0.55 + Math.sin(now / 1400 + t.ph) * 0.6 + Math.sin(now / 520 + t.ph * 2.3) * 0.25, H_ = t.cv.height;
+    for (let r = 0; r < H_; r++) {
+      const f = clampv((H_ - 1 - r - t.stem) / Math.max(1, H_ - t.stem), 0, 1), dx = Math.round(sw * wind * t.amp * Math.pow(f, 1.4));
+      g.drawImage(t.cv, 0, r, t.cv.width, 1, t.x + dx, t.y + r, t.cv.width, 1);
+    }
+  }
+}
+// leaves come off the big tree now and then (more in a wind, most in autumn), flutter down with it and lie a while
+const leaves = []; let nextLeaf = 0;
+function updateLeaves(now, s) {
+  const se = mainSeason();
+  if (se !== "winter" && now > nextLeaf && leaves.length < 14) {
+    if (se === "autumn" || wind > 1.1) leaves.push({ x: 128 + Math.random() * 28, y: horizon - 70 + Math.random() * 60, vy: 7 + Math.random() * 5, p: Math.random() * 6, c: Math.random(), land: horizon + 10 + Math.random() * 40, t: 0 });
+    nextLeaf = now + (se === "autumn" ? 2500 + Math.random() * 3500 : 5000 + Math.random() * 7000) / Math.max(0.5, wind);
+  }
+  for (let i = leaves.length - 1; i >= 0; i--) {
+    const l = leaves[i];
+    if (l.y < l.land) { l.y = Math.min(l.land, l.y + l.vy * s); l.x += (wind * 9 + Math.sin(now / 420 + l.p) * 7) * s; }
+    else if ((l.t += s) > 6) leaves.splice(i, 1);
+  }
+}
+function drawLeaves(g, h) {
+  if (!landP) return;
+  for (const l of leaves) {
+    g.globalAlpha = l.t > 4 ? Math.max(0, 1 - (l.t - 4) / 2) : 1;
+    g.fillStyle = css(litc(mainSeason() === "autumn" ? landP.fleck[l.c < 0.6 ? 0 : 1] : landP.leaf[l.c < 0.6 ? 2 : 3], h)); g.fillRect(Math.round(l.x), Math.round(l.y), 2, 1);
+    if (l.y < l.land && Math.floor(l.y / 3) % 2) g.fillRect(Math.round(l.x), Math.round(l.y) - 1, 1, 1);   // turning over as it falls
+  }
+  g.globalAlpha = 1;
+}
+// on snow (winter's snowfield, or snow lying after a snowfall) she leaves prints as she walks, left and right in turn,
+// that fill in again over half a minute
+const prints = []; let printX = null, printSide = 1;
+const snowyGround = () => mainSeason() === "winter" || (typeof WX !== "undefined" && WX.depth > 0.25);
+function updatePrints(now) {
+  for (let i = prints.length - 1; i >= 0; i--) if (now - prints[i].t > 30000) prints.splice(i, 1);
+  if (typeof pet === "undefined" || !snowyGround() || ["fall", "held", "peek"].includes(pet.act) || (typeof G !== "undefined" && !S.pet)) { printX = null; return; }
+  if (printX === null) printX = pet.x;
+  if (Math.abs(pet.x - printX) >= 6) {
+    prints.push({ x: Math.round(pet.x), y: Math.round(FEET - pet.z) + (printSide > 0 ? 1 : 0), t: now });
+    printSide = -printSide; printX = pet.x; if (prints.length > 90) prints.shift();
+  }
+}
+function drawPrints(g, h) {
+  if (!prints.length || !landP) return;
+  const now = performance.now();
+  for (const p of prints) {
+    const a = 1 - (now - p.t) / 30000; if (a <= 0) continue;
+    const band = [0, 6, 14, 25, 40].filter(b => p.y >= horizon + b).length - 1, snow = landP.grass[Math.max(0, band)];
+    g.globalAlpha = Math.min(1, a * 1.4);                                                    // a little dent: shade in the snow's own colour,
+    g.fillStyle = css(litc(mixc(snow, hex("#7895bb"), 0.5), h)); g.fillRect(p.x - 1, p.y, 2, 1);
+    g.globalAlpha = Math.min(1, a * 1.4) * 0.7;                                              // its far edge softer, so it reads as a hollow
+    g.fillStyle = css(litc(mixc(snow, hex("#7895bb"), 0.25), h)); g.fillRect(p.x - 1, p.y - 1, 2, 1);
+  }
+  g.globalAlpha = 1;
+}
+// the grass (or the snow) at her feet, over them: a few blades fixed in the ground where she stands, their tips bending
+// with the wind, so her feet are among them and not on top of the meadow; in snow she sinks in a little
+function sceneFeet(g, now, box) {
+  if (!landP) return;
+  const h = worldHour(), snow = snowyGround(), y = FEET;
+  if (snow) {                                  // her feet sink in: the snow of the ground she stands on over their lowest row
+    const T = g.getTransform(), sy = y - 1 + T.f, band = [0, 6, 14, 25, 40].filter(b => sy >= horizon + b).length - 1;
+    const c = css(litc(landP.grass[Math.max(0, band)], h)), row = g.getImageData(Math.round(box.x + T.e), Math.round(sy), box.w, 1).data;
+    g.fillStyle = c;
+    for (let i = 0; i < box.w; i++) if (row[i * 4 + 3] > 0) g.fillRect(box.x + i, y - 1, 1, 1);
+    return;
+  }
+  const dark = css(litc(mainSeason() === "autumn" ? landP.grass[0] : landP.dark[0], h)), lite = css(litc(landP.grass[1], h));
+  for (let X = box.x - 2; X <= box.x + box.w + 1; X++) {
+    const k = ((X * 2654435761) >>> 0) % 7; if (k > 3) continue;
+    const ht = k === 0 ? 3 : 2, sw = Math.round(Math.sin(now / 900 + X * 0.15) * wind * 0.9);
+    g.fillStyle = dark; g.fillRect(X, y - ht + 1, 1, ht - 1);
+    g.fillStyle = k === 1 ? lite : dark; g.fillRect(X + (ht > 2 ? sw : 0), y - ht, 1, 1);
+  }
+}
+// the light of the sky on her (and what she holds): a little of the sky's colour, the gold of a low sun, the blue of
+// night, laid over her layer as on the land, so she belongs in the scene at every hour. Her sprites are not changed;
+// this is only how they are lit. (The sign, drawn over her when she is behind it, is lit already, so it goes back on.)
+function sceneTint(g, now) {
+  const h = worldHour(), d = darkAt(h), wm = warmAt(h), sky = skyAt(h);
+  g.save(); g.globalCompositeOperation = "source-atop";
+  g.fillStyle = css(sky[1], 0.1); g.fillRect(0, 0, W, H);
+  if (wm > 0.02) { g.fillStyle = css(mixc(sky[2], hex("#ff9e72"), 0.7), wm * 0.16); g.fillRect(0, 0, W, H); }
+  if (d > 0.02) { g.fillStyle = css(hex("#1b2648"), d * 0.45); g.fillRect(0, 0, W, H); }
+  g.restore();
+  if (typeof pet !== "undefined" && typeof SIGN_Z !== "undefined" && pet.z > SIGN_Z + 0.5) drawSignOver(g, now);
 }
 
 /* ---------- update ---------- */
 let wind = 1;
 function sceneUpdate(now, dt) {
   const s = dt / 1000, h = worldHour(), dark = darkAt(h);
+  updateLeaves(now, s); updatePrints(now);
   wind = (0.8 + 0.5 * Math.sin(now / 9000) + 0.2 * Math.sin(now / 2300)) * (typeof weatherWind === "function" ? weatherWind() : 1);
   const foul = typeof WX !== "undefined" && (WX.rain > 0.2 || WX.snow > 0.3 || WX.storm > 0.3);   // birds and butterflies keep out of the rain
   if (!cloudsReady && horizon) seedClouds();
@@ -1006,14 +1104,18 @@ function sceneRender(now, signInfo) {
   if (faceCloud && faceImg) g.drawImage(faceImg, Math.round(faceCloud.x), Math.round(faceCloud.y + Math.sin(now / 900) * 1.5));
   g.drawImage(landCv, 0, 0);
   if (typeof weatherLand === "function") weatherLand(g, now, h);   // wet grass, snow
-  g.drawImage(treeCv, 0, 0);
+  g.drawImage(treeCv, 0, 0);                           // their shadows and the leaves fallen round them
+  drawTrees(g, now);
+  drawLeaves(g, h);
+  drawPrints(g, h);
   // grass tufts and flowers sway in the wind
   const blade = css(litc(landP.dark[0], h)), bladeHi = css(litc(landP.grass[1], h));
   for (const t of TUFTS) {
-    const sw = Math.round(Math.sin(now / 900 + t.x * 0.15 + t.p) * wind * 0.9);
+    const sw = Math.round(0.3 * wind + Math.sin(now / 900 - t.x * 0.15 + t.p * 0.3) * wind * 0.9);   // a wave of wind runs along the meadow
     const x = Math.round(t.x), y = Math.round(t.yy);
-    g.fillStyle = blade; g.fillRect(x, y - t.h + 1, 1, t.h); g.fillRect(x + 2, y - t.h + 2, 1, t.h - 1); g.fillRect(x - 2, y - t.h + 2, 1, t.h - 1);
-    g.fillStyle = bladeHi; g.fillRect(x + sw, y - t.h, 1, 1);
+    g.fillStyle = blade; g.fillRect(x, y - t.h + 2, 1, t.h - 1); g.fillRect(x + 2, y - t.h + 3, 1, t.h - 2); g.fillRect(x - 2, y - t.h + 3, 1, t.h - 2);
+    g.fillRect(x + 2 + sw, y - t.h + 2, 1, 1); g.fillRect(x - 2 + sw, y - t.h + 2, 1, 1); g.fillRect(x + sw, y - t.h + 1, 1, 1);   // every blade's tip bends
+    g.fillStyle = bladeHi; g.fillRect(x + sw + (sw > 0 ? 1 : sw < 0 ? -1 : 0), y - t.h, 1, 1);
   }
   const se = mainSeason();
   for (const f of FLOWERS) {
