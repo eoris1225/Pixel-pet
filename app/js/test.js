@@ -55,6 +55,7 @@
         `<button class="${eq[it] ? "on" : ""}" data-item="${it}">${name}<span class="lv">Lv${lv}</span></button>`).join("")}</div>
       <div class="row" style="margin-top:6px"><button data-all="1">전부 착용</button><button data-all="0">전부 해제</button></div>
       <h3>동작</h3><div class="row">${[...MOTIONS.all, ...MOTIONS[id]].map(([n], i) => `<button data-m="${i}">${n}</button>`).join("")}</div>
+      <h3>날씨</h3><div class="row"><button data-wx="" class="${WX.force ? "" : "on"}">자동</button>${WX_KINDS.map(k => `<button data-wx="${k}" class="${WX.force === k ? "on" : ""}">${WX_NAME[k]}</button>`).join("")}</div>
       <h3>잠</h3><div class="row"><button data-sleep="1" class="${G.wantSleep ? "on" : ""}">재우기</button><button data-sleep="0">깨우기</button></div>
       <label><input type="checkbox" id="tp-still" ${still ? "checked" : ""}> 누른 동작만 하기 (꺼두면 평소처럼 알아서 움직여요)</label>
       <p class="note">이 페이지는 따로 저장돼서 실제 공부 기록에는 영향이 없어요.</p>`;
@@ -68,6 +69,7 @@
     });
     const list = [...MOTIONS.all, ...MOTIONS[id]];
     panel.querySelectorAll("[data-m]").forEach(b => b.onclick = () => list[+b.dataset.m][1]());
+    panel.querySelectorAll("[data-wx]").forEach(b => b.onclick = () => { WX.force = b.dataset.wx || null; render(); });
     panel.querySelectorAll("[data-sleep]").forEach(b => b.onclick = () => { G.wantSleep = b.dataset.sleep === "1"; render(); });
     panel.querySelector("#tp-still").onchange = e => { still = e.target.checked; if (!still) pet.nextThink = now() + 500; };
   }

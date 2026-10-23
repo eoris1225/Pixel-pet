@@ -730,6 +730,7 @@ function renderSettings() {
       ${row("inventory", "#ffd96b", "인벤토리")}
       ${row("goal", "#b6ecae", "목표 순공 시간", `<span class="f-sm muted">${S.setup ? fmtDur(S.setup.goalMin * 60000) : ""}</span>`)}
       ${row("subjects", "#d9cdff", "과목 관리")}
+      ${row("weather", "#c9e6ff", "날씨", `<span class="f-sm muted">${WX_NAME[WX.kind]} · ${S.weatherMode === "real" ? "실제" : "게임"}</span>`)}
     </div>
     <button class="row pxb reset-row" data-go="reset" style="--hl:#ff9a8a"><span class="mk"></span><span class="grow">처음부터 다시 시작</span>${icon("next")}</button>`;
   paintIcons($("#settings-body"));
@@ -741,6 +742,7 @@ function renderSettings() {
     if (g === "inventory") { renderInventory(); openScreen("scr-inventory"); }
     if (g === "goal") askSetup(false);
     if (g === "subjects") openSubjects();
+    if (g === "weather") openWeather();
     if (g === "reset") confirmBox("세 친구의 레벨과 아이템, 공부 기록, 할 일, 과목이 전부 지워지고 처음 화면으로 돌아가요.<br>되돌릴 수 없어요.", "전부 지우기", () => {
       wiping = true;
       try { localStorage.removeItem(KEY); } catch (e) {}
@@ -748,6 +750,28 @@ function renderSettings() {
     });
   });
 }
+// where the weather comes from: the game's own (by season and time of day), or the real weather where the player is
+function openWeather() {
+  const render = () => {
+    const real = S.weatherMode === "real";
+    const status = !real ? "계절과 시간에 맞춰 게임이 날씨를 정해요." : WX.real ? `지금 계신 곳 날씨: ${WX_NAME[WX.real.kind]}` : WX.realErr ? `${WX.realErr}. 그동안은 게임 날씨로 보여요.` : "날씨를 불러오는 중…";
+    openModal("날씨", `
+      <div class="rows">
+        <button class="row pxb ${real ? "" : "on"}" data-wm="game" style="--hl:#b6ecae"><span class="mk"></span><span class="grow">게임 날씨</span>${real ? "" : "✓"}</button>
+        <button class="row pxb ${real ? "on" : ""}" data-wm="real" style="--hl:#9fd3f5"><span class="mk"></span><span class="grow">실제 날씨 (위치 사용)</span>${real ? "✓" : ""}</button>
+      </div>
+      <p class="hint f-sm">${esc(status)}</p>
+      <p class="hint f-sm">실제 날씨는 위치를 Open-Meteo에 보내 30분마다 불러와요.</p>`);
+    modalCard.querySelectorAll("[data-wm]").forEach(b => b.onclick = () => {
+      S.weatherMode = b.dataset.wm; save();
+      if (S.weatherMode === "real") fetchRealWeather(true);
+      render(); renderSettings();
+    });
+  };
+  onWeatherStatus = () => { if (!modal.hidden && modalCard.querySelector("[data-wm]")) render(); renderSettings(); };
+  render();
+}
+let onWeatherStatus = null;
 function openSubjects() {
   const render = () => {
     openModal("과목 관리", `
@@ -864,10 +888,12 @@ function loop(now) {
   const dt = Math.max(0, Math.min(100, now - prev)); prev = now;
   try {
     sceneUpdate(now, dt);
+    weatherUpdate(now, dt);
     if (S.pet) petUpdate(now, dt);
     if (now - hudT > 250) { hudT = now; updateHud(); }
     sceneRender(now, signInfo());
     if (S.pet) petRender(now); else ctx.clearRect(0, 0, W, H);
+    weatherFront(ctx, now);
     drawPortraits(now);
     // bubbles follow the pet and the passing cloud
     if (!petBubble.hidden) {

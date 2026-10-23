@@ -200,7 +200,8 @@ function paintLand(h) {
 let wind = 1;
 function sceneUpdate(now, dt) {
   const s = dt / 1000, h = worldHour(), dark = darkAt(h);
-  wind = 0.8 + 0.5 * Math.sin(now / 9000) + 0.2 * Math.sin(now / 2300);
+  wind = (0.8 + 0.5 * Math.sin(now / 9000) + 0.2 * Math.sin(now / 2300)) * (typeof weatherWind === "function" ? weatherWind() : 1);
+  const foul = typeof WX !== "undefined" && (WX.rain > 0.2 || WX.snow > 0.3 || WX.storm > 0.3);   // birds and butterflies keep out of the rain
   for (const c of clouds) {
     c.x += c.v * s * (0.8 + wind * 0.3);
     const w = cloudImgs[c.tpl] ? cloudImgs[c.tpl].width : 50;
@@ -209,7 +210,7 @@ function sceneUpdate(now, dt) {
   if (!faceCloud && now > nextFace) { faceCloud = { x: -60, y: 34 + rnd() * 26, v: 5.5, t0: now }; }
   if (faceCloud) { faceCloud.x += faceCloud.v * s; if (faceCloud.x > W + 8) { faceCloud = null; nextFace = now + 90000 + rnd() * 120000; } }
 
-  if (!flock && now > nextFlock && dark < 0.45) {
+  if (!flock && now > nextFlock && dark < 0.45 && !foul) {
     const dir = rnd() < 0.5 ? 1 : -1, n = 2 + (rnd() * 4 | 0);
     flock = { dir, x: dir > 0 ? -20 : W + 20, y: 40 + rnd() * 70, v: 16 + rnd() * 8,
       birds: Array.from({ length: n }, (_, i) => ({ dx: -i * 7 * dir + rnd() * 3, dy: (i % 2 ? 4 : -2) * Math.ceil(i / 2) + rnd() * 2, p: rnd() * 6 })) };
@@ -225,12 +226,12 @@ function sceneUpdate(now, dt) {
     f.y = Math.max(horizon - 20, Math.min(FEET + 6, f.y + f.vy * s));
   }
 
-  if (!fly && now > nextFly && dark < 0.3) fly = { x: -6, y: FEET - 30, base: FEET - 26 - rnd() * 30, t: 0, c: ["#ffd84d", "#ffffff", "#ffb3c7", "#c6b5ff"][rnd() * 4 | 0] };
+  if (!fly && now > nextFly && dark < 0.3 && !foul) fly = { x: -6, y: FEET - 30, base: FEET - 26 - rnd() * 30, t: 0, c: ["#ffd84d", "#ffffff", "#ffb3c7", "#c6b5ff"][rnd() * 4 | 0] };
   if (fly) { fly.t += dt; fly.x += 12 * s; fly.y = fly.base + Math.sin(fly.t / 600) * 8 + Math.sin(fly.t / 170) * 2; if (fly.x > W + 6) { fly = null; nextFly = now + 30000 + rnd() * 40000; } }
 
   // a sparrow flies to the sign, hops and pecks for a while, then leaves
   const sx = SIGN_X + 4, sy = FEET - 36;          // standing on the top edge of the sign board
-  if (!sparrow && now > nextSparrow && dark < 0.4) sparrow = { st: "in", x: W + 8, y: 50, t: 0, stay: 6000 + rnd() * 6000 };
+  if (!sparrow && now > nextSparrow && dark < 0.4 && !foul) sparrow = { st: "in", x: W + 8, y: 50, t: 0, stay: 6000 + rnd() * 6000 };
   if (sparrow) {
     const b = sparrow; b.t += dt;
     if (b.st === "in") {
@@ -312,6 +313,7 @@ function drawSparrow(g, now) {
 function drawSignOver(g, now) {
   if (!lastSign) return;
   drawSign(g, now, lastSign.h, lastSign.info, true);
+  if (typeof weatherCap === "function") weatherCap(g, lastSign.h);
   drawSparrow(g, now);
 }
 
@@ -331,7 +333,7 @@ function sceneRender(now, signInfo) {
   // stars
   if (dark > 0.05) for (const st of STARS) {
     const tw_ = 0.55 + 0.45 * Math.sin(now / 700 + st.p * 3);
-    const a = dark * st.b * tw_; if (a < 0.08) continue;
+    const a = dark * st.b * tw_ * (typeof WX !== "undefined" ? 1 - WX.cover * 0.9 : 1); if (a < 0.08) continue;
     g.fillStyle = `rgba(255,250,230,${a.toFixed(2)})`;
     const x = Math.round(st.x), y = Math.round(st.yy);
     g.fillRect(x, y, 1, 1);
@@ -355,7 +357,9 @@ function sceneRender(now, signInfo) {
   }
   clouds.filter(c => c.layer === 1).forEach(drawC);
   if (faceCloud && faceImg) g.drawImage(faceImg, Math.round(faceCloud.x), Math.round(faceCloud.y + Math.sin(now / 900) * 1.5));
+  if (typeof weatherSky === "function") weatherSky(g, now, h);   // overcast, grey clouds, a rainbow
   g.drawImage(landCv, 0, 0);
+  if (typeof weatherLand === "function") weatherLand(g, now, h);   // wet grass, snow
   // grass tufts and flowers sway in the wind
   const blade = css(lit("#5fae6b", h)), bladeHi = css(lit("#a8e0a2", h));
   for (const t of TUFTS) {
@@ -371,7 +375,9 @@ function sceneRender(now, signInfo) {
     g.fillStyle = c; g.fillRect(cx - 1, cy, 3, 1); g.fillRect(cx, cy - 1, 1, 3);
     g.fillStyle = css(lit("#ffcf5a", h)); g.fillRect(cx, cy, 1, 1);
   }
+  if (typeof weatherFog === "function") weatherFog(g, now, h);
   drawSign(g, now, h, signInfo);
+  if (typeof weatherCap === "function") weatherCap(g, h);
   lastSign = { h, info: signInfo };
   drawSparrow(g, now);
   if (fly) {

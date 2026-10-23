@@ -823,7 +823,7 @@ function updateLicence(now, dt) {
     // a falling leaf: the card is a flat plate. Air hardly holds it moving along its face but strongly across it, so it
     // glides and swoops; the air also turns it, so it rocks and tumbles; and the wind comes in uneven puffs. Worked
     // out in small steps so the path is smooth, and different every time
-    if (now > lprop.gustT) { lprop.gust = lrnd(-45, 45); lprop.gustT = now + lrnd(300, 1000); }
+    if (now > lprop.gustT) { lprop.gust = lrnd(-45, 45) * (typeof weatherWind === "function" ? weatherWind() : 1); lprop.gustT = now + lrnd(300, 1000); }   // (stormy: stronger)
     let left = s;
     while (left > 0) {
       const h = Math.min(left, 0.004); left -= h;
