@@ -180,7 +180,8 @@ function blobLayout(lobes, fixed, R, dotSize = 1) {
   for (let k = 0; k < n; k++) if (m[k]) { const Y = k / w | 0; top = Math.min(top, Y); bot = Math.max(bot, Y); }
   const tone = new Int8Array(n).fill(-2);
   let area = 0; for (let k = 0; k < n; k++) if (m[k]) { tone[k] = -1; area++; }
-  for (const [x, y, t] of fixed) { const X = x - x0, Y = h - 1 - (y - y0); if (X >= 0 && X < w && Y >= 0 && Y < h && tone[Y * w + X] === -2) tone[Y * w + X] = t; }
+  const alpha = new Float32Array(n).fill(1);
+  for (const [x, y, t, a = 1] of fixed) { const X = x - x0, Y = h - 1 - (y - y0); if (X >= 0 && X < w && Y >= 0 && Y < h && tone[Y * w + X] === -2) { tone[Y * w + X] = t; alpha[Y * w + X] = a; } }
   // where there are no domes (sheets, the small lobes), the outline blurred stands in for the height
   const size = Math.sqrt(area), zs = clampv(size * 0.12, 1.5, 8), Bm = blurGrid(m, w, h, clampv(size * 0.12, 1, 6));
   for (let k = 0; k < n; k++) zc[k] = Math.max(zc[k], Bm[k] * zs);
@@ -196,7 +197,7 @@ function blobLayout(lobes, fixed, R, dotSize = 1) {
     const px = X + R() * gs, py = Y + R() * gs, k = (py | 0) * w + (px | 0);
     if (k >= 0 && k < n && tone[k] === -1) dots.push(px, py, gs * (0.75 + R() * 0.6), (R() - 0.5) * 0.02);
   }
-  return { w, h, x0, base: h - 1 + y0, nx, ny, nz, up, tone, dots: new Float32Array(dots), area };
+  return { w, h, x0, base: h - 1 + y0, nx, ny, nz, up, tone, alpha, dots: new Float32Array(dots), area };
 }
 // the tone (0 lightest .. 4 darkest) of every pixel of a laid-out mass under light L: the light over the mass, split
 // into tones so each covers its share (q: how much of it is in the lightest, the two lightest, ...), then the
@@ -222,7 +223,7 @@ function blobTones(s, L, q) {
 // a long flat cloud as in the reference skies: a sheet thickest somewhere off its middle, its top swelling gently in a
 // few long soft humps, its underside flatter, both edges stepped, its ends drawn out into thin pointed tails. Lit on
 // top, a darker band along its underside. Pixels of a set tone, [x, y (up), tone], first ones laid down stay in front
-function ribbon(fixed, x0, y0, w0, h0, R) {
+function ribbon(fixed, x0, y0, w0, h0, R, alpha = 1) {
   const peak = 0.3 + R() * 0.4, humps = Array.from({ length: 1 + (R() * 3 | 0) }, () => [R(), 0.08 + R() * 0.16, 0.3 + R() * 0.6]);
   let jt = 0, jb = 0, run = 0;
   for (let x = 0; x < w0; x++) {
@@ -233,7 +234,7 @@ function ribbon(fixed, x0, y0, w0, h0, R) {
     const th = top - bot; if (th < 1) continue;
     for (let y = bot; y < top; y++) {
       const fromTop = top - 1 - y, fromBot = y - bot;
-      fixed.push([Math.round(x0 + x), Math.round(y0 + y), th <= 2 ? 1 : fromBot === 0 && th > 4 ? 3 : fromBot <= (th > 6 ? 1 : 0) ? 2 : fromTop < Math.max(1, th * 0.45) ? 0 : 1]);
+      fixed.push([Math.round(x0 + x), Math.round(y0 + y), th <= 2 ? 1 : fromBot === 0 && th > 4 ? 3 : fromBot <= (th > 6 ? 1 : 0) ? 2 : fromTop < Math.max(1, th * 0.45) ? 0 : 1, alpha * (th <= 2 ? 0.7 : th <= 4 ? 0.85 : 1)]);
     }
   }
   // the tails: a thin line out from each end, stepping a pixel now and then, broken into dashes at its very tip
@@ -242,7 +243,7 @@ function ribbon(fixed, x0, y0, w0, h0, R) {
     for (let k = 1; k <= len; k++) {
       if (k > len * 0.5 && R() < 0.12) y += R() < 0.5 ? 1 : -1;
       if (k > len * 0.7 && k % 2) continue;
-      fixed.push([Math.round(x0 + end + dir * k), Math.round(y0 + y), 1]);
+      fixed.push([Math.round(x0 + end + dir * k), Math.round(y0 + y), 1, alpha * 0.6 * (1 - 0.5 * k / len)]);
     }
   }
 }
@@ -253,12 +254,12 @@ function cloudShape(kind, w0, h0, R = Math.random) {
     // thin streaks high up: two or three long slivers, staggered, each drawn out into pointed tails
     for (let j = 0, n = 1 + (R() * 3 | 0); j < n; j++) {
       const ww = w0 * (0.5 + R() * 0.5);
-      ribbon(fixed, (w0 - ww) * R(), j * (3 + (R() * 3 | 0)), ww, 1.6 + R() * 1.8, R);
+      ribbon(fixed, (w0 - ww) * R(), j * (3 + (R() * 3 | 0)), ww, 1.6 + R() * 1.8, R, 0.72);
     }
   } else if (kind === "strato") {
     // a long flat sheet, now and then with a smaller one lying behind it
-    ribbon(fixed, 0, 0, w0, h0, R);
-    if (R() < 0.5) { const ww = w0 * (0.35 + R() * 0.35); ribbon(fixed, (R() < 0.5 ? -0.15 : 0.6) * w0 + R() * w0 * 0.2, h0 * (0.4 + R() * 0.4), ww, h0 * (0.4 + R() * 0.3), R); }
+    ribbon(fixed, 0, 0, w0, h0, R, 0.9);
+    if (R() < 0.5) { const ww = w0 * (0.35 + R() * 0.35); ribbon(fixed, (R() < 0.5 ? -0.15 : 0.6) * w0 + R() * w0 * 0.2, h0 * (0.4 + R() * 0.4), ww, h0 * (0.4 + R() * 0.3), R, 0.75); }
   } else {
     // a cumulus (or a little puff), grown like a cauliflower: a flat base, a few big round domes of different
     // heights on it, smaller domes round the top of each, and smaller ones again on those; the underside a row of
@@ -287,7 +288,7 @@ function cloudShape(kind, w0, h0, R = Math.random) {
     // now and then thin wisps trailing under it
     if (kind === "cu" && R() < 0.55) for (let k = 0, n = 1 + (R() * 2 | 0); k < n; k++) {
       const len = w0 * (0.2 + R() * 0.45), x0 = R() * (w0 - len), y = -1 - k * 2 - (R() * 2 | 0);
-      for (let x = Math.round(x0); x < x0 + len; x++) fixed.push([x, y, 4]);
+      for (let x = Math.round(x0); x < x0 + len; x++) fixed.push([x, y, 4, 0.6]);
     }
   }
   return blobLayout(lobes, fixed, R);
@@ -314,6 +315,10 @@ function cloudPal(h) {
   }
   return pal;
 }
+// How see-through each kind is: cumulus and puffs are solid masses, fully opaque; a stratus sheet is nearly so (0.9),
+// a smaller sheet lying behind it a little less (0.75), cirrus streaks are thin veils (0.72); and within a sheet its
+// thin parts (two pixels or less) and its tails fade further, the tails more towards their tips, as do the wisps
+// trailing under a cumulus (0.6)
 // how much of a cloud is in its lightest tone, its two lightest, ... (small clouds in fewer tones)
 const CLOUD_Q = [0.3, 0.52, 0.71, 0.87], PUFF_Q = [0.42, 0.75, 0.94, 1];
 function paintCloud(c, pal, L) {
@@ -322,7 +327,7 @@ function paintCloud(c, pal, L) {
   const g = c.cv.getContext("2d"), img = g.createImageData(w, h);
   for (let i = 0; i < w * h; i++) {
     const k = tn[i]; if (k < 0) continue;
-    const col = pal[k]; img.data[i * 4] = col[0]; img.data[i * 4 + 1] = col[1]; img.data[i * 4 + 2] = col[2]; img.data[i * 4 + 3] = 255;
+    const col = pal[k]; img.data[i * 4] = col[0]; img.data[i * 4 + 1] = col[1]; img.data[i * 4 + 2] = col[2]; img.data[i * 4 + 3] = Math.round(255 * c.shape.alpha[i]);
   }
   g.putImageData(img, 0, 0);
 }
@@ -451,8 +456,8 @@ const LAND_TABLE = {
             leaf: "6d974d 1e8e60 1f7f41 156a33 02592e 0b4423", bark: "5a4e44 4a4039 423934", pine: "5c9e56 40924a 2d6818 26521f 21412c",   // nature 5, summer 4
             fleck: "ffe58a ffffff 9fd3f5" },
   autumn: { hill: "a59760 89855c", wood: "935949 774d3a 4f3327", grass: "a59760 89855c 85895c 7a6543 676a47", dark: "6f5a3a",   // autumn 1
-            leaf: "cb8b61 cb8b61 cb8b61 935949 774d3a 4f3327", bark: "4f3327 341919 211313", pine: "436648 37593e 2a4937 25402d 203025",   // autumn 1, nature 4
-            fleck: "cb8b61 935949 a59760" },                                                                                     // fallen leaves, dry grass
+            leaf: "e6bf06 e6bf06 af5f02 876f01 6e3c03 5f3201", bark: "4f3327 341919 211313", pine: "436648 37593e 2a4937 25402d 203025",   // autumn 1, autumn 4, nature 4
+            fleck: "e6bf06 af5f02 a59760" },                                                                                     // fallen leaves (autumn 4), dry grass
   winter: { hill: "c9d1dc a3bfd6", wood: "54697c 4e616f 344d5f", grass: "ffffff c9d1dc becfdf a3bfd6 9cafbd", dark: "7c8992",   // winter nature 1, 3
             leaf: "ffffff c9d1dc becfdf a3bfd6 84aed2 5e95c5", bark: "5a4e44 4a4039 423934", pine: "ffffff 4e616f 344d5f 2c3841 17202c",   // snow (winter nature 1), firs (winter nature 3)
             fleck: "54697c 4e616f 7c8992" },                                                                                     // dry stalks through the snow
@@ -606,30 +611,28 @@ function tracedTree(rows) {
   rows.forEach((r, Y) => { for (let X = 0; X < w; X++) if (r[X] !== ".") m.t[Y * w + X] = +r[X]; });
   return { m, ox: rows[h - 1].indexOf("8") + 2 };
 }
-// in winter, as in winter nature 3: a bare tree, a straight trunk narrowing up to a point, long boughs reaching out
-// nearly level and a little up, alternately left and right, each with twigs forking up off it, snow lying along the
-// tops of the boughs (0 snow, 1 its shade, 6 and 8 bark)
-function bareTree(H_, R) {
-  const w = 64, h = H_ + 2, m = toneMap(w, h), cx = 32;
-  for (let y = 0; y < H_; y++) {
-    const hw = y < 3 ? 3 : y < H_ * 0.45 ? 2 : y < H_ * 0.8 ? 1.5 : 1;
-    for (let x = -Math.floor(hw); x < Math.ceil(hw); x++) m.set(cx + x, h - 1 - y, x === -Math.floor(hw) && hw > 1 ? 6 : 8);
-  }
-  const line = (x0, y0, ang, len, thick) => {        // ang from straight up; y up from the ground
+// in winter, as in winter nature 3, the same tree bare: its very trunk (and the bough forking off it), a leader on up
+// to where its top was, and boughs off it alternately left and right, reaching about as far as its leaves did, bending
+// up in three pieces with twigs forking off at the bends; snow along the tops (0 snow, 1 its shade, 6 and 8 bark)
+function bareTree(rows, R) {
+  const w = rows[0].length, h = rows.length, m = toneMap(w, h);
+  rows.forEach((r, Y) => { for (let X = 0; X < w; X++) if (r[X] === "6" || r[X] === "8") m.t[Y * w + X] = +r[X]; });
+  const span = rows.map(r => { const a = r.search(/[0-5]/); return a < 0 ? null : [a, Math.max(...[..."012345"].map(c => r.lastIndexOf(c)))]; });
+  const top = span.findIndex(v => v), bot = span.length - 1 - [...span].reverse().findIndex(v => v);
+  const spanAt = Y => { for (let d = 0; d < 10; d++) { if (span[Y + d]) return span[Y + d]; if (span[Y - d]) return span[Y - d]; } return [0, w - 1]; };
+  const r0 = rows[bot + 1], tx = Math.round((r0.indexOf("8") + r0.lastIndexOf("8")) / 2), topX = Math.round((span[top][0] + span[top][1]) / 2);
+  const leader = Y => Math.round(tx + (topX - tx) * (bot + 1 - Y) / (bot + 1 - top));
+  for (let Y = bot + 1; Y >= top; Y--) { m.set(leader(Y), Y, 8); if (Y > bot - (bot - top) * 0.4) m.set(leader(Y) - 1, Y, 6); }
+  const line = (x, y, ang, len, thick) => {                // ang from straight up; in the grid (y down)
     const pts = [];
-    for (let k = 0; k <= len; k++) {
-      const x = x0 + Math.sin(ang) * k, y = y0 + Math.cos(ang) * k; pts.push([x, y]);
-      m.set(cx + x, h - 1 - y, 8); if (k < len * 0.4 && thick > 1) m.set(cx + x, h - 1 - y + 1, 8);
-    }
+    for (let k = 0; k <= len; k++) { const X = x + Math.sin(ang) * k, Y = y - Math.cos(ang) * k; pts.push([X, Y]); m.set(X, Y, 8); if (k < len * 0.4 && thick > 1) m.set(X, Y + 1, 8); }
     return pts;
   };
-  const snowOn = pts => { for (const [x, y] of pts) { const X = Math.round(cx + x), Y = Math.round(h - 1 - y) - 1; if (m.get(X, Y) < 0 && R() < 0.7) m.set(X, Y, R() < 0.8 ? 0 : 1); } };
-  const boughs = [[0.28, 1, 38], [0.38, -1, 36], [0.48, 1, 32], [0.57, -1, 30], [0.66, 1, 24], [0.74, -1, 20], [0.82, 1, 14], [0.89, -1, 10]];
-  for (const [f, side, len] of boughs) {
-    // each bough bends up as it goes, in three pieces, with twigs forking up at the bends and now and then one
-    // hanging down; snow along the tops
-    const L = len * (0.8 + R() * 0.35), a0 = 1.2 + R() * 0.2, parts = [[a0, 0.45], [a0 - 0.35 - R() * 0.15, 0.35], [a0 - 0.7 - R() * 0.2, 0.2]];
-    let x = side, y = H_ * (f + (R() - 0.5) * 0.05);
+  const snowOn = pts => { for (const [x, y] of pts) { const X = Math.round(x), Y = Math.round(y) - 1; if (m.get(X, Y) < 0 && R() < 0.7) m.set(X, Y, R() < 0.8 ? 0 : 1); } };
+  for (let Y = bot - 4, side = -1; Y > top + 4; Y -= 6 + (R() * 4 | 0), side = -side) {
+    const [a, b] = spanAt(Y), x0 = leader(Y), L = Math.max(3, (side > 0 ? b - x0 : x0 - a) * (0.9 + R() * 0.25));
+    const a0 = 1.15 + R() * 0.2, parts = [[a0, 0.45], [a0 - 0.35 - R() * 0.15, 0.35], [a0 - 0.7 - R() * 0.2, 0.2]];
+    let x = x0 + side, y = Y;
     parts.forEach(([ang, share], pi) => {
       const pts = line(x, y, side * ang, Math.max(2, L * share), pi === 0 ? 2 : 1); snowOn(pts);
       [x, y] = pts[pts.length - 1];
@@ -637,18 +640,43 @@ function bareTree(H_, R) {
       if (pi === 1 && R() < 0.5) line(x, y, side * (1.9 + R() * 0.3), 2 + R() * 2, 1);
     });
   }
-  line(0, H_ - 1, 0.3, 3, 1); line(0, H_ - 2, -0.5, 3, 1);                // a little fork at the very top
-  return { m, ox: cx };
+  return { m, ox: rows[h - 1].indexOf("8") + 2 };
+}
+// in autumn, as in autumn 4, the same tree turned: orange over its lit side and brown in its shade, with clumps of
+// leaves laid over it in the shapes of autumn 4's own (cut from it as they are, flipped now and then): yellow ones
+// over the lit side, orange ones over the shade
+const AUTUMN_CLUMPS = [
+  [".....####......", "...###.####....", "...###...####..", "..#####.....##.", ".#####...##.###", ".#####.####..#.", "############.##", "############...", ".############..", ".############..", ".###########...", "...#######.....", "..###..#......."],
+  ["............#####...", "...........#######..", "..........#########.", ".........###########", "........############", "........###########.", "..##...############.", ".#####..##########..", "#######.#######.#...", "..##############....", ".#######.######.....", "#######...####......", ".#######...##.......", "...#####............", "....###.............", ".....#.............."],
+  ["......#.....", "......###...", ".....####...", ".....#####..", "....######..", "...########.", "...########.", ".#...#######", ".###.#####..", "##########..", ".########...", ".#.####.....", "....#......."],
+  ["....###..", ".########", ".########", "#######..", "#######..", "#######..", "######...", ".#####..."],
+  ["...##....", "#####....", ".######..", ".######..", ".#######.", "..######.", "...#####.", ".....####", "......###", ".......#."],
+  ["............#.....", "..........###.#...", ".........######...", "........########..", ".......##########.", "......############", ".....#############", "....##############", ".#################", "###############...", "..#############...", "....##########....", ".......######.....", ".........####.....", "..........###.....", "..........###....."],
+];
+function autumnTree(rows, R) {
+  const t = tracedTree(rows), { m } = t;
+  for (let i = 0; i < m.t.length; i++) if (m.t[i] === 0 || m.t[i] === 1) m.t[i] = 2;      // its small flecks go
+  const leafAt = (X, Y) => { const v = m.get(X, Y); return v >= 0 && v <= 5; };
+  const lay = (cl, X0, Y0, flip, tone) => cl.forEach((r, dy) => { for (let dx = 0; dx < r.length; dx++) if (r[dx] === "#") {
+    const X = X0 + (flip ? r.length - 1 - dx : dx), Y = Y0 + dy; if (leafAt(X, Y)) m.set(X, Y, tone);
+  } });
+  for (let k = 0, tries = 0; k < 9 && tries < 200; tries++) {           // yellow clumps where it is lit, orange where it is shaded
+    const cl = AUTUMN_CLUMPS[R() * AUTUMN_CLUMPS.length | 0], X = Math.round(R() * (m.w - 6)) - 4, Y = Math.round(R() * (m.h - 30)) - 4;
+    const cx = X + (cl[0].length >> 1), cy = Y + (cl.length >> 1), v = m.get(cx, cy); if (v < 0 || v > 5) continue;
+    lay(cl, X, Y, R() < 0.5, v <= 3 ? 0 : 2); k++;
+  }
+  return t;
 }
 // a fir: tiers of drooping boughs, each wider at its foot with its tips hanging a pixel lower, lit on the left and
 // shaded on the right, darker clumps here and there, a thin spire on top and a stub of trunk under it
 function makePine(Hh, R) {
   const wmax = Math.round(Hh * 0.46), w = wmax + 8, h = Hh + 7, m = toneMap(w, h), cx = w >> 1, nT = Math.max(3, Math.round(Hh / 6));
-  const tierW = Array.from({ length: nT + 1 }, () => 0.85 + R() * 0.3), tierS = Array.from({ length: nT + 1 }, () => (R() - 0.5) * 1.5);
+  const tierW = Array.from({ length: nT + 1 }, () => 0.85 + R() * 0.3), tierS = Array.from({ length: nT + 1 }, () => (R() - 0.5) * 1.5), rows = [];
   for (let y = 0; y < 3; y++) { m.set(cx - 1, h - 1 - y, 6); m.set(cx, h - 1 - y, 7); }
   for (let y = 0; y < Hh; y++) {
     const t = y / Hh, ti = Math.floor(t * nT), f = 1 - ((t * nT) % 1), Y = h - 3 - y;
     const hw = Math.round(wmax / 2 * (0.12 + 0.88 * (1 - t)) * (0.45 + 0.55 * f) * tierW[ti]), sh = Math.round(tierS[ti] * f);
+    rows.push({ Y, hw, sh, f, ti });
     for (let x = -hw; x <= hw; x++) {
       const u = x / Math.max(1, hw);
       let tone = u < -0.4 ? 1 : u < 0.3 ? 2 : 3;
@@ -667,15 +695,32 @@ function makePine(Hh, R) {
     if (t >= 1 && t <= 3) { m.set(X, Y, t + 1); if (m.get(X + 1, Y) === t) m.set(X + 1, Y, t + 1); if (m.get(X, Y + 1) >= 1) m.set(X, Y + 1, Math.min(4, t + 1)); }
   }
   m.set(cx, h - 3 - Hh, 2); m.set(cx, h - 4 - Hh, 3); m.set(cx, h - 5 - Hh, 3);
-  return { m, ox: cx };
+  return { m, ox: cx, rows, top: h - 5 - Hh };
+}
+// a fir in winter, as in winter nature 3: on every tier a band of snow lying along its spreading boughs, out on both
+// sides of the trunk, a pixel or two deep with gaps here and there, and a cap on the spire (0 is snow)
+function snowy(t, R) {
+  const m = toneMap(t.m.w, t.m.h); m.t.set(t.m.t);
+  const cx = t.ox, tiers = {};
+  for (const r of t.rows) if (r.hw > 1 && (!tiers[r.ti] || Math.abs(r.f - 0.7) < Math.abs(tiers[r.ti].f - 0.7))) tiers[r.ti] = r;
+  for (const { Y, hw, sh } of Object.values(tiers)) for (let x = -hw; x <= hw; x++) {
+    const u = Math.abs(x) / hw; if (u < 0.25 || R() < 0.15) continue;
+    const X = cx + x + (u > 0.6 ? sh : 0);
+    if (m.get(X, Y) >= 0) m.set(X, Y, 0);
+    if (u > 0.45 && R() < 0.6 && m.get(X, Y - 1) >= 0) m.set(X, Y - 1, 0);
+    else if (u > 0.45 && m.get(X, Y - 1) < 0 && R() < 0.5) m.set(X, Y - 1, 0);
+  }
+  m.set(cx, t.top, 0); m.set(cx, t.top + 1, 0);
+  return { m, ox: t.ox };
 }
 const TREE_OBJS = [   // [kind, x, how far below the horizon it stands (or "hill"), the tree]
   ["pine", 46, "hill", makePine(14, lrng)], ["pine", 54, "hill", makePine(10, lrng)], ["pine", 79, "hill", makePine(17, lrng)],
   ["pine", 7, 9, makePine(46, lrng)],
   ["broad", 140, 14, tracedTree(TREE_N5)],
 ];
+for (const o of TREE_OBJS) if (o[0] === "pine") o[3].snow = snowy(o[3], lrng);
 const seeded = q => () => (q = (q * 48271) % 2147483647) / 2147483647;
-const BARE_TREE = bareTree(92, seeded(77));
+const BARE_TREE = bareTree(TREE_N5, seeded(77)), AUTUMN_TREE = autumnTree(TREE_N5, seeded(23));
 const FALLEN = Array.from({ length: 26 }, () => [lrng(), lrng(), lrng()]);   // leaves on the grass round the big tree in autumn
 const BAND_Y = [0, 6, 14, 25, 40];                 // where each band of the meadow starts, below the horizon
 
@@ -733,11 +778,15 @@ function paintLand(h) {
 // the season has it (green, autumn 1's peach and rust with fallen leaves round it, bare with snow on its boughs)
 function paintTrees(h, P, skyLow) {
   const g = treeG, img = g.createImageData(W, H), se = mainSeason();
+  const sky3 = skyAt(h);
   const hill = x => ridge(x, horizon - 9, [[5, 0.028, 4], [2, 0.08, 1]]);
   for (const [kind, x, at, tree] of TREE_OBJS) {
     const haze = at === "hill" ? 0.25 : 0, base = at === "hill" ? Math.round(hill(x)) + 1 : horizon + at;
-    const t = kind !== "broad" ? tree : se === "winter" ? BARE_TREE : tree;
-    const pal = [...(kind === "pine" ? P.pine : P.leaf), ...P.bark].map(c => litc(c, h, haze, skyLow));   // firs: 0-4 needles, 5-7 bark; the big tree: 0-5 leaves, 6-8 bark
+    const t = kind !== "broad" ? (se === "winter" ? tree.snow : tree) : se === "winter" ? BARE_TREE : se === "autumn" ? AUTUMN_TREE : tree;
+    // firs: 0-4 needles, 5-7 bark; the big tree: 0-5 leaves, 6-8 bark. The sky's colour falls on them: the lit
+    // tones take a little of the sky low down, the shaded ones a little of the sky overhead (gold at sunset, blue at night)
+    const leaves = kind === "pine" ? P.pine : P.leaf, n = leaves.length;
+    const pal = [...leaves, ...P.bark].map((c, i) => mixc(litc(c, h, haze, skyLow), mixc(sky3[2], sky3[0], Math.min(1, i / (n - 1))), 0.16).map(Math.round));
     if (at !== "hill") {                                              // its shadow on the grass
       const sh = litc(P.dark[0], h), hw = Math.round(t.m.w * 0.32);
       for (let dy = 0; dy < 3; dy++) for (let dx = -hw + dy * 3; dx < hw - dy * 3; dx++) { const i = ((base + dy - 1) * W + x + dx) * 4; img.data.set([...sh, 255], i); }
@@ -971,7 +1020,7 @@ function sceneRender(now, signInfo) {
     g.fillStyle = OUT; g.fillRect(x, y, 1, 2);
     g.fillStyle = fly.c; if (open) { g.fillRect(x - 2, y - 1, 2, 2); g.fillRect(x + 1, y - 1, 2, 2); } else { g.fillRect(x - 1, y - 1, 1, 2); g.fillRect(x + 1, y - 1, 1, 2); }
   }
-  if (dark > 0.5) for (const f of flies) {
+  if (dark > 0.5 && se !== "winter") for (const f of flies) {                 // no fireflies in winter
     const a = Math.max(0, Math.sin(now / 600 + f.p * 4)) * (dark - 0.5) * 2;
     if (a < 0.1) continue;
     g.fillStyle = `rgba(230,255,140,${(a * 0.35).toFixed(2)})`; g.fillRect(Math.round(f.x) - 1, Math.round(f.y) - 1, 3, 3);
