@@ -943,8 +943,9 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}, stage = "all") {
       }
     }
     st.t = now;
-    const d = Math.max(-6, Math.min(8, st.d)), lift = Math.max(-2, Math.min(2, Math.round(d * 0.35)));
-    const f = rubberStaff(Math.max(-4, Math.min(5, Math.round(d * 0.8))), null, true), row = ANCHOR.nori.arm + 1.5;
+    // (a stiffish rubber: it gives a little, never flops)
+    const d = Math.max(-6, Math.min(8, st.d)), lift = Math.max(-1, Math.min(1, Math.round(d * 0.18)));
+    const f = rubberStaff(Math.max(-2, Math.min(2, Math.round(d * 0.4))), null, true), row = ANCHOR.nori.arm + 1.5;
     g.save(); g.translate(Math.round(x), Math.round(y) + lift); g.rotate(ang);
     g.drawImage(f.img, f.x - G7, f.y - row);
     g.restore();
@@ -1054,9 +1055,9 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       const keep = base && g.getTransform().a < 0;
       if (keep) { g.save(); g.translate(grid[0].length, 0); g.scale(-1, 1); }
       if (o && layer === "back") {                         // it hangs on her loosely: it follows her a moment late and sways as she moves
-        const jg = typeof pet !== "undefined" && pose === pet._pose ? jiggle("guitar", 150, 6, 4) : { x: 0, y: 0 }, jx = g.getTransform().a < 0 ? -jg.x : jg.x;   // jerked about, it swings on her back
+        const jg = typeof pet !== "undefined" && pose === pet._pose ? jiggle("guitar", 260, 10, 2.5) : { x: 0, y: 0 }, jx = g.getTransform().a < 0 ? -jg.x : jg.x;   // jerked about, it swings on her back
         const s0 = guitarSway(GUITAR_BACK.x + o.dx, GUITAR_BACK.foot - guitarDrop(GUITAR_BACK.deg) + o.dy + shift, GUITAR_BACK.deg);
-        const s = { x: s0.x + Math.round(jx), y: s0.y + Math.round(jg.y * 0.5), deg: Math.round(s0.deg + jx * 4) };
+        const s = { x: s0.x + Math.round(jx), y: s0.y + Math.round(jg.y * 0.5), deg: Math.round(s0.deg + jx * 2) };
         drawGuitar(g, s.x, Math.min(s.y, soles(grid) + shift - guitarDrop(s.deg)), s.deg);
       }
       if (o && layer === "front") {                       // its strap across her chest, from her right shoulder to her left hip
@@ -1126,7 +1127,7 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       const keepSide = (a.auto === "carry" && base || px.noMirror === true) && g.getTransform().a < 0, fw = (grid[0] || "").length - 1;
       // jerked about: what hangs (camera, pochette) swings from where it hangs, more the lower down; the bear and the
       // licence just jiggle (gently: the camera hangs close on its strap; the licence only twitches as it works loose)
-      const JP = { camera: [320, 10, 1.6], carry: [140, 6, 3], teddy: [420, 12, 1.2], pass: [1200, 16, 0.7] }[a.auto];
+      const JP = { camera: [320, 10, 1.6], carry: [220, 9, 2], teddy: [600, 14, 1], pass: [1200, 16, 0.7] }[a.auto];
       const jg = JP && !lie && typeof pet !== "undefined" && pose === pet._pose ? jiggle(a.auto, ...JP) : null, jsx = g.getTransform().a < 0 ? -1 : 1;
       let jy0 = 0, jy1 = 1;
       if (jg) { jy0 = a.auto === "camera" && px.box ? px.box.cy - 7 : px.reduce((m, p) => Math.min(m, p[1]), 1e9); jy1 = a.auto === "camera" && px.box ? px.box.cy : px.reduce((m, p) => Math.max(m, p[1]), -1e9); }
