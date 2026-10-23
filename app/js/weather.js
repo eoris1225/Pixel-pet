@@ -131,7 +131,6 @@ function weatherUpdate(now, dt) {
     if (f.x < -4) f.x += W + 8; if (f.x > W + 4) f.x -= W + 8;
     if (f.y >= f.gy) { f.y = f.gy; f.rest = now; }
   }
-  for (const c of GREY) c.x += c.v * s * (1 + WX.wind * 3);
   for (let i = SPLASH.length - 1; i >= 0; i--) if (now - SPLASH[i].t > 120) SPLASH.splice(i, 1);
   // the pet says something when the weather turns (not at every little flicker, and not while studying hard)
   if (before !== WX.kind && now > 4000 && now - WX.sayAt > 20000) { WX.sayAt = now; WX.said = WX.kind; weatherSay(WX.kind); }
@@ -153,15 +152,13 @@ function weatherSay(kind) {
 }
 
 /* ---------- drawing ---------- */
-// over the sky and its white clouds: overcast greys and darkens it (darker in a storm), and grey clouds gather; a
-// rainbow after rain
-let greyClouds = [], greyKey = "";
-const GREY = Array.from({ length: 7 }, (_, i) => ({ tpl: i % 4, x: Math.random() * W * 1.4 - 30, y: 10 + Math.random() * 90, v: 2 + Math.random() * 2.5, k: i / 7 }));
+// over the sky and its clouds (which scene.js greys and gathers as it clouds over): overcast greys and darkens it
+// (darker in a storm); a rainbow after rain
 function weatherSky(g, now, h) {
   const d = darkAt(h);
   if (WX.cover > 0.02) {
     const c = mixc(mixc(hex("#9aa3b4"), hex("#5c6479"), WX.storm * 0.8 + WX.rain * 0.2), hex("#2a3048"), d);
-    g.fillStyle = css(c, WX.cover * (0.55 + WX.storm * 0.15)); g.fillRect(0, 0, W, horizon + 24);
+    g.fillStyle = css(c, WX.cover * (0.3 + WX.storm * 0.2)); g.fillRect(0, 0, W, horizon + 24);
   }
   if (WX.bow > 0.01 && d < 0.6) {                          // seven thin bands, low over the far hills
     const cx = W * 0.62, cy = horizon + 30, cols = ["#ff8a8a", "#ffb36b", "#ffe27a", "#9fe08c", "#86c9f0", "#8f9cf0", "#c39cf0"];
@@ -169,18 +166,6 @@ function weatherSky(g, now, h) {
       const r = 92 - i; g.fillStyle = css(hex(col), WX.bow * 0.42 * (1 - d));
       for (let x = -r; x <= r; x++) { const y = Math.round(cy - Math.sqrt(r * r - x * x)); if (y < horizon - 4) g.fillRect(Math.round(cx + x), y, 1, 1); }
     });
-  }
-  const key = Math.round(h * 4) + ":" + Math.round(WX.storm * 2);
-  if (key !== greyKey && typeof renderCloud === "function") {
-    greyKey = key;
-    const base = mixc(hex(WX.storm > 0.5 ? "#9aa1b2" : "#c3c9d4"), hex("#3c4260"), d);
-    greyClouds = CLOUD_SHAPES.slice(0, 4).map(sh => renderCloud(sh, base, mixc(base, hex("#000000"), 0.12), mixc(base, hex("#000000"), 0.2)));
-  }
-  for (const c of GREY) {
-    if (c.k > WX.cover) continue;
-    const im = greyClouds[c.tpl]; if (!im) continue;
-    if (c.x > W + 4) { c.x = -im.width - Math.random() * 40; c.y = 10 + Math.random() * 90; }
-    g.globalAlpha = Math.min(1, (WX.cover - c.k) * 4); g.drawImage(im, Math.round(c.x), Math.round(c.y)); g.globalAlpha = 1;
   }
 }
 // on the land, under the grass and the sign: the wet grass darkens, snow lies on the land (the tufts poke through)

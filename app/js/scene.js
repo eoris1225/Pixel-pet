@@ -25,28 +25,29 @@ const mixc = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a
 const css = (c, a = 1) => a >= 1 ? `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})` : `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-// sky: [hour, top, middle, horizon]
+// the sky in five bands, from straight up down to the horizon, through the day: deep night navy, violet before dawn,
+// pink and gold at sunrise, clear blue through the day (deepest at noon), gold in the late afternoon, a purple,
+// magenta and orange sunset, indigo dusk
 const SKY = [
-  [0,    "#161b40", "#232a5a", "#363d78"],
-  [4.0,  "#1a1f4a", "#2a3066", "#454986"],
-  [5.2,  "#2d3370", "#5b5896", "#c48bb0"],
-  [6.0,  "#5a6cad", "#c69ac0", "#ffc0a0"],
-  [7.0,  "#82b1e3", "#cfe0f2", "#ffe2c6"],
-  [9.0,  "#88caf3", "#bde5fb", "#e9f7ff"],
-  [12.0, "#7bc1f0", "#b3e0fa", "#e2f4ff"],
-  [15.5, "#84c2ee", "#bee0f6", "#f4efdc"],
-  [17.2, "#8eb1e2", "#e6c2c9", "#ffd3a6"],
-  [18.3, "#7c84c6", "#f0a2ae", "#ffb589"],
-  [19.0, "#5a5e9e", "#b885b4", "#f3a39a"],
-  [19.8, "#33386f", "#5c5690", "#8f72a6"],
-  [21.0, "#1e2452", "#2c3366", "#414784"],
-  [24.0, "#161b40", "#232a5a", "#363d78"],
+  [0,    "#0b1030", "#121a44", "#1a2456", "#233064", "#2e3b6e"],
+  [4.3,  "#0e1236", "#191d4c", "#28295e", "#3a336c", "#4b3e74"],
+  [5.3,  "#1f2558", "#363a78", "#5e5390", "#a26e9c", "#e2939a"],
+  [6.1,  "#36579e", "#5b77b8", "#9a94c0", "#eab0a8", "#ffcf9e"],
+  [7.2,  "#4a86d4", "#69a2e2", "#8ebcec", "#b8d6f2", "#e2eef5"],
+  [11.5, "#2f7fdc", "#4c98e8", "#72b3f0", "#9fcdf6", "#d2e9fb"],
+  [15.5, "#3e86d6", "#5c9de2", "#82b5ea", "#acccf0", "#dfe7ef"],
+  [17.3, "#4f74c0", "#7590d0", "#a8a9d4", "#e6bcaa", "#ffd198"],
+  [18.4, "#353a86", "#5c55a0", "#a76a9e", "#ea8478", "#ffae64"],
+  [19.2, "#20275f", "#352f76", "#5c4386", "#8f5582", "#c3687a"],
+  [20.2, "#121848", "#1b225a", "#262d68", "#323872", "#3e437a"],
+  [24,   "#0b1030", "#121a44", "#1a2456", "#233064", "#2e3b6e"],
 ].map(([h, ...c]) => [h, ...c.map(hex)]);
-function skyAt(h) {
+function sky5(h) {
   let i = 0; while (i < SKY.length - 2 && SKY[i + 1][0] <= h) i++;
   const a = SKY[i], b = SKY[i + 1], t = smooth(0, 1, (h - a[0]) / (b[0] - a[0]));
-  return [mixc(a[1], b[1], t), mixc(a[2], b[2], t), mixc(a[3], b[3], t)];
+  return [1, 2, 3, 4, 5].map(k => mixc(a[k], b[k], t));
 }
+function skyAt(h) { const c = sky5(h); return [c[0], c[2], c[4]]; }   // top, middle, horizon
 // how dark (night) and how warm (sunrise / sunset light) it is
 const darkAt = h => 1 - smooth(4.6, 7.0, h) + smooth(18.6, 20.6, h);
 const warmAt = h => Math.max(Math.exp(-(((h - 6.2) / 0.9) ** 2)), Math.exp(-(((h - 18.4) / 1.0) ** 2)));
@@ -63,13 +64,98 @@ const SIGN_X = 26;
 
 
 /* ---------- clouds ---------- */
-const CLOUD_SHAPES = [
-  [[10,8,6],[18,6,8],[27,8,6],[34,10,4]],
-  [[8,7,5],[15,5,7],[23,7,5]],
-  [[9,9,6],[18,6,9],[29,7,7],[38,10,5],[46,11,3]],
-  [[7,6,4],[13,5,5],[19,6,4]],
-  [[10,10,7],[21,7,10],[33,9,8],[43,12,5]],
-];
+// Clouds as in pixel art: no outline, puffs each lit from the sun's side (top left), darker down to a flat shadowed
+// base, in five shades taken from the sky at this hour (white and blue-grey by day, gold and violet at sunset, dim
+// blue at night; greyer as the weather closes in). Every cloud is a new shape. Three layers drift at their own
+// speeds: big banks of cumulus low over the hills, middle clouds, and thin streaks of stratus.
+function cloudShape(w0, h0, kind) {
+  const R = Math.random, blobs = [];                             // [cx, cy, rx, ry]: round puffs, or long flat wisps
+  if (kind === "streak") {                                       // a long thin wisp, tapering at both ends, maybe two
+    blobs.push([w0 / 2, 0, w0 / 2, h0 / 2]);
+    if (R() < 0.6) blobs.push([w0 * (0.3 + R() * 0.5), (R() < 0.5 ? -1 : 1) * h0 * 0.6, w0 * (0.2 + R() * 0.15), h0 * 0.4]);
+  } else {
+    const n = Math.max(3, Math.round(w0 / (kind === "bank" ? 11 : 9)));
+    for (let i = 0; i < n; i++) {                                 // a row of puffs on a flat base, the middle ones taller
+      const q = (i + 0.5) / n, cx = q * w0 + (R() - 0.5) * 4, tall = Math.sin(q * Math.PI) ** 0.7;
+      const r = Math.max(3, (0.3 + 0.55 * tall) * h0 * (0.75 + R() * 0.35) * 0.62);
+      blobs.push([cx, -r * (0.75 + R() * 0.2), r, r]);
+      if (tall > 0.6 && R() < 0.8) blobs.push([cx + (R() - 0.5) * r, -r * 1.55, r * (0.5 + R() * 0.25), r * (0.5 + R() * 0.25)]);   // a puff on top
+    }
+  }
+  // the whole of it in the picture: bounds of every blob (puffs stop at the flat base, y = 0)
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  for (const [cx, cy, rx, ry] of blobs) { x0 = Math.min(x0, cx - rx); x1 = Math.max(x1, cx + rx); y0 = Math.min(y0, cy - ry); y1 = Math.max(y1, cy + ry); }
+  if (kind !== "streak") y1 = 0;
+  const w = Math.ceil(x1 - x0) + 2, h = Math.ceil(y1 - y0) + 1, ox = x0 - 1, oy = y0;
+  const inB = (x, y, [cx, cy, rx, ry]) => ((x + 0.5 + ox - cx) / rx) ** 2 + ((y + 0.5 + oy - cy) / ry) ** 2 <= 1;
+  const lv = new Uint8Array(w * h).fill(255);
+  let top = h;
+  for (let y = 0; y < h && top === h; y++) for (let x = 0; x < w; x++) if (blobs.some(b => inB(x, y, b))) { top = y; break; }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    let li = -9;
+    for (const bl of blobs) {
+      if (!inB(x, y, bl)) continue;
+      const dx = (x + 0.5 + ox - bl[0]) / bl[2], dy = (y + 0.5 + oy - bl[1]) / bl[3];
+      li = Math.max(li, -dx * 0.5 - dy * 0.86);                   // lit from the top left
+    }
+    if (li < -2) continue;
+    const down = (y - top) / Math.max(1, h - top);
+    let v = li * 0.65 - down * (kind === "streak" ? 0.3 : 0.95) + 0.3 + (BAYER[(y & 3) * 4 + (x & 3)] - 0.5) * 0.12;
+    let k = v > 0.5 ? 0 : v > 0.18 ? 1 : v > -0.12 ? 2 : v > -0.42 ? 3 : 4;
+    if (kind !== "streak" && y >= h - 2) k = Math.max(k, y === h - 1 ? 4 : 3);   // the flat shadowed base
+    lv[y * w + x] = k;
+  }
+  return { w, h, lv };
+}
+// the five shades for this hour and weather: lit tops to shadowed bases
+const CLOUD_KEYS = [   // [hour, lit, shadow]
+  [0, "#7e86bc", "#222858"], [4.6, "#8a86bc", "#2a2a5e"], [5.5, "#ffc2c0", "#6a5c9c"], [6.4, "#fff0d8", "#9a9ccc"],
+  [7.6, "#ffffff", "#a7bddc"], [15.8, "#ffffff", "#a9bcd6"], [17.4, "#fff4dc", "#b2a6c8"], [18.4, "#ffc79c", "#73609a"],
+  [19.2, "#e6a0aa", "#45407a"], [20.2, "#8c90c6", "#272c5e"], [24, "#7e86bc", "#222858"],
+].map(([h, a, b]) => [h, hex(a), hex(b)]);
+function cloudPal(h) {
+  let i = 0; while (i < CLOUD_KEYS.length - 2 && CLOUD_KEYS[i + 1][0] <= h) i++;
+  const A = CLOUD_KEYS[i], B = CLOUD_KEYS[i + 1], t = smooth(0, 1, (h - A[0]) / (B[0] - A[0]));
+  let lit = mixc(A[1], B[1], t), sh = mixc(A[2], B[2], t);
+  const wx = typeof WX !== "undefined" ? WX : null, d = darkAt(h);
+  if (wx && wx.cover > 0.05) {                                    // overcast: greyer, and darker under storm clouds
+    const g = Math.min(1, wx.cover * 0.9);
+    lit = mixc(lit, mixc(hex("#e2e5ea"), hex("#5a6078"), d), g * (0.55 + wx.storm * 0.3));
+    sh = mixc(sh, mixc(hex(wx.storm > 0.5 ? "#5d6476" : "#8a92a4"), hex("#262a44"), d), g * (0.6 + wx.storm * 0.3));
+  }
+  return [0, 0.22, 0.46, 0.72, 1].map(q => mixc(lit, sh, q));
+}
+function paintCloud(c, pal) {
+  const { w, h, lv } = c.shape;
+  if (!c.cv) { c.cv = document.createElement("canvas"); c.cv.width = w; c.cv.height = h; }
+  const g = c.cv.getContext("2d"), img = g.createImageData(w, h);
+  for (let i = 0; i < w * h; i++) { const k = lv[i]; if (k === 255) continue; const col = pal[k]; img.data[i * 4] = col[0]; img.data[i * 4 + 1] = col[1]; img.data[i * 4 + 2] = col[2]; img.data[i * 4 + 3] = 255; }
+  g.putImageData(img, 0, 0);
+}
+const CLOUD_LAYERS = {
+  bank:   { w: [70, 130], h: [28, 48], v: [0.5, 1.1] },
+  mid:    { w: [30, 72],  h: [14, 28], v: [1.8, 3.4] },
+  streak: { w: [26, 80],  h: [3, 5],   v: [3, 5.5] },
+};
+function newCloud(kind, x) {
+  const L = CLOUD_LAYERS[kind], R = (a) => a[0] + Math.random() * (a[1] - a[0]);
+  const w = Math.round(R(L.w)), h = Math.round(R(L.h));
+  const y = kind === "bank" ? horizon - 12 - h + Math.random() * 8 : kind === "mid" ? 26 + Math.random() * Math.max(30, horizon - 110) : 16 + Math.random() * Math.max(30, horizon - 70);
+  return { kind, x: x === undefined ? -w - Math.random() * 40 : x, y, v: R(L.v), shape: cloudShape(w, h, kind), cv: null, key: "" };
+}
+const clouds = [];
+// how many of each there are: a little different every couple of hours, and more as the weather clouds over
+function cloudWant() {
+  const cover = typeof WX !== "undefined" ? WX.cover : 0, b = Math.floor(worldHour() / 2), base = 0.5 + 0.5 * Math.sin(b * 2.3 + 1);
+  return { bank: Math.round(1 + base * 2 + cover * 2), mid: Math.round(1 + base * 2 + cover * 5), streak: Math.round(1 + (1 - cover) * 2 + warmAt(worldHour()) * 3) };
+}
+let cloudsReady = false;
+function seedClouds() {
+  const want = cloudWant();
+  for (const k in want) for (let i = 0; i < want[k]; i++) clouds.push(newCloud(k, Math.random() * (W + 60) - 60));
+  cloudsReady = true;
+}
+// the cloud with a face that floats by now and then (and says hello)
 const FACE_SHAPE = [[11,13,8],[22,10,11],[34,12,9],[44,15,6],[16,17,6],[30,17,7]];
 function renderCloud(circles, fill, shade, rim, face) {
   let x1 = 0, y1 = 0;
@@ -108,12 +194,6 @@ function cloudColors(h) {
   const pick = k => mixc(mixc(day[k], warm[k], wm * 0.85), night[k], d * 0.92);
   return [pick("f"), pick("s"), pick("r")];
 }
-const clouds = [];
-function newCloud(x, layer) {
-  const far = layer === 0;
-  return { tpl: rnd() * CLOUD_SHAPES.length | 0, x, y: (far ? 22 : 46) + rnd() * Math.max(40, horizon - (far ? 90 : 110)), v: far ? 1.3 + rnd() * 0.8 : 2.6 + rnd() * 1.6, layer };
-}
-for (let i = 0; i < 7; i++) clouds.push(newCloud(rnd() * W, i < 3 ? 0 : 1));
 let faceCloud = null, nextFace = performance.now() + 25000;
 
 /* ---------- critters ---------- */
@@ -155,44 +235,66 @@ function lit(c, h, haze = 0, skyH = null) {
 }
 const ridge = (x, base, parts) => base + parts.reduce((a, [amp, f, p]) => a + amp * Math.sin(x * f + p), 0);
 
+// in flat bands, as in pixel art: each of the five steps split in three, with an ordered dither where two bands meet
+const SKY_AT = [0, 0.3, 0.56, 0.8, 1];
 function paintSky(h) {
-  const [top, mid, low] = skyAt(h);
-  const img = skyG.createImageData(W, H), N = 10;
-  const band = y => { const t = Math.min(1, y / horizon); return t < 0.55 ? mixc(top, mid, t / 0.55) : mixc(mid, low, (t - 0.55) / 0.45); };
-  const pal = []; for (let k = 0; k <= N; k++) pal.push(band(k / N * horizon));
+  const c5 = sky5(h), pal = [];
+  for (let k = 0; k < 4; k++) for (let j = 0; j < 3; j++) pal.push(mixc(c5[k], c5[k + 1], j / 3));
+  pal.push(c5[4]);
+  const img = skyG.createImageData(W, H), N = pal.length - 1;
   for (let y = 0; y < H; y++) {
-    const f = Math.min(1, y / horizon) * N, k = Math.floor(f), fr = f - k;
+    const t = Math.min(1, y / horizon);
+    let k = 0; while (k < 3 && SKY_AT[k + 1] <= t) k++;
+    const f = (k + (t - SKY_AT[k]) / (SKY_AT[k + 1] - SKY_AT[k])) * 3, i0 = Math.min(N, Math.floor(f)), fr = f - i0;
     for (let x = 0; x < W; x++) {
-      const c = pal[Math.min(N, fr > BAYER[(y & 3) * 4 + (x & 3)] ? k + 1 : k)];
+      const c = pal[Math.min(N, fr > BAYER[(y & 3) * 4 + (x & 3)] ? i0 + 1 : i0)];
       const i = (y * W + x) * 4; img.data[i] = c[0]; img.data[i + 1] = c[1]; img.data[i + 2] = c[2]; img.data[i + 3] = 255;
     }
   }
   skyG.putImageData(img, 0, 0);
 }
+// the meadow under the sky: far hills hazy with the sky's colour, a line of trees, a rounder near hill, all with their
+// crests catching the light (gold and pink at sunrise and sunset), and the grass in front textured with little strokes
+// of light and shade that get bigger towards you, as in painted pixel landscapes
+let lseed = 11;
+const lrng = () => (lseed = (lseed * 48271) % 2147483647) / 2147483647;
+const STROKES = Array.from({ length: 260 }, () => ({ x: lrng(), y: lrng(), l: lrng(), k: lrng() }));
 function paintLand(h) {
-  const g = landG, skyLow = skyAt(h)[2];
+  const g = landG, skyLow = skyAt(h)[2], wm = warmAt(h);
   g.clearRect(0, 0, W, H);
   const fill = (fn, col) => { g.fillStyle = css(col); for (let x = 0; x < W; x++) { const y = Math.round(fn(x)); g.fillRect(x, y, 1, H - y); } };
+  const crest = (fn, col, n = 1) => { g.fillStyle = css(col); for (let x = 0; x < W; x++) g.fillRect(x, Math.round(fn(x)), 1, n); };
+  const sunlit = (c, haze, k = 0.6) => mixc(lit(c, h, haze, skyLow), hex("#ffcf8a"), wm * k * (1 - darkAt(h)));   // a crest in the low sun
   const far = x => ridge(x, horizon - 17, [[5, 0.035, 1], [3, 0.09, 2]]);
   const mid = x => ridge(x, horizon - 7, [[4, 0.05, 4], [2, 0.12, 0]]);
   const near = x => ridge(x, horizon + 2, [[1.5, 0.08, 1]]);
-  fill(far, lit("#b9dfc9", h, 0.35, skyLow));
+  fill(far, lit("#a9d6c8", h, 0.5, skyLow));
+  crest(far, sunlit("#cdeadb", 0.45));
   // little round trees on the far hill
   [[132, 3], [141, 4], [150, 3], [22, 3]].forEach(([tx, r]) => {
     const y = Math.round(far(tx));
-    g.fillStyle = css(lit("#9a7a5c", h, 0.3, skyLow)); g.fillRect(tx, y - 3, 1, 4);
-    g.fillStyle = css(lit("#8fcf9c", h, 0.3, skyLow));
+    g.fillStyle = css(lit("#8a7a6c", h, 0.4, skyLow)); g.fillRect(tx, y - 3, 1, 4);
+    g.fillStyle = css(lit("#86c39a", h, 0.4, skyLow));
     for (let dy = -r; dy <= r; dy++) { const hw = Math.round(Math.sqrt(r * r - dy * dy)); g.fillRect(tx - hw, y - 4 - r + dy, hw * 2 + 1, 1); }
+    g.fillStyle = css(sunlit("#a9dbb3", 0.35)); g.fillRect(tx - Math.round(r * 0.6), y - 4 - r * 2 + 1, Math.round(r), 1);   // lit on top
   });
-  fill(mid, lit("#9fd6ab", h, 0.15, skyLow));
-  g.fillStyle = css(lit("#b6e4bd", h, 0.15, skyLow)); for (let x = 0; x < W; x++) g.fillRect(x, Math.round(mid(x)), 1, 1);
-  fill(near, lit("#88cd8c", h));
-  g.fillStyle = css(lit("#a6dea4", h)); for (let x = 0; x < W; x++) g.fillRect(x, Math.round(near(x)), 1, 1);
+  fill(mid, lit("#8fcf9e", h, 0.22, skyLow));
+  crest(mid, sunlit("#b8e6bf", 0.18));
+  // the mid hill shades a little into its dip behind the near one
+  g.fillStyle = css(lit("#7fc291", h, 0.22, skyLow)); for (let x = 0; x < W; x++) { const y0 = Math.round(near(x)) - 3; if (Math.round(mid(x)) < y0) g.fillRect(x, y0, 1, 3); }
+  fill(near, lit("#80c886", h));
+  crest(near, sunlit("#b2e5a6", 0, 0.7));
   // the meadow gets a touch deeper towards the front, in dithered steps
-  const deep = lit("#78bf7e", h);
+  const deep = lit("#6cb575", h);
   for (let y = horizon + 18; y < H; y++) {
-    const q = Math.min(1, (y - horizon - 18) / 50);
+    const q = Math.min(1, (y - horizon - 18) / 60);
     for (let x = 0; x < W; x++) if (q > BAYER[(y & 3) * 4 + (x & 3)]) { g.fillStyle = css(deep); g.fillRect(x, y, 1, 1); }
+  }
+  // strokes of light (the sun's side) and shade in the grass, small far off and longer close by
+  const hi = sunlit("#a7dc9c", 0, 0.5), lo = lit("#5ea86a", h), top = horizon + 6;
+  for (const st of STROKES) {
+    const y = Math.round(top + st.y * st.y * (H - top)), near_ = (y - top) / (H - top), len = 1 + Math.round(st.l * (1 + near_ * 5));
+    g.fillStyle = css(st.k < 0.55 ? hi : lo); g.fillRect(Math.round(st.x * W), y, len, 1);
   }
 }
 
@@ -202,11 +304,18 @@ function sceneUpdate(now, dt) {
   const s = dt / 1000, h = worldHour(), dark = darkAt(h);
   wind = (0.8 + 0.5 * Math.sin(now / 9000) + 0.2 * Math.sin(now / 2300)) * (typeof weatherWind === "function" ? weatherWind() : 1);
   const foul = typeof WX !== "undefined" && (WX.rain > 0.2 || WX.snow > 0.3 || WX.storm > 0.3);   // birds and butterflies keep out of the rain
-  for (const c of clouds) {
+  if (!cloudsReady && horizon) seedClouds();
+  const want = cloudWant(), have = {};
+  for (let i = clouds.length - 1; i >= 0; i--) {
+    const c = clouds[i];
     c.x += c.v * s * (0.8 + wind * 0.3);
-    const w = cloudImgs[c.tpl] ? cloudImgs[c.tpl].width : 50;
-    if (c.x > W + 4) Object.assign(c, newCloud(-w - rnd() * 30, c.layer));
+    if (c.x > W + 4) {                                        // off the right: a new one comes in on the left (or not, as the sky clears)
+      if ((have[c.kind] || 0) >= want[c.kind]) { clouds.splice(i, 1); continue; }
+      clouds[i] = newCloud(c.kind);
+    }
+    have[c.kind] = (have[c.kind] || 0) + 1;
   }
+  for (const k in want) for (let n = have[k] || 0; n < want[k]; n++) clouds.push(newCloud(k));   // more drifting in
   if (!faceCloud && now > nextFace) { faceCloud = { x: -60, y: 34 + rnd() * 26, v: 5.5, t0: now }; }
   if (faceCloud) { faceCloud.x += faceCloud.v * s; if (faceCloud.x > W + 8) { faceCloud = null; nextFace = now + 90000 + rnd() * 120000; } }
 
@@ -322,11 +431,8 @@ function sceneRender(now, signInfo) {
   const key = (Math.round(h * 60)) + ":" + H;          // the sky and land are repainted once a game-minute
   if (key !== cacheKey) { cacheKey = key; paintSky(h); paintLand(h); }
   const ck = Math.round(h * 12) + "";
-  if (ck !== cloudKey) {
-    cloudKey = ck; const [f, s, r] = cloudColors(h);
-    cloudImgs = CLOUD_SHAPES.map(sh => renderCloud(sh, f, s, r));
-    faceImg = renderCloud(FACE_SHAPE, f, s, r, true);
-  }
+  if (ck !== cloudKey) { cloudKey = ck; const [f, s, r] = cloudColors(h); faceImg = renderCloud(FACE_SHAPE, f, s, r, true); }
+  const pal = cloudPal(h), pk = pal.map(c => c.map(v => v | 0).join(",")).join("|");
   const g = sctx;
   g.imageSmoothingEnabled = false;
   g.drawImage(skyCv, 0, 0);
@@ -345,9 +451,9 @@ function sceneRender(now, signInfo) {
   }
   drawSun(h, g);
   drawMoon(h, g);
-  // far clouds, then birds, then near clouds
-  const drawC = c => { const im = cloudImgs[c.tpl]; if (!im) return; g.globalAlpha = c.layer === 0 ? 0.85 : 1; g.drawImage(im, Math.round(c.x), Math.round(c.y)); g.globalAlpha = 1; };
-  clouds.filter(c => c.layer === 0).forEach(drawC);
+  // the banks low over the hills, then birds, then the middle clouds and the streaks
+  const drawC = c => { if (c.key !== pk) { c.key = pk; paintCloud(c, pal); } g.globalAlpha = c.kind === "streak" ? 0.85 : 1; g.drawImage(c.cv, Math.round(c.x), Math.round(c.y)); g.globalAlpha = 1; };
+  clouds.filter(c => c.kind === "bank").forEach(drawC);
   if (flock) {
     const col = css(mixc(hex("#5b6280"), hex("#3a2a40"), warmAt(h)));
     flock.birds.forEach(b => {
@@ -355,7 +461,8 @@ function sceneRender(now, signInfo) {
       drawGlyph(g, BIRD[fl], bx, by, col);
     });
   }
-  clouds.filter(c => c.layer === 1).forEach(drawC);
+  clouds.filter(c => c.kind === "mid").forEach(drawC);
+  clouds.filter(c => c.kind === "streak").forEach(drawC);
   if (faceCloud && faceImg) g.drawImage(faceImg, Math.round(faceCloud.x), Math.round(faceCloud.y + Math.sin(now / 900) * 1.5));
   if (typeof weatherSky === "function") weatherSky(g, now, h);   // overcast, grey clouds, a rainbow
   g.drawImage(landCv, 0, 0);
