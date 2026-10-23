@@ -64,6 +64,18 @@ function outlineData(d, w, h, D, minA = 128, own = null, k = 0.5, skip = true) {
   for (const [i, c, a] of add) { d[i] = Math.round(c[0]); d[i + 1] = Math.round(c[1]); d[i + 2] = Math.round(c[2]); d[i + 3] = a; }
 }
 const INK = [58, 42, 26];
+// a colour deeper but clear, not muddy: its own hue, more saturated, darker (for a line)
+function clearDeep(c, sat = 1.2, dark = 0.8) {
+  const [r, g, b] = c.map(v => v / 255), mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+  let hh = 0, sv = 0;
+  if (d > 1e-6) {
+    sv = d / (1 - Math.abs(2 * l - 1));
+    hh = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; if (hh < 0) hh += 6;
+  }
+  const L = l * dark, Sv = Math.min(1, sv * sat), C = (1 - Math.abs(2 * L - 1)) * Sv, X = C * (1 - Math.abs((hh % 2 + 2) % 2 - 1)), m = L - C / 2;
+  const [a, e, f] = hh < 1 ? [C, X, 0] : hh < 2 ? [X, C, 0] : hh < 3 ? [0, C, X] : hh < 4 ? [0, X, C] : hh < 5 ? [X, 0, C] : [C, 0, X];
+  return [a + m, e + m, f + m].map(v => Math.round(clampv(v, 0, 1) * 255));
+}
 
 // shadows thrown by the sun, away from it: a point h pixels up falls k*h sideways and sy*h down the screen (the sun is
 // in the sky behind the scene, so shadows come towards us, longer as it sinks). None at night, fading in and out
@@ -383,6 +395,9 @@ function cloudPal(h) {
   if (typeof weatherVeil === "function") {                        // and dimmed into the grey of the sky, softer, less contrast
     const v = weatherVeil(h); if (v.a > 0) pal = pal.map(c => mixc(c, v.c, v.a * 0.7));
   }
+  // the deeper tones lifted a little towards the lit one, so no cloud looks heavy (less so in a storm)
+  const lift = 1 - (wx ? wx.storm * 0.8 : 0);
+  pal = pal.map((c, k) => mixc(c, pal[0], [0, 0.08, 0.15, 0.22, 0.3][k] * lift));
   return pal;
 }
 // How see-through each kind is: cumulus and puffs are solid masses, fully opaque; a stratus sheet is nearly so (0.9),
@@ -401,7 +416,7 @@ function paintCloud(c, pal, L) {
     const col = pal[k], j = ((Math.floor(i / w) + line) * W2 + i % w + line) * 4;
     img.data[j] = col[0]; img.data[j + 1] = col[1]; img.data[j + 2] = col[2]; img.data[j + 3] = Math.round(255 * c.shape.alpha[i]);
   }
-  if (line) outlineData(img.data, W2, H2, pal[4].map(v => v * 0.8), 200, null, 0.52, false);   // (round all of it, its shade too)
+  if (line) outlineData(img.data, W2, H2, clearDeep(pal[4]), 200, null, 0.52, false);   // (round all of it, its shade too)
   g.putImageData(img, 0, 0);
 }
 // how big each kind comes, where it floats (its base, in the sky above the horizon) and how it drifts: the higher
