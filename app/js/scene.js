@@ -611,51 +611,57 @@ function tracedTree(rows) {
   rows.forEach((r, Y) => { for (let X = 0; X < w; X++) if (r[X] !== ".") m.t[Y * w + X] = +r[X]; });
   return { m, ox: rows[h - 1].indexOf("8") + 2 };
 }
-// in winter, as in winter nature 3, the same tree bare. All of its own trunk stays, with the three limbs it forks
-// into where its leaves begin (one reaching up to the left, one up the middle, the trunk going on up on the right);
-// each limb carries on the way it was heading, bending upright as it climbs, within the outline its leaves had: the
-// right one up to the very top, the left one up its left side, the middle one short, forking in two. Boughs come off the two long ones,
-// alternately left and right, reaching out nearly to where the leaves ended and bending up, with twigs; snow lies
-// along their tops (0 snow, 1 its shade, 6 and 8 bark)
+// in winter, the same tree bare. All of its own trunk stays, with the three limbs it forks into where its leaves begin;
+// from there it branches the way this tall broadleaf does: the trunk runs on up to the top a little crooked, putting
+// out branches steeply upward at uneven gaps and angles, longer low down, and they and the limb on the left fork in two
+// (now and then three) at uneven angles and lengths, thinner each time, within the outline its leaves had. Snow lies only along the tops of
+// the boughs that lean over, not the upright ones (0 snow, 1 its shade, 6 and 8 bark)
 function bareTree(rows, R) {
   const w = rows[0].length, h = rows.length, m = toneMap(w, h);
   rows.forEach((r, Y) => { for (let X = 0; X < w; X++) if (r[X] === "6" || r[X] === "8") m.t[Y * w + X] = +r[X]; });
   const span = rows.map(r => { const a = r.search(/[0-5]/); return a < 0 ? null : [a, Math.max(...[..."012345"].map(c => r.lastIndexOf(c)))]; });
   const top = span.findIndex(v => v);
-  const spanAt = Y => { for (let d = 0; d < 10; d++) { if (span[Y + d]) return span[Y + d]; if (span[Y - d]) return span[Y - d]; } return [0, w - 1]; };
-  const snowOn = pts => { for (const [x, y] of pts) { const X = Math.round(x), Y = Math.round(y) - 1; if (m.get(X, Y) < 0 && R() < 0.7) m.set(X, Y, R() < 0.8 ? 0 : 1); } };
-  // a limb from (x, y) heading ang from straight up (+ to the right), bending upright by bend each pixel, staying
-  // within the leaves' outline; thick for its first part
-  const limb = (x, y, ang, len, thick, bend) => {
-    const pts = [];
+  const inside = (X, Y) => { if (Y < top - 1) return false; for (let d = 0; d < 4; d++) { const sp = span[Y + d] || span[Y - d]; if (sp) return X >= sp[0] - 1 && X <= sp[1] + 1; } return true; };
+  const grow = (x, y, ang, len, thick, depth) => {
+    let lastX = -1, lastY = -1;
     for (let k = 0; k < len; k++) {
-      x += Math.sin(ang); y -= Math.cos(ang); ang -= ang * bend;
-      const X = Math.round(x), Y = Math.round(y), [a, b] = spanAt(Y);
-      if (Y < top || X < a - 1 || X > b + 1) break;
-      m.set(X, Y, 8); if (thick > 1 && k < len * 0.45) m.set(X + 1, Y, 8);
-      pts.push([X, Y]);
+      if (k % 3 === 0) ang += (R() - 0.5) * 0.35;                         // a little crooked
+      ang *= 0.97;                                                         // and drawn slowly upright
+      x += Math.sin(ang); y -= Math.cos(ang);
+      const X = Math.round(x), Y = Math.round(y);
+      if (!inside(X, Y)) { depth = Math.min(depth, 0); break; }
+      if (X === lastX && Y === lastY) continue; lastX = X; lastY = Y;
+      m.set(X, Y, 8); if (thick > 1) m.set(X + (Math.sin(ang) > 0.4 ? 0 : 1), Y + (Math.sin(ang) > 0.4 ? 1 : 0), thick > 2 ? 6 : 8);
+      if (Math.abs(Math.sin(ang)) > 0.55 && m.get(X, Y - 1) < 0 && R() < 0.6) m.set(X, Y - 1, R() < 0.8 ? 0 : 1);   // snow on a leaning bough
     }
-    snowOn(pts);
-    return pts;
+    if (depth <= 0) {                                                      // a twig at the very end
+      for (const d of [R() < 0.5 ? -0.45 : 0.4]) if (R() < 0.6) {
+        let tx = x, ty = y, ta = ang + d + (R() - 0.5) * 0.3;
+        for (let k = 0; k < 2 + R() * 2; k++) { tx += Math.sin(ta); ty -= Math.cos(ta); if (inside(Math.round(tx), Math.round(ty)) && m.get(Math.round(tx), Math.round(ty)) < 0) m.set(tx, ty, 8); }
+      }
+      return;
+    }
+    const n = R() < 0.15 ? 3 : 2, spread = 0.3 + R() * 0.25, tilt = (R() - 0.5) * 0.25;
+    for (let i = 0; i < n; i++) {
+      const f = n === 2 ? (i ? 1 : -1) : i - 1, uneven = 0.75 + R() * 0.5;
+      grow(x, y, ang + tilt + f * spread * uneven, len * (0.78 + R() * 0.2), Math.max(1, thick - 1), depth - 1);
+    }
   };
-  // a bough off a limb: out to one side nearly to the leaves' edge, bending up in three pieces, twigs at the bends
-  const bough = (x, y, side) => {
-    const [a, b] = spanAt(y), L = Math.max(3, (side > 0 ? b - x : x - a) * (0.75 + R() * 0.25));
-    let ang = side * (1.1 + R() * 0.25);
-    for (const share of [0.45, 0.35, 0.2]) {
-      const pts = limb(x, y, ang, Math.max(2, L * share), share > 0.4 ? 2 : 1, 0);
-      if (!pts.length) break;
-      [x, y] = pts[pts.length - 1];
-      if (share > 0.3) limb(x, y, side * (0.2 + R() * 0.35), 2 + R() * L * 0.2, 1, 0);
-      ang -= side * (0.35 + R() * 0.15);
+  // the trunk on up to the top, a little crooked, putting out branches as it goes: at uneven gaps, mostly to
+  // alternate sides but not always, steeply up, longer low down where the leaves were wide, each forking once or twice
+  let x = 22, y = 75, ang = 0.03, side = 1, next = 4 + (R() * 4 | 0);
+  for (let k = 0; y > top + 2; k++) {
+    if (k % 4 === 0) ang = clampv(ang + (R() - 0.5) * 0.18, -0.12, 0.12);
+    x += Math.sin(ang); y -= Math.cos(ang);
+    const X = Math.round(x), Y = Math.round(y); m.set(X, Y, 8); if (Y > 50) m.set(X + 1, Y, 8);
+    if (--next <= 0 && Y > top + 8) {
+      side = R() < 0.7 ? -side : side;
+      const sp = span[Y] || span[Y + 1] || [X - 8, X + 8], room = side > 0 ? sp[1] - X : X - sp[0], a = side * (0.35 + R() * 0.4);
+      grow(X, Y, a, Math.max(3, room / Math.sin(Math.abs(a)) * (0.45 + R() * 0.3)), Y > 45 ? 2 : 1, R() < 0.6 ? 2 : 1);
+      next = 4 + (R() * 6 | 0);
     }
-  };
-  const right = limb(22, 75, 0.04, 80, 2, 0.02), left = limb(13, 74, -0.75, 46, 2, 0.035), mid = limb(18, 76, -0.3, 12, 1, 0.045);
-  if (mid.length) { const [x, y] = mid[mid.length - 1]; limb(x, y, -0.6, 4, 1, 0); limb(x, y, 0.3, 4, 1, 0); }   // the middle one short, forking in two
-  for (const [pts, start, step, side0] of [[right, 6, 8, 1], [left, 8, 9, -1]])
-    for (let k = start, side = side0; k < pts.length - 3; k += step + (R() * 3 | 0), side = -side) {
-      const [x, y] = pts[k]; if (pts === right || side === side0) bough(x, y, side);
-    }
+  }
+  grow(13, 74, -0.45, 12, 2, 3);                                           // the limb up to the left (the stub in the middle stays a stub)
   return { m, ox: rows[h - 1].indexOf("8") + 2 };
 }
 // a fir: tiers of drooping boughs, each wider at its foot with its tips hanging a pixel lower, lit on the left and
