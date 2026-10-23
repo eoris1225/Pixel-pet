@@ -31,24 +31,24 @@
 @font-face { font-family: "Roborobo"; src: url("../fonts/pixelroborobo.woff2?v=2") format("woff2"); font-display: block; }
 
 :root {
-  /* the UI colours as they were (ink, keys, the dark toast) with one pink accent; only the cream of the paper and
-     the panels changes with the friend (PET_UI in app.js): 욱 cream (this), 하와 sky blue (b), 치카 lavender (c) */
-  --ink: #3a2a1a;
+  /* the UI palette, one for each friend (PET_UI in app.js), as on the comparison sheet the user picked from, each with
+     its own soft pink accent: 욱 warm cream (this), 하와 airy sky (b), 치카 dusky lavender (c); old: the first colours */
+  --ink: #5a4535;        /* text: a soft cocoa */
   --edge: #5b4433;       /* outlines: the friends' own outline colour (OUT in pet.js), so the frames and the sprites match */
-  --paper: #fffaf0;
-  --ivory: #fff4dc;
-  --ivory-2: #f1e2c2;
-  --line: #e6d3ab;
-  --muted: #9b8a6e;
-  --sub: #6d6252;        /* secondary text */
-  --red: #e2504a;
-  --mint: #b6ecae; --mint-d: #86cc84; --lilac: #d9cdff; --lilac-d: #ab9be8; --peach: #ffcfb0; --peach-d: #f2a07c;
-  --off: #ece8de; --off-sh: #d6d0c2; --off-t: #b2ab9a;
-  --dark: #3a2a1a; --dark-sh: #241a10; --dark-t: #fff4dc;
-  --hud: rgba(255, 250, 240, .94); --plaque: rgba(255, 244, 220, .92);
-  --dim: rgba(44, 32, 50, .38); --dot: #f7e9c9;
+  --paper: #fffbf4;
+  --ivory: #fcf3e6;
+  --ivory-2: #f0e2cf;
+  --line: #ead9c2;
+  --muted: #ab9a88;
+  --sub: #85725f;        /* secondary text */
+  --red: #e0675f;
+  --mint: #cfeec8; --mint-d: #a8d8a2; --lilac: #e4dcfa; --lilac-d: #c2b6ec; --peach: #ffdfcb; --peach-d: #f3b99d;
+  --off: #eee8de; --off-sh: #ddd5c8; --off-t: #b9b0a2;
+  --dark: #7a6252; --dark-sh: #5f4b3e; --dark-t: #fff6ea;
+  --hud: rgba(255, 251, 244, .9); --plaque: rgba(252, 243, 230, .9);
+  --dim: rgba(90, 70, 60, .3); --dot: rgba(170, 130, 90, .14);
   --body: #f1e6d6;          /* the page round the screen: one cream for every friend */
-  --accent: #ffc6d4; --accent-soft: #ffedf2; --accent-deep: #f0a3b8;   /* one pink for every friend, a little lighter (user) */
+  --accent: #ffcad7; --accent-soft: #fff0f4; --accent-deep: #eeaabb;
   /* a 2px pixel-rounded corner */
   --r2: polygon(2px 0, calc(100% - 2px) 0, calc(100% - 2px) 1px, calc(100% - 1px) 1px, calc(100% - 1px) 2px, 100% 2px,
     100% calc(100% - 2px), calc(100% - 1px) calc(100% - 2px), calc(100% - 1px) calc(100% - 1px), calc(100% - 2px) calc(100% - 1px),
@@ -57,13 +57,24 @@
   --px: .5px;            /* half a game pixel: text scales with the frame but is not tied to its pixel grid */
   color-scheme: light;
 }
-/* b: the cream turned a pale sky blue (하와) */
-:root[data-ui="b"] { --paper: #fafcfe; --ivory: #eaf3fa; --ivory-2: #d4e4f0; --line: #c9dbea; --muted: #8b9aab; --sub: #5f6e7e;
-  --off: #e8edf2; --off-sh: #d3dbe4; --off-t: #a8b3bf; --hud: rgba(250, 252, 254, .94); --plaque: rgba(234, 243, 250, .92); --dot: #dce9f3; }
-/* c: the cream turned a pale lavender (치카) */
-:root[data-ui="c"] { --paper: #fdfaff; --ivory: #f3edfa; --ivory-2: #e2d7ef; --line: #d9cce9; --muted: #9c90ab; --sub: #6e6280;
-  --off: #eeeaf2; --off-sh: #dcd5e3; --off-t: #b2a9bc; --hud: rgba(253, 250, 255, .94); --plaque: rgba(243, 237, 250, .92); --dot: #e8def3; }
-/* (a and old: the cream as it was) */
+/* b: airy, a touch of the sky (하와) */
+:root[data-ui="b"] { --ink: #574a44; --paper: #fcfcf8; --ivory: #f3f5f1; --ivory-2: #e2e8e2; --line: #dde4dd; --muted: #9aa09c; --sub: #737a76;
+  --mint: #cdeccf; --mint-d: #a5d2ab; --lilac: #dfe0fb; --lilac-d: #b8bbea; --peach: #ffe0d2; --peach-d: #efbba5;
+  --off: #eceeea; --off-sh: #d8ddd8; --off-t: #aeb4b0; --dark: #66707e; --dark-sh: #4c5562; --dark-t: #f4f7fa;
+  --hud: rgba(252, 252, 248, .88); --plaque: rgba(243, 245, 241, .88); --dim: rgba(60, 70, 90, .3); --dot: rgba(110, 140, 150, .13);
+  --accent: #f9cbd8; --accent-soft: #fdf0f4; --accent-deep: #e6a8ba; }
+/* c: a dusky lavender evening (치카) */
+:root[data-ui="c"] { --ink: #574255; --paper: #fffaf7; --ivory: #f8efef; --ivory-2: #ead9dc; --line: #e7d5d8; --muted: #a8939d; --sub: #806a78;
+  --mint: #d3ecd2; --mint-d: #aed3b0; --lilac: #e3d7f5; --lilac-d: #c0afe2; --peach: #fddbd0; --peach-d: #eeb5a5;
+  --off: #f0e8ea; --off-sh: #dfd3d7; --off-t: #b8a9b0; --dark: #6e5670; --dark-sh: #54405a; --dark-t: #fbf1f3;
+  --hud: rgba(255, 250, 247, .9); --plaque: rgba(248, 239, 239, .9); --dim: rgba(80, 60, 80, .3); --dot: rgba(160, 120, 140, .13);
+  --accent: #f6c3d0; --accent-soft: #fdeef2; --accent-deep: #e2a1b4; }
+/* the old palette, for comparison */
+:root[data-ui="old"] { --ink: #3a2a1a; --paper: #fffaf0; --ivory: #fff4dc; --ivory-2: #f1e2c2; --line: #e6d3ab; --muted: #9b8a6e; --sub: #6d6252; --red: #e2504a;
+  --mint: #b6ecae; --mint-d: #86cc84; --lilac: #d9cdff; --lilac-d: #ab9be8; --peach: #ffcfb0; --peach-d: #f2a07c;
+  --off: #ece8de; --off-sh: #d6d0c2; --off-t: #b2ab9a; --dark: #3a2a1a; --dark-sh: #241a10; --dark-t: #fff4dc;
+  --hud: rgba(255, 250, 240, .94); --plaque: rgba(255, 244, 220, .92); --dim: rgba(44, 32, 50, .38); --dot: #f7e9c9;
+  --accent: #ffb3c7; --accent-soft: #ffe3ea; --accent-deep: #e88fa8; }
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
@@ -162,7 +173,7 @@ h2, h3, h4, p, ul, ol, dl, dd { margin: 0; padding: 0; font-weight: normal; }
 .bar i::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 2px; background: rgba(255,255,255,.7); opacity: 0; animation: glint 4.5s steps(45) infinite; }
 @keyframes glint { 0% { left: 0; opacity: 1; } 30% { left: calc(100% - 2px); opacity: 1; } 31%, 100% { left: calc(100% - 2px); opacity: 0; } }
 .bar b { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(58,42,26,.18); }
-.bar.burning i { background: #ff9a6a; }
+.bar.burning i { background: #ffb08a; }
 .bar.max i { background: repeating-linear-gradient(90deg, var(--bar, var(--accent)) 0 3px, var(--accent-soft) 3px 6px); }
 
 /* ---------- side tab ---------- */
@@ -248,7 +259,7 @@ textarea.field { height: 38px; resize: none; display: block; padding: 1px 3px; }
 .legend li { display: flex; align-items: center; }
 .legend li b { font-weight: normal; margin-left: auto; color: var(--muted); }
 .goal-bar { height: 6px; background: var(--ivory-2); border: 1px solid var(--edge); margin-top: 3px; }
-.goal-bar i { display: block; height: 100%; background: #9edb92; }
+.goal-bar i { display: block; height: 100%; background: var(--mint-d); }
 .sess { list-style: none; }
 .sess li { padding: 3px 0; border-top: 1px solid var(--line); }
 .sess li:first-child { border-top: 0; }
@@ -260,15 +271,15 @@ textarea.field { height: 38px; resize: none; display: block; padding: 1px 3px; }
 .todo-tools { display: flex; justify-content: space-between; align-items: center; margin: 0 1px 5px; color: var(--muted); }
 .todo-list { list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
 .todo-list li { cursor: pointer; } .todo-list.edit li { cursor: default; }
-.todo-list li { display: flex; align-items: center; gap: 4px; padding: 2px 3px 3px 4px; min-height: 19px; touch-action: pan-y; --face: #effae8; --sh: #d5eccb; }
+.todo-list li { display: flex; align-items: center; gap: 4px; padding: 2px 3px 3px 4px; min-height: 19px; touch-action: pan-y; --face: color-mix(in srgb, var(--mint) 35%, var(--paper)); --sh: color-mix(in srgb, var(--mint) 70%, var(--paper)); }
 .todo-list li.done { --face: var(--off); --sh: var(--off-sh); }
-.todo-list li.done .t { color: var(--muted); text-decoration: line-through; text-decoration-color: #7a87d6; }
+.todo-list li.done .t { color: var(--muted); text-decoration: line-through; text-decoration-color: #9aa3dc; }
 .todo-list li.dragging, .todo-list.edit li.dragging { --face: var(--accent); --sh: var(--accent-deep); position: relative; z-index: 2; filter: drop-shadow(1px 2px 0 rgba(58,42,26,.3)); }
 .todo-list li.dragging .grip { cursor: grabbing; }
 .todo-list .t { flex: 1; min-width: 0; }
 .todo-list input.t { height: 12px; border-bottom: 1px solid var(--edge); user-select: text; }
 .chk { width: 9px; height: 9px; background: #fff; border: 1px solid var(--edge); flex: none; position: relative; }
-.chk.on { background: #7a87d6; }
+.chk.on { background: #9aa3dc; }
 .chk.on::after { content: ""; position: absolute; left: 1px; top: 1px; width: 5px; height: 5px; background: #fff;
   clip-path: polygon(0 2px, 1px 2px, 1px 3px, 2px 3px, 2px 4px, 3px 4px, 3px 1px, 4px 1px, 4px 0, 5px 0, 5px 1px, 4px 1px, 4px 2px, 3px 2px, 3px 5px, 1px 5px, 1px 4px, 0 4px); }
 .del, .grip { width: 11px; height: 11px; flex: none; display: grid; place-items: center; }

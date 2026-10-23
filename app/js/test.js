@@ -63,7 +63,7 @@
       <h3>시간</h3><div class="row"><button data-hr="" class="${T_FIX === null ? "on" : ""}">지금</button>${HOURS.map(([h, n]) => `<button data-hr="${h}" class="${T_FIX === h ? "on" : ""}">${n}</button>`).join("")}</div>
       <div class="row" style="margin-top:6px"><button data-bow="1">비 그친 뒤 (무지개·웅덩이)</button></div>
       <div class="row" style="margin-top:6px"><button data-sky="1">구름 새로 띄우기</button><button data-visit="1">모양 구름 띄우기</button><button data-bolt="1">번개 치기</button><button data-eyes="1">동굴 눈 (밤)</button></div>
-      <h3>UI 색감</h3><div class="row">${[["", "캐릭터별"], ["a", "크림"], ["b", "하늘"], ["c", "라벤더"]].map(([k, n]) => `<button data-ui="${k}" class="${(uiPick || "") === k ? "on" : ""}">${n}</button>`).join("")}</div>
+      <h3>UI 색감</h3><div class="row">${[["", "캐릭터별"], ["a", "크림"], ["b", "하늘"], ["c", "라벤더"], ["old", "예전"]].map(([k, n]) => `<button data-ui="${k}" class="${(uiPick || "") === k ? "on" : ""}">${n}</button>`).join("")}</div>
       <h3>배경 스타일 후보</h3><div class="row">${LOOK_NAMES.map(([k, n]) => `<button data-look="${k}" class="${LOOK.key === k ? "on" : ""}">${n}</button>`).join("")}</div>
       <h3>칭호</h3><div class="row"><button data-ttl="all">모두 얻기</button><button data-ttl="first">첫걸음만</button><button data-ttl="reset">초기화</button><button data-ttl="taps">클릭 99번으로</button><button data-ttl="away">일주일 비우기</button></div>
       <h3>잠</h3><div class="row"><button data-sleep="1" class="${G.wantSleep ? "on" : ""}">재우기</button><button data-sleep="0">깨우기</button></div>
