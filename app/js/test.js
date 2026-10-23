@@ -63,6 +63,7 @@
       <h3>시간</h3><div class="row"><button data-hr="" class="${T_FIX === null ? "on" : ""}">지금</button>${HOURS.map(([h, n]) => `<button data-hr="${h}" class="${T_FIX === h ? "on" : ""}">${n}</button>`).join("")}</div>
       <div class="row" style="margin-top:6px"><button data-sky="1">구름 새로 띄우기</button><button data-visit="1">모양 구름 띄우기</button><button data-bolt="1">번개 치기</button></div>
       <h3>배경 스타일 후보</h3><div class="row">${LOOK_NAMES.map(([k, n]) => `<button data-look="${k}" class="${LOOK.key === k ? "on" : ""}">${n}</button>`).join("")}</div>
+      <h3>칭호</h3><div class="row"><button data-ttl="all">모두 얻기</button><button data-ttl="first">첫걸음만</button><button data-ttl="reset">초기화</button><button data-ttl="taps">클릭 99번으로</button><button data-ttl="away">일주일 비우기</button></div>
       <h3>잠</h3><div class="row"><button data-sleep="1" class="${G.wantSleep ? "on" : ""}">재우기</button><button data-sleep="0">깨우기</button></div>
       <label><input type="checkbox" id="tp-still" ${still ? "checked" : ""}> 누른 동작만 하기 (꺼두면 평소처럼 알아서 움직여요)</label>
       <p class="note">이 페이지는 따로 저장돼서 실제 공부 기록에는 영향이 없어요.</p>`;
@@ -83,6 +84,15 @@
     panel.querySelector("[data-visit]").onclick = () => sendVisitor();
     panel.querySelector("[data-bolt]").onclick = () => { if (WX.storm < 0.5) { WX.force = "storm"; render(); } startStrike(performance.now()); };
     panel.querySelectorAll("[data-look]").forEach(b => b.onclick = () => { setLook(b.dataset.look); render(); });
+    panel.querySelectorAll("[data-ttl]").forEach(b => b.onclick = () => {
+      const ts = titleState(), k = b.dataset.ttl;
+      if (k === "all") TITLES.forEach(([id]) => { if (!ts.got[id]) ts.got[id] = Date.now(); });
+      if (k === "first") giveTitle("first");
+      if (k === "reset") Object.assign(ts, { got: {}, worn: null, taps: 0, menuShown: false, back: false });
+      if (k === "taps") ts.taps = TITLE_RULE.taps - 1;
+      if (k === "away") ts.back = true;                                   // as if she had been away a week: the next start gives 깨달은자
+      save(); updateHud(); toast(k === "taps" ? "한 번 더 누르면 중독 주의!" : k === "away" ? "공부를 시작하면 깨달은자!" : "칭호 상태를 바꿨어요");
+    });
     panel.querySelectorAll("[data-sleep]").forEach(b => b.onclick = () => { G.wantSleep = b.dataset.sleep === "1"; render(); });
     panel.querySelector("#tp-still").onchange = e => { still = e.target.checked; if (!still) pet.nextThink = now() + 500; };
   }

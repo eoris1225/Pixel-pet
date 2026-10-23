@@ -262,6 +262,25 @@ textarea.field { height: 38px; resize: none; display: block; padding: 1px 3px; }
 .row .mk { width: 5px; height: 5px; background: var(--hl); border: 1px solid var(--ink); flex: none; }
 .row .grow { flex: 1; text-align: left; }
 
+/* titles: the 칭호 row chained shut until it opens, the 2x5 board, the one worn in the HUD */
+.row { position: relative; }
+.row.locked { --face: #ebe7dc; --sh: #d6d1c3; color: #b2ab9a; }
+.row.locked .mk { background: #d6d1c3; }
+.row .chains { position: absolute; left: 0; top: 0; pointer-events: none; }
+.row .padlock { position: absolute; left: 50%; top: 50%; width: 7px; height: 9px; margin: -5px 0 0 -3px; pointer-events: none;
+  animation: lockjig 3.2s steps(1) infinite; }
+@keyframes lockjig { 0%, 88%, 100% { transform: translateX(0); } 90% { transform: translateX(-1px); } 92% { transform: translateX(1px); } 94% { transform: translateX(-1px); } }
+.titles-count { text-align: center; margin-bottom: 5px; color: #6d6252; }
+.titles { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.ttl { height: 24px; flex-direction: column; gap: 0; padding: 0 2px 1px; --face: #f2e6cc; --sh: #e2d2ae; }
+.ttl .q { color: var(--muted); }
+.ttl.got { --face: #fffaf0; --sh: #eedcb2; }
+.ttl.worn { --face: var(--accent-soft); --sh: var(--accent); }
+.ttl .nm { font: calc(13 * var(--px)) / calc(17 * var(--px)) "Galmuri11B", "Galmuri11", sans-serif; }
+.ttl .wear { color: var(--accent-deep); line-height: 1; }
+.ttl-name { text-align: center; margin: 2px 0 3px; }
+#hud-title { margin-left: 2px; padding: 0 2px; height: 9px; line-height: 9px; background: var(--accent-soft); border: 1px solid var(--accent-deep); color: var(--ink); white-space: nowrap; }
+
 /* tutorial page */
 .steps { list-style: none; display: grid; gap: 6px; padding: 2px 0; }
 .steps li { display: flex; gap: 5px; align-items: flex-start; line-height: calc(26 * var(--px)); }

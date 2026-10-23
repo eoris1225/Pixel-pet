@@ -43,6 +43,25 @@ const ITEM_LIST = {
   nori:  [[2, "shades", "선글라스 세트", "얼굴"], [4, "pass", "합격증", "이마"], [6, "pajama", "파자마", "전신"], [8, "pudding", "푸딩", "손"], [10, "pencil", "토끼 장대", "무기"]],
 };
 
+// titles (칭호), as the plan has them: [id, name, how it is earned]. The titles screen shows them two by two, in this
+// order; the 칭호 menu in settings opens once 첫걸음 is earned. "Reaching the goal" is a day whose study time reaches
+// the goal study time set in settings
+const TITLES = [
+  ["first", "첫걸음", "처음으로 목표 시간을 달성했어요"],
+  ["stylist", "스타일리스트", "아이템 5개를 한 번에 다 착용했어요"],
+  ["addict", "중독 주의", "캐릭터를 100번 눌렀어요"],
+  ["easy", "쉽네", "2시간 동안 휴식 없이 공부했어요"],
+  ["overcome", "작심삼일 극복", "목표 시간을 4번 달성했어요"],
+  ["dawn", "새벽러", "0시~6시에 공부를 시작해 1시간 넘게 공부한 게 5번이에요"],
+  ["back", "깨달은자", "일주일 동안 접속하지 않다가 돌아와 공부를 시작했어요"],
+  ["collector", "수집왕", "모든 캐릭터의 아이템과 칭호를 전부 모았어요"],
+  ["fireman", "파이어맨", "하루 동안 버닝 타임에만 공부한 날이 5번이에요"],
+  ["dungeon", "던전마스터", "캐릭터 3마리 만렙, 누적 공부 50시간, 목표 시간 달성 10번"],
+];
+// the numbers in those conditions
+const TITLE_RULE = { taps: 100, noRestMs: 2 * 3600000, goals: 4, dawnTo: 6, dawnMinMs: 3600000, dawnTimes: 5, awayDays: 7,
+  fireDays: 5, masterHours: 50, masterGoals: 10 };
+
 const DEFAULT_SUBJECTS = [["국어", "#ffb3a7"], ["수학", "#a7c7ff"], ["영어", "#b5e6a3"]];
 const SUBJECT_COLORS = ["#ffb3a7", "#a7c7ff", "#b5e6a3", "#ffd98a", "#d4b5ff", "#ffb3d9", "#9fe0d8", "#f5c4a1", "#c9d1a7", "#b8c4e8"];
 

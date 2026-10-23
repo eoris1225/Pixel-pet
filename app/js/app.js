@@ -427,7 +427,7 @@ function addSubject(name) {
 const subj = id => S.subjects.find(s => s.id === id) || (S.removedSubjects || []).find(s => s.id === id) || { name: "(지운 과목)", color: "#ddd" };
 function startSession(subjectId) {
   S.timer = { pet: S.pet, subjectId, segs: [{ k: "s", a: Date.now(), b: null }], endAt: null };
-  save(); syncControls();
+  save(); syncControls(); titleOnStart();
   petHop(3); say(CHARS[S.pet].start, 2600); lastCheer = performance.now();
 }
 function openEndModal() {
@@ -466,7 +466,7 @@ function finishSession(keep, note) {
     S.sessions.push({ id: uid(), pet: t.pet, subjectId: t.subjectId, segs: t.segs, note });
   }
   S.timer = null; save(); syncControls();
-  if (keep) { say(CHARS[S.pet].end, 3000); petHop(4); toast("기록했어요!"); }
+  if (keep) { say(CHARS[S.pet].end, 3000); petHop(4); toast("기록했어요!"); setTimeout(checkTitles, 2800); }
   else { charState(S.pet).shownLv = lvOf(curExp()); save(); }
 }
 function syncControls() {
@@ -489,6 +489,8 @@ function updateHud() {
   const e = curExp(), lv = lvOf(e), frac = lv >= LEVEL.max ? 1 : e - Math.floor(e);
   const burning = isBurning(Date.now());
   $("#hud-lv").textContent = `Lv.${lv}`;
+  { const wt = titleState().worn, el = $("#hud-title"), nm = wt ? titleName(wt) : "";
+    if (el) { if (el.textContent !== nm) el.textContent = nm; el.hidden = !wt; } }
   $("#hud-bar").style.width = Math.round(frac * 130) + "px";
   $("#hud-burn").hidden = !burning;
   const bar = $("#hud .bar"); bar.classList.toggle("burning", burning); bar.classList.toggle("max", lv >= LEVEL.max);
@@ -718,6 +720,129 @@ function dragTodo(e, li, list, redraw) {
   addEventListener("pointermove", move); addEventListener("pointerup", up); addEventListener("pointercancel", up);
 }
 
+/* ---------- titles (칭호) ---------- */
+// earned titles (and when), the one worn (shown in the HUD), taps on the pet, when the app was last open, and whether
+// the 칭호 menu has shown its unlocking sparkle
+function titleState() { return S.titles || (S.titles = { got: {}, worn: null, taps: 0, seen: 0, menuShown: false, back: false }); }
+const titleName = id => (TITLES.find(t => t[0] === id) || [, ""])[1];
+// study time per day, and how much of it fell outside the burning time, from every saved session and the one running
+function studyDays() {
+  const days = {};
+  for (const t of [...S.sessions, ...(S.timer ? [S.timer] : [])]) for (const sg of t.segs) {
+    if (sg.k !== "s") continue;
+    for (let a = sg.a, b = segEnd(t, sg); a < b;) {
+      const mid = new Date(a); mid.setHours(24, 0, 0, 0);
+      const e = Math.min(b, nextBoundary(a), mid.getTime()), d = days[dkey(new Date(a))] || (days[dkey(new Date(a))] = { study: 0, outside: 0 });
+      d.study += e - a; if (!isBurning(a)) d.outside += e - a;
+      a = e;
+    }
+  }
+  return days;
+}
+// which titles' conditions are met now (retroactive: the saved study records count; taps and being away are counted
+// from when titles came in)
+function titleChecks() {
+  const R = TITLE_RULE, ts = titleState(), days = Object.values(studyDays()), goal = S.setup ? S.setup.goalMin * 60000 : Infinity;
+  const all = [...S.sessions, ...(S.timer ? [S.timer] : [])];
+  const goals = days.filter(d => d.study >= goal).length, total = days.reduce((a, d) => a + d.study, 0);
+  const maxed = CHAR_ORDER.every(id => lvOf(curExp(id)) >= LEVEL.max);
+  const ok = {
+    first: goals >= 1,
+    stylist: CHAR_ORDER.some(id => { const eq = equipOf(id); return ITEM_LIST[id].every(([, it]) => eq[it]); }),
+    addict: ts.taps >= R.taps,
+    easy: all.some(t => t.segs.some(sg => sg.k === "s" && segEnd(t, sg) - sg.a >= R.noRestMs)),
+    overcome: goals >= R.goals,
+    dawn: all.filter(t => new Date(t.segs[0].a).getHours() < R.dawnTo && sessionSums(t).study >= R.dawnMinMs).length >= R.dawnTimes,
+    back: false,                                                   // (given when she starts studying after a week away)
+    fireman: days.filter(d => d.study > 0 && d.outside === 0).length >= R.fireDays,
+    dungeon: maxed && total >= R.masterHours * 3600000 && goals >= R.masterGoals,
+  };
+  ok.collector = maxed && TITLES.every(([id]) => id === "collector" || ts.got[id] || ok[id]);
+  return ok;
+}
+// give every title whose condition is met now; each new one is announced in turn
+const titleQueue = [];
+function checkTitles() {
+  const ts = titleState(), ok = titleChecks(); let any = false;
+  for (const [id] of TITLES) if (ok[id] && !ts.got[id]) { ts.got[id] = Date.now(); titleQueue.push(id); any = true; }
+  if (any) { save(); announceTitle(); }
+}
+function giveTitle(id) { const ts = titleState(); if (ts.got[id]) return; ts.got[id] = Date.now(); titleQueue.push(id); save(); announceTitle(); checkTitles(); }
+let announcing = false;
+function announceTitle() {
+  if (announcing || !titleQueue.length) return;
+  announcing = true;
+  const id = titleQueue.shift();
+  toast(`「${titleName(id)}」 칭호를 얻었어요!`, 3200, "칭호 획득!");
+  if (S.pet) petCelebrate();
+  if ($("#scr-settings").classList.contains("show")) renderSettings();
+  if ($("#scr-titles").classList.contains("show")) renderTitles();
+  setTimeout(() => { announcing = false; announceTitle(); }, 3400);
+}
+// away for a week: noted when the app opens; the title comes when she starts studying again
+function noteReturn() {
+  const ts = titleState(), now = Date.now();
+  if (ts.seen && now - ts.seen >= TITLE_RULE.awayDays * 86400000) ts.back = true;
+  ts.seen = now; save();
+}
+function titleOnStart() { const ts = titleState(); if (ts.back) { ts.back = false; giveTitle("back"); } }
+function renderTitles() {
+  const ts = titleState(), n = TITLES.filter(([id]) => ts.got[id]).length;
+  $("#titles-body").innerHTML = `
+    <p class="titles-count f-sm">모은 칭호 <b class="f-num s">${n}</b> / ${TITLES.length}</p>
+    <div class="titles">${TITLES.map(([id, name]) => {
+      const got = !!ts.got[id], worn = ts.worn === id;
+      return `<button class="ttl pxb ${got ? "got" : ""} ${worn ? "worn" : ""}" data-id="${id}">${got ? `<span class="nm">${esc(name)}</span>${worn ? '<span class="f-xs wear">착용</span>' : ""}` : '<span class="q f-num">?</span>'}</button>`;
+    }).join("")}</div>
+    <p class="hint f-sm" style="text-align:center;margin-top:7px">얻은 칭호를 누르면 달 수 있어요</p>`;
+  document.querySelectorAll("#titles-body .ttl").forEach(b => b.onclick = () => {
+    const id = b.dataset.id;
+    if (!ts.got[id]) { toast("아직 얻지 못한 칭호예요"); return; }
+    const t = TITLES.find(x => x[0] === id), d = new Date(ts.got[id]), worn = ts.worn === id;
+    openModal("칭호", `
+      <p class="ttl-name t-high">「${esc(t[1])}」</p>
+      <p class="f-sm" style="text-align:center">${esc(t[2])}</p>
+      <p class="f-sm muted" style="text-align:center">${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} 획득</p>
+      <div class="actions"><button class="btn pxb ${worn ? "" : "accent"}" id="ttl-wear">${worn ? "떼기" : "달기"}</button></div>`);
+    $("#ttl-wear").onclick = () => { ts.worn = worn ? null : id; save(); closeModal(false); renderTitles(); updateHud(); };
+  });
+}
+// the 칭호 row in settings: chained shut with a padlock until 첫걸음, then it opens with a sparkle (once)
+const LOCK = ["..KKK..", ".K...K.", ".K...K.", "KKKKKKK", "KYYYYYK", "KYYKYYK", "KYYKYYK", "KYYYYYK", "KKKKKKK"];
+function chainRow(row) {
+  const w = row.offsetWidth, h = row.offsetHeight; if (!w) return;
+  const cv = document.createElement("canvas"); cv.className = "chains"; cv.width = w; cv.height = h; row.appendChild(cv);
+  const g = cv.getContext("2d");
+  const link = (x, y, k) => { g.fillStyle = OUT; g.fillRect(x - 1, y - 1, 3, 3); g.fillStyle = k % 2 ? "#c9ced6" : "#9aa1ad"; g.fillRect(x, y, 1, 1); };
+  for (const [x0, y0, x1, y1] of [[3, 3, w - 4, h - 4], [3, h - 4, w - 4, 3]]) {
+    const n = Math.round(Math.hypot(x1 - x0, y1 - y0) / 3);
+    for (let k = 0; k <= n; k++) link(Math.round(x0 + (x1 - x0) * k / n), Math.round(y0 + (y1 - y0) * k / n), k);
+  }
+  const lk = document.createElement("canvas"); lk.className = "padlock";
+  const img = gridToCanvas(LOCK.map(r => r.replace(/\./g, "B")), { K: OUT, Y: "#ffd25e" }); lk.width = img.width; lk.height = img.height;
+  lk.getContext("2d").drawImage(img, 0, 0); row.appendChild(lk);
+}
+function sparkleRow(row) {
+  const w = row.offsetWidth, h = row.offsetHeight; if (!w) return;
+  const cv = document.createElement("canvas"); cv.className = "chains"; cv.width = w; cv.height = h; row.appendChild(cv);
+  const g = cv.getContext("2d"), stars = Array.from({ length: 12 }, (_, i) => ({ x: 6 + Math.random() * (w - 12), y: 3 + Math.random() * (h - 6), t: i * 90 }));
+  const t0 = performance.now();
+  const step = now => {
+    const t = now - t0; g.clearRect(0, 0, w, h);
+    if (t > 1500) { cv.remove(); return; }
+    for (const s of stars) {
+      const k = (t - s.t) / 500; if (k < 0 || k > 1) continue;
+      const r = k < 0.5 ? Math.round(k * 6) : Math.round((1 - k) * 6), x = Math.round(s.x), y = Math.round(s.y);
+      g.fillStyle = "#f5b83a"; g.fillRect(x - r, y, 2 * r + 1, 1); g.fillRect(x, y - r, 1, 2 * r + 1);
+      if (r >= 2) { g.fillStyle = "#ffd96b"; g.fillRect(x - 1, y - 1, 3, 3); }
+      g.fillStyle = "#ffffff"; g.fillRect(x, y, 1, 1);
+    }
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+  row.animate([{ filter: "brightness(1.12) saturate(1.4)" }, { filter: "none" }], { duration: 900, easing: "ease-out" });
+}
+
 /* ---------- settings ---------- */
 function renderSettings() {
   const c = CHARS[S.pet], lv = lvOf(curExp());
@@ -728,6 +853,7 @@ function renderSettings() {
       ${row("tutorial", "#ffb3c7", "튜토리얼")}
       ${row("change", "#9fd3f5", "캐릭터 변경")}
       ${row("inventory", "#ffd96b", "인벤토리")}
+      ${row("titles", "#d9cdff", "칭호", titleState().worn ? `<span class="f-sm muted">${esc(titleName(titleState().worn))}</span>` : "")}
       ${row("goal", "#b6ecae", "목표 순공 시간", `<span class="f-sm muted">${S.setup ? fmtDur(S.setup.goalMin * 60000) : ""}</span>`)}
       ${row("subjects", "#d9cdff", "과목 관리")}
       ${row("weather", "#c9e6ff", "날씨", `<span class="f-sm muted">${WX_NAME[WX.kind]} · ${S.weatherMode === "real" ? "실제" : "게임"}</span>`)}
@@ -735,11 +861,19 @@ function renderSettings() {
     <button class="row pxb reset-row" data-go="reset" style="--hl:#ff9a8a"><span class="mk"></span><span class="grow">처음부터 다시 시작</span>${icon("next")}</button>`;
   paintIcons($("#settings-body"));
   portrait($("#settings-body .set-pic canvas"), S.pet, true);
+  { const ts = titleState(), tr = $('#settings-body [data-go="titles"]');
+    if (!ts.got.first) { tr.classList.add("locked"); requestAnimationFrame(() => chainRow(tr)); }
+    else if (!ts.menuShown) { ts.menuShown = true; save(); requestAnimationFrame(() => sparkleRow(tr)); } }
   document.querySelectorAll("#settings-body .row").forEach(r => r.onclick = () => {
     const g = r.dataset.go;
     if (g === "tutorial") { renderTutorialPage(); openScreen("scr-tutorial"); }
     if (g === "change") { renderSelect("change"); openScreen("scr-select"); }
     if (g === "inventory") { renderInventory(); openScreen("scr-inventory"); }
+    if (g === "titles") {
+      if (!titleState().got.first) { const lk = r.querySelector(".padlock"); if (lk) lk.animate([{ transform: "translateX(0)" }, { transform: "translateX(-1px)" }, { transform: "translateX(1px)" }, { transform: "translateX(-1px)" }, { transform: "translateX(0)" }], { duration: 320, easing: "steps(4)" });
+        toast(`「${titleName("first")}」 칭호를 얻으면 열려요`); return; }
+      renderTitles(); openScreen("scr-titles");
+    }
     if (g === "goal") askSetup(false);
     if (g === "subjects") openSubjects();
     if (g === "weather") openWeather();
@@ -819,7 +953,7 @@ function renderInventory() {
       const w = Math.round(it.img.width * kk), h = Math.round(it.img.height * kk);
       g.drawImage(it.img, (34 - w) >> 1, (30 - h) >> 1, w, h);
     }
-    if (!b.disabled) b.onclick = () => { cs.equip[id] = !cs.equip[id]; save(); G.equip = equipOf(S.pet); renderInventory(); };
+    if (!b.disabled) b.onclick = () => { cs.equip[id] = !cs.equip[id]; save(); G.equip = equipOf(S.pet); renderInventory(); checkTitles(); };
   });
 }
 
@@ -879,10 +1013,13 @@ stage.addEventListener("pointermove", e => { const [x, y] = toGame(e); petPointe
 stage.addEventListener("pointerup", e => petPointerUp(e));
 stage.addEventListener("pointercancel", e => petPointerUp(e));
 stage.addEventListener("contextmenu", e => e.preventDefault());
-onPetTap = () => { if (performance.now() > bubbleUntil - 1000) say(pick(CHARS[S.pet].cheers), 2600); };
+onPetTap = () => {
+  if (performance.now() > bubbleUntil - 1000) say(pick(CHARS[S.pet].cheers), 2600);
+  const ts = titleState(); ts.taps++; save(); if (ts.taps === TITLE_RULE.taps) checkTitles();
+};
 
 /* ---------- main loop ---------- */
-let prev = performance.now(), hudT = 0;
+let prev = performance.now(), hudT = 0, titleT = 0;
 function loop(now) {
   requestAnimationFrame(loop);
   const dt = Math.max(0, Math.min(100, now - prev)); prev = now;
@@ -891,6 +1028,7 @@ function loop(now) {
     weatherUpdate(now, dt);
     if (S.pet) petUpdate(now, dt);
     if (now - hudT > 250) { hudT = now; updateHud(); }
+    if (S.pet && now - titleT > 5000) { titleT = now; titleState().seen = Date.now(); if (coachStep < 0) checkTitles(); }
     sceneRender(now, signInfo());
     if (S.pet) petRender(now); else ctx.clearRect(0, 0, W, H);
     if (S.pet && typeof sceneTint === "function") sceneTint(ctx, now);   // the sky's light on her
@@ -917,6 +1055,8 @@ function loop(now) {
 layout();
 setSide(S.sideOpen !== false);
 if (S.timer && S.timer.endAt) { S.timer.endAt = null; save(); }      // the end card was open when the page closed
+noteReturn();
+{ const hl = $("#hud-lv"), ht = document.createElement("span"); ht.id = "hud-title"; ht.className = "f-xs"; ht.hidden = true; hl.after(ht); }
 if (S.pet) {
   setPet(S.pet); syncControls();
   if (!S.setup) askSetup(true);
