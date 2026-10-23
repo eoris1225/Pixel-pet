@@ -489,8 +489,11 @@ function updateHud() {
   const e = curExp(), lv = lvOf(e), frac = lv >= LEVEL.max ? 1 : e - Math.floor(e);
   const burning = isBurning(Date.now());
   $("#hud-lv").textContent = `Lv.${lv}`;
-  { const wt = titleState().worn, el = $("#hud-title"), nm = wt ? titleName(wt) : "";
-    if (el) { if (el.textContent !== nm) el.textContent = nm; el.hidden = !wt; } }
+  { const wt = titleState().worn, el = $("#hud-title");
+    if (el && el.dataset.tid !== (wt || "")) {
+      el.dataset.tid = wt || ""; el.hidden = !wt;
+      if (wt) { el.className = "f-xs" + titleFx(wt); el.setAttribute("style", titleStyle(wt)); el.innerHTML = titleIcon(wt) + `<span>${esc(titleName(wt))}</span>`; }
+    } }
   $("#hud-bar").style.width = Math.round(frac * 130) + "px";
   $("#hud-burn").hidden = !burning;
   const bar = $("#hud .bar"); bar.classList.toggle("burning", burning); bar.classList.toggle("max", lv >= LEVEL.max);
@@ -725,6 +728,67 @@ function dragTodo(e, li, list, redraw) {
 // the 칭호 menu has shown its unlocking sparkle
 function titleState() { return S.titles || (S.titles = { got: {}, worn: null, taps: 0, seen: 0, menuShown: false, back: false }); }
 const titleName = id => (TITLES.find(t => t[0] === id) || [, ""])[1];
+// each title's own look: its colours (face, shadow, text), a little pixel icon that moves (frames, ms each) and an
+// effect on its plate (fx: a CSS class). Icons are 9x9 on the grid; "." is clear
+const TL = { K: OUT, W: "#ffffff" };
+const mirror = rows => rows.map(r => [...r].reverse().join(""));
+const FIRE1 = ["....O....", "...OO....", "..OYO.O..", ".OYYOOO..", ".OYWYYO..", "OYYWWYYO.", "OYWWWWYO.", ".OYWWYO..", "..OOOO..."];
+const TITLE_LOOK = {
+  first: { face: "#d6f5cc", sh: "#8fcf86", ink: "#2f5a2c", fx: "steps", ms: [420, 420, 700], pal: { F: "#4f9a4a", f: "#9ccf95" }, frames: [
+    [".F.F.....", "F...F....", ".FFF.....", ".FFF.....", ".........", ".........", ".........", ".........", "........."],
+    [".f.f.....", "f...f....", ".fff.....", ".fff.....", ".........", ".....F.F.", "....F...F", ".....FFF.", ".....FFF."],
+    [".f.f.....", "f...f....", ".fff.....", ".fff.....", ".........", ".....f.f.", "....f...f", ".....fff.", ".....fff."]] },
+  stylist: { face: "#ffdcec", sh: "#f09cc0", ink: "#8a2d58", fx: "shine", ms: 300, pal: { ...TL, P: "#ff8fbf", p: "#ffc2dc", Y: "#ffd25e" }, frames: [
+    ["KK.....KK", "KPKK.KKPK", "KPpPKPpPK", "KPPKYKPPK", "KPpPKPpPK", "KPKK.KKPK", "KK.....KK", ".........", "........."],
+    ["KK.....KK", "KPKK.KKPK", "KPpPKPpPK", "KPPKYKPPK", "KPpPKPpPK", "KPKK.KKPK", "KK.....KK", ".......W.", "......W.W"]] },
+  addict: { face: "#ffe0d6", sh: "#f2967c", ink: "#9a3020", fx: "beat", ms: [180, 160, 520], pal: { ...TL, R: "#f2545a", r: "#ff9aa0" }, frames: [
+    [".KKK.KKK.", "KRRRKRRRK", "KRWrRRRRK", "KRrRRRRRK", "KRRRRRRRK", ".KRRRRRK.", "..KRRRK..", "...KRK...", "....K...."],
+    [".........", "..KK.KK..", ".KRRKRRK.", ".KRWRRRK.", ".KRRRRRK.", "..KRRRK..", "...KRK...", "....K....", "........."],
+    [".........", "..KK.KK..", ".KRRKRRK.", ".KRWRRRK.", ".KRRRRRK.", "..KRRRK..", "...KRK...", "....K....", "........."]] },
+  easy: { face: "#d8ecff", sh: "#86b8e8", ink: "#2b5786", fx: "", ms: 380, pal: { ...TL, S: "#9fb6d0", T: "#c98f5e" }, frames: [
+    ["..S.S....", ".S.S.....", "..S.S....", "KKKKKKK..", "KWTTTWKKK", "KWWWWWK.K", "KWWWWWKKK", ".KWWWK...", "..KKK...."],
+    [".S.S.....", "..S.S....", ".S.S.....", "KKKKKKK..", "KWTTTWKKK", "KWWWWWK.K", "KWWWWWKKK", ".KWWWK...", "..KKK...."]] },
+  overcome: { face: "#e8e0ff", sh: "#a896e8", ink: "#4a3a8c", fx: "", ms: [260, 260, 260, 1400], pal: { ...TL, R: "#f27f7f", G: "#5cb85c" }, frames: [
+    ["KKKKKKKKK", "KRRRRRRRK", "KKKKKKKKK", "KWWWWWWWK", "KWWWWWWWK", "KWWWWWWWK", "KWWWWWWWK", "KWWWWWWWK", "KKKKKKKKK"],
+    ["KKKKKKKKK", "KRRRRRRRK", "KKKKKKKKK", "KWWWWWWWK", "KWWWWWWWK", "KGWWWWWWK", "KWGWWWWWK", "KWWWWWWWK", "KKKKKKKKK"],
+    ["KKKKKKKKK", "KRRRRRRRK", "KKKKKKKKK", "KWWWWWWWK", "KWWWWWWWK", "KGWWWGWWK", "KWGWGWWWK", "KWWGWWWWK", "KKKKKKKKK"],
+    ["KKKKKKKKK", "KRRRRRRRK", "KKKKKKKKK", "KWWWWWWGK", "KWWWWWGWK", "KGWWWGWWK", "KWGWGWWWK", "KWWGWWWWK", "KKKKKKKKK"]] },
+  dawn: { face: "#34407a", sh: "#1d2550", ink: "#eef0ff", fx: "night", ms: 500, pal: { M: "#fff2a8", m: "#e8d27a", s: "#ffffff", t: "#9aa6e0" }, frames: [
+    [".......s.", "..MMM....", ".MMm.....", "MMm......", "MMm....t.", "MMm......", ".MMm.....", "..MMM..s.", "........."],
+    [".......t.", "..MMM....", ".MMm.....", "MMm.....s", "MMm......", "MMm......", ".MMm.....", "..MMM..t.", "......s.."]] },
+  back: { face: "#fff4c2", sh: "#e8c858", ink: "#7a5a10", fx: "glow", ms: [900, 140, 140, 900], pal: { ...TL, Y: "#ffe066", y: "#f2efe0", G: "#a0a4ad", L: "#ffd23a" }, frames: [
+    [".........", "..KKKKK..", ".KyyyyyK.", "KyyWyyyyK", "KyyWyyyyK", ".KyyyyyK.", "..KGGGK..", "..KGGGK..", "...KKK..."],
+    [".L.....L.", "L.KKKKK.L", ".KYYYYYK.", "KYYWYYYYK", "KYYWYYYYK", ".KYYYYYK.", "..KGGGK..", "..KGGGK..", "...KKK..."],
+    [".........", "..KKKKK..", ".KyyyyyK.", "KyyWyyyyK", "KyyWyyyyK", ".KyyyyyK.", "..KGGGK..", "..KGGGK..", "...KKK..."],
+    [".L.....L.", "L.KKKKK.L", ".KYYYYYK.", "KYYWYYYYK", "KYYWYYYYK", ".KYYYYYK.", "..KGGGK..", "..KGGGK..", "...KKK..."]] },
+  collector: { face: "#fff0b8", sh: "#e0b23a", ink: "#7a4e00", fx: "rainbow", ms: 260, pal: { ...TL, Y: "#ffd23a", y: "#ffe98a", R: "#f25c6a", B: "#5c9cf2", G: "#4cc47a" }, frames: [
+    [".........", "K...K...K", "KK.KyK.KK", "KYKYYYKYK", "KYYYRYYYK", "KyYYYYYyK", "KKKKKKKKK", ".........", "........."],
+    [".........", "K...K...K", "KK.KyK.KK", "KYKYYYKYK", "KYYYBYYYK", "KyYYYYYyK", "KKKKKKKKK", ".........", "........."],
+    [".........", "K...K...K", "KK.KyK.KK", "KYKYYYKYK", "KYYYGYYYK", "KyYYYYYyK", "KKKKKKKKK", ".........", "........."]] },
+  fireman: { face: "#ffd9bc", sh: "#f08a4a", ink: "#8a3000", fx: "ember", ms: 160, pal: { ...TL, O: "#ff7a3a", Y: "#ffd25e" }, frames: [FIRE1, mirror(FIRE1)] },
+  dungeon: { face: "#3e2a5c", sh: "#241638", ink: "#ffd96b", fx: "shine gold", ms: [1200, 90, 90, 90, 90], pal: { ...TL, L: "#b8c0d0", Y: "#ffc93a", P: "#7a5ab0" }, frames: [
+    ["......KKK", ".....KWLK", "....KWLK.", ".K.KWLK..", ".KKWLK...", "..KYK....", ".KYKK....", "KYK.K....", "KK......."],
+    ["......KKK", ".....KWLK", "....KWLK.", ".K.KWLK..", ".KKWWK...", "..KYK....", ".KYKK....", "KYK.K....", "KK......."],
+    ["......KKK", ".....KWLK", "....KWLK.", ".K.KWWK..", ".KKWLK...", "..KYK....", ".KYKK....", "KYK.K....", "KK......."],
+    ["......KKK", ".....KWLK", "....KWWK.", ".K.KWLK..", ".KKWLK...", "..KYK....", ".KYKK....", "KYK.K....", "KK......."],
+    ["......KKK", ".....KWWK", "....KWLK.", ".K.KWLK..", ".KKWLK...", "..KYK....", ".KYKK....", "KYK.K....", "KK......."]] },
+};
+for (const L of Object.values(TITLE_LOOK)) L.imgs = L.frames.map(f => gridToCanvas(f, L.pal));
+// the icon canvases on screen, each moving through its frames
+const titleIcons = [];
+const titleIcon = (id, k = 1) => `<canvas class="ticon" data-tid="${id}" width="9" height="9" style="width:${9 * k}px;height:${9 * k}px"></canvas>`;
+function drawTitleIcons(now, root = document) {
+  root.querySelectorAll("canvas.ticon").forEach(c => {
+    const L = TITLE_LOOK[c.dataset.tid]; if (!L || !c.offsetParent) return;
+    const ms = Array.isArray(L.ms) ? L.ms : L.frames.map(() => L.ms), total = ms.reduce((a, b) => a + b, 0);
+    let t = now % total, f = 0; while (t >= ms[f]) { t -= ms[f]; f++; }
+    if (c._f === f) return; c._f = f;
+    const g = c.getContext("2d"); g.clearRect(0, 0, 9, 9); g.drawImage(L.imgs[f], 0, 0);
+  });
+}
+// a title as a plate in its own colours (with its effect), for the board, the HUD and the cards
+const titleStyle = id => { const L = TITLE_LOOK[id]; return L ? `--face:${L.face};--sh:${L.sh};--tink:${L.ink}` : ""; };
+const titleFx = id => (TITLE_LOOK[id] && TITLE_LOOK[id].fx ? " fx " + TITLE_LOOK[id].fx.split(" ").map(c => "fx-" + c).join(" ") : "");
 // study time per day, and how much of it fell outside the burning time, from every saved session and the one running
 function studyDays() {
   const days = {};
@@ -774,6 +838,7 @@ function announceTitle() {
   announcing = true;
   const id = titleQueue.shift();
   toast(`「${titleName(id)}」 칭호를 얻었어요!`, 3200, "칭호 획득!");
+  { const t = $("#toast"); t.insertAdjacentHTML("afterbegin", titleIcon(id, 2)); t.querySelector(".ticon").classList.add("toast-ic"); drawTitleIcons(performance.now(), t); }
   if (S.pet) petCelebrate();
   if ($("#scr-settings").classList.contains("show")) renderSettings();
   if ($("#scr-titles").classList.contains("show")) renderTitles();
@@ -792,18 +857,21 @@ function renderTitles() {
     <p class="titles-count f-sm">모은 칭호 <b class="f-num s">${n}</b> / ${TITLES.length}</p>
     <div class="titles">${TITLES.map(([id, name]) => {
       const got = !!ts.got[id], worn = ts.worn === id;
-      return `<button class="ttl pxb ${got ? "got" : ""} ${worn ? "worn" : ""}" data-id="${id}">${got ? `<span class="nm">${esc(name)}</span>${worn ? '<span class="f-xs wear">착용</span>' : ""}` : '<span class="q f-num">?</span>'}</button>`;
+      return got ? `<button class="ttl pxb got ${worn ? "worn" : ""}${titleFx(id)}" data-id="${id}" style="${titleStyle(id)}">${titleIcon(id)}<span class="nm">${esc(name)}</span>${worn ? '<span class="wear"></span>' : ""}</button>`
+        : `<button class="ttl pxb" data-id="${id}"><span class="q f-num">?</span></button>`;
     }).join("")}</div>
-    <p class="hint f-sm" style="text-align:center;margin-top:7px">얻은 칭호를 누르면 달 수 있어요</p>`;
+    <p class="hint f-sm" style="text-align:center;margin-top:7px">얻은 칭호를 누르면 달 수 있어요 · 단 칭호에 ✓</p>`;
+  drawTitleIcons(performance.now(), $("#titles-body"));
   document.querySelectorAll("#titles-body .ttl").forEach(b => b.onclick = () => {
     const id = b.dataset.id;
     if (!ts.got[id]) { toast("아직 얻지 못한 칭호예요"); return; }
     const t = TITLES.find(x => x[0] === id), d = new Date(ts.got[id]), worn = ts.worn === id;
     openModal("칭호", `
-      <p class="ttl-name t-high">「${esc(t[1])}」</p>
+      <div class="ttl-card pxp${titleFx(id)}" style="${titleStyle(id)}">${titleIcon(id, 2)}<p class="ttl-name t-high">${esc(t[1])}</p></div>
       <p class="f-sm" style="text-align:center">${esc(t[2])}</p>
       <p class="f-sm muted" style="text-align:center">${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} 획득</p>
       <div class="actions"><button class="btn pxb ${worn ? "" : "accent"}" id="ttl-wear">${worn ? "떼기" : "달기"}</button></div>`);
+    drawTitleIcons(performance.now(), modalCard);
     $("#ttl-wear").onclick = () => { ts.worn = worn ? null : id; save(); closeModal(false); renderTitles(); updateHud(); };
   });
 }
@@ -1019,7 +1087,7 @@ onPetTap = () => {
 };
 
 /* ---------- main loop ---------- */
-let prev = performance.now(), hudT = 0, titleT = 0;
+let prev = performance.now(), hudT = 0, titleT = 0, ticonT = 0;
 function loop(now) {
   requestAnimationFrame(loop);
   const dt = Math.max(0, Math.min(100, now - prev)); prev = now;
@@ -1034,6 +1102,7 @@ function loop(now) {
     if (S.pet && typeof sceneTint === "function") sceneTint(ctx, now);   // the sky's light on her
     weatherFront(ctx, now);
     drawPortraits(now);
+    if (now - ticonT > 60) { ticonT = now; drawTitleIcons(now); }
     // bubbles follow the pet and the passing cloud
     if (!petBubble.hidden) {
       if (now > bubbleUntil || !pet.box) petBubble.hidden = true;

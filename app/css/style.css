@@ -274,12 +274,46 @@ textarea.field { height: 38px; resize: none; display: block; padding: 1px 3px; }
 .titles { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 .ttl { height: 24px; flex-direction: column; gap: 0; padding: 0 2px 1px; --face: #f2e6cc; --sh: #e2d2ae; }
 .ttl .q { color: var(--muted); }
-.ttl.got { --face: #fffaf0; --sh: #eedcb2; }
-.ttl.worn { --face: var(--accent-soft); --sh: var(--accent); }
+.ttl.got { flex-direction: row; gap: 3px; color: var(--tink); position: relative; }
 .ttl .nm { font: calc(13 * var(--px)) / calc(17 * var(--px)) "Galmuri11B", "Galmuri11", sans-serif; }
-.ttl .wear { color: var(--accent-deep); line-height: 1; }
-.ttl-name { text-align: center; margin: 2px 0 3px; }
-#hud-title { margin-left: 2px; padding: 0 2px; height: 9px; line-height: 9px; background: var(--accent-soft); border: 1px solid var(--accent-deep); color: var(--ink); white-space: nowrap; }
+.ticon { flex: none; image-rendering: pixelated; }
+/* the one worn: a little check badge in its corner */
+.ttl .wear { position: absolute; right: 2px; top: 2px; width: 7px; height: 7px; background: #fff; border: 1px solid var(--ink); z-index: 2; }
+.ttl .wear::after { content: ""; position: absolute; left: 1px; top: 1px; width: 5px; height: 5px; background: #e2504a;
+  clip-path: polygon(0 2px, 1px 2px, 1px 3px, 2px 3px, 2px 4px, 3px 4px, 3px 1px, 4px 1px, 4px 0, 5px 0, 5px 1px, 4px 1px, 4px 2px, 3px 2px, 3px 5px, 1px 5px, 1px 4px, 0 4px); }
+.ttl-card { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px 5px; margin-bottom: 5px; color: var(--tink); position: relative; }
+.ttl-name { text-align: center; margin: 0; }
+#hud-title { margin-left: 2px; padding: 0 2px 0 1px; height: 11px; display: inline-flex; align-items: center; gap: 1px; line-height: 9px;
+  background: var(--face); border: 1px solid var(--sh); color: var(--tink); white-space: nowrap; position: relative; }
+#hud-title[hidden] { display: none; }
+#toast .toast-ic { display: block; margin: 0 auto 1px; }
+
+/* each title's effect on its plate (the board, the card, the HUD tag) */
+.fx { position: relative; overflow: hidden; }
+.fx-shine::after { content: ""; position: absolute; top: 0; bottom: 0; left: -8px; width: 3px; pointer-events: none;
+  background: rgba(255,255,255,.75); transform-origin: 0 0; animation: tshine 3.2s steps(30) infinite; }
+.fx-gold::after { background: rgba(255,236,170,.6); }
+@keyframes tshine { 0% { transform: translateX(0) skewX(-20deg); } 45%, 100% { transform: translateX(170px) skewX(-20deg); } }
+.fx-rainbow::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; pointer-events: none;
+  background: repeating-linear-gradient(90deg, #f25c6a 0 4px, #ffb04a 4px 8px, #ffe066 8px 12px, #6cd27a 12px 16px, #5c9cf2 16px 20px, #b07af2 20px 24px);
+  background-size: 24px 1px; animation: trainbow 1.2s steps(24) infinite; }
+@keyframes trainbow { to { background-position: 24px 0; } }
+.fx-night::before { content: ""; position: absolute; left: 0; top: 0; width: 1px; height: 1px; pointer-events: none; background: transparent;
+  box-shadow: 14px 3px #fff, 30px 15px #c9d0ff, 47px 4px #fff, 61px 17px #fff, 70px 6px #c9d0ff, 22px 18px #fff;
+  animation: ttwinkle 1.6s steps(1) infinite; }
+@keyframes ttwinkle { 0% { opacity: 1; } 50% { opacity: .25; } }
+.fx-ember::before { content: ""; position: absolute; left: 0; top: 0; width: 1px; height: 1px; pointer-events: none; background: transparent;
+  box-shadow: 12px 20px #ff7a3a, 33px 22px #ffd25e, 52px 21px #ff7a3a, 66px 23px #ffd25e;
+  animation: tember 1.4s steps(7) infinite; }
+@keyframes tember { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-14px); opacity: 0; } }
+.fx-glow { animation: tglow 2.08s steps(1) infinite; }
+@keyframes tglow { 0%, 43% { box-shadow: none; } 44%, 50%, 100% { box-shadow: 0 0 0 1px #ffe066; } 51%, 56% { box-shadow: none; } }
+.fx-beat { animation: tbeat .86s steps(1) infinite; }
+@keyframes tbeat { 0% { transform: translateY(-1px); } 21%, 100% { transform: translateY(0); } }
+.fx-steps::before { content: ""; position: absolute; left: 0; top: 0; width: 2px; height: 1px; pointer-events: none; background: transparent;
+  animation: tsteps 2.4s steps(1) infinite; }
+@keyframes tsteps { 0% { box-shadow: 58px 18px rgba(80,140,70,.5); } 33% { box-shadow: 58px 18px rgba(80,140,70,.5), 64px 15px rgba(80,140,70,.5); }
+  66% { box-shadow: 58px 18px rgba(80,140,70,.5), 64px 15px rgba(80,140,70,.5), 70px 18px rgba(80,140,70,.5); } }
 
 /* tutorial page */
 .steps { list-style: none; display: grid; gap: 6px; padding: 2px 0; }
