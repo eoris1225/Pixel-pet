@@ -653,7 +653,8 @@ const wprop = { state: "held", x: 0, y: 0, z: 0, fx: 0, fy: 0, tx: 0, side: 1, t
 const weaponOn = () => typeof WEAPON_OF !== "undefined" && !!(G.equip && G.equip[WEAPON_OF[G.pet]]);
 function updateWeaponProp(now) {
   if (!weaponOn()) { wprop.state = "held"; return; }
-  const rest = G.sleeping || G.wantSleep && pet.act === "lieDown" || ["lieDown", "lie", "getUp", "loaf"].includes(pet.act);
+  // (하와 puts hers down to play her guitar too)
+  const rest = G.sleeping || G.wantSleep && pet.act === "lieDown" || ["lieDown", "lie", "getUp", "loaf"].includes(pet.act) || pet.act === "strum";
   const hands = FEET - (INFO[G.pet].h - ANCHOR[G.pet].arm);
   if (rest && wprop.state === "held") {
     let side = (pet.x < W / 2 ? 1 : -1) * (teddyOn() && prop.state !== "hug" ? -1 : 1);   // the other side from her bear
@@ -661,6 +662,7 @@ function updateWeaponProp(now) {
     if (G.pet === "sora" && G.equip.camera) {             // 하와's camera lies on the grass at her right as she loafs: the
       const f = weaponFlat("sora"), butt = WEAPON_MID.sora - f.x;   // trident goes to her left, its butt end clear of her
       side = -1; tx = pet.x - (INFO.sora.w >> 1) - butt - 3;
+      if (pet.act === "strum") { side = 1; tx = pet.x + (INFO.sora.w >> 1) + butt + 3; }   // playing, her camera is at her left: it goes to her right
     }
     Object.assign(wprop, { state: "place", t0: now, fx: pet.x, fy: hands, tx: Math.max(16, Math.min(W - 16, tx)), side, z: pet.z });
   }
