@@ -61,6 +61,7 @@
       <h3>날씨</h3><div class="row"><button data-wx="" class="${WX.force ? "" : "on"}">자동</button>${WX_KINDS.map(k => `<button data-wx="${k}" class="${WX.force === k ? "on" : ""}">${WX_NAME[k]}</button>`).join("")}</div>
       <h3>계절 (하늘 색)</h3><div class="row"><button data-se="" class="${skySeason ? "" : "on"}">자동</button>${SEASONS.map(([k, n]) => `<button data-se="${k}" class="${skySeason === k ? "on" : ""}">${n}</button>`).join("")}</div>
       <h3>시간</h3><div class="row"><button data-hr="" class="${T_FIX === null ? "on" : ""}">지금</button>${HOURS.map(([h, n]) => `<button data-hr="${h}" class="${T_FIX === h ? "on" : ""}">${n}</button>`).join("")}</div>
+      <div class="row" style="margin-top:6px"><button data-bow="1">비 그친 뒤 (무지개·웅덩이)</button></div>
       <div class="row" style="margin-top:6px"><button data-sky="1">구름 새로 띄우기</button><button data-visit="1">모양 구름 띄우기</button><button data-bolt="1">번개 치기</button></div>
       <h3>배경 스타일 후보</h3><div class="row">${LOOK_NAMES.map(([k, n]) => `<button data-look="${k}" class="${LOOK.key === k ? "on" : ""}">${n}</button>`).join("")}</div>
       <h3>칭호</h3><div class="row"><button data-ttl="all">모두 얻기</button><button data-ttl="first">첫걸음만</button><button data-ttl="reset">초기화</button><button data-ttl="taps">클릭 99번으로</button><button data-ttl="away">일주일 비우기</button></div>
@@ -81,6 +82,7 @@
     panel.querySelectorAll("[data-se]").forEach(b => b.onclick = () => { setSkySeason(b.dataset.se || null); render(); });
     panel.querySelectorAll("[data-hr]").forEach(b => b.onclick = () => { setWorldHour(b.dataset.hr === "" ? null : +b.dataset.hr); render(); });
     panel.querySelector("[data-sky]").onclick = () => newSky();
+    panel.querySelector("[data-bow]").onclick = () => { WX.force = "clear"; WX.rain = 0; WX.cover = 0.1; WX.wet = 0.8; WX.pud = 0.9; WX.bowT = performance.now(); render(); };
     panel.querySelector("[data-visit]").onclick = () => sendVisitor();
     panel.querySelector("[data-bolt]").onclick = () => { if (WX.storm < 0.5) { WX.force = "storm"; render(); } startStrike(performance.now()); };
     panel.querySelectorAll("[data-look]").forEach(b => b.onclick = () => { setLook(b.dataset.look); render(); });

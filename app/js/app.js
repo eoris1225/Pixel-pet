@@ -158,6 +158,12 @@ paintIcon($("#hud-burn"), "flame");
 // paper with a faint pixel dot pattern for the screens
 { const c = document.createElement("canvas"); c.width = 6; c.height = 6; const g = c.getContext("2d"); g.fillStyle = "#f7e9c9"; g.fillRect(0, 0, 1, 1); g.fillRect(3, 3, 1, 1);
   appEl.style.setProperty("--dots", `url(${c.toDataURL()})`); }
+// pixel patterns for the heads and windows: light diagonal stripes, a scalloped hem, a dithered dim
+{ const pat = (w, h, px, col) => { const c = document.createElement("canvas"); c.width = w; c.height = h; const g = c.getContext("2d"); g.fillStyle = col;
+    px.forEach(([x, y]) => g.fillRect(x, y, 1, 1)); return `url(${c.toDataURL()})`; };
+  appEl.style.setProperty("--stripes", pat(6, 6, [[0, 5], [1, 4], [2, 3], [3, 2], [4, 1], [5, 0]], "rgba(255,255,255,.2)"));
+  appEl.style.setProperty("--hem", pat(6, 3, [[0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [1, 1], [2, 1], [3, 1], [4, 1], [2, 2], [3, 2]], "#000"));
+  appEl.style.setProperty("--dither", pat(2, 2, [[0, 0], [1, 1]], "rgba(44,32,50,.22)")); }
 
 /* ---------- Korean particles: picked from the last sound of the word before them ---------- */
 // jong: 0 = no final consonant, 8 = ㄹ, otherwise another final consonant (digits are read aloud: 0 영, 1 일, 3 삼 ...)
@@ -1101,9 +1107,12 @@ function loop(now) {
     if (now - hudT > 250) { hudT = now; updateHud(); }
     if (S.pet && now - titleT > 5000) { titleT = now; titleState().seen = Date.now(); if (coachStep < 0) checkTitles(); }
     sceneRender(now, signInfo());
+    shakeLayer(sctx, bg, false);
     if (S.pet) petRender(now); else ctx.clearRect(0, 0, W, H);
     if (S.pet && typeof sceneTint === "function") sceneTint(ctx, now);   // the sky's light on her
+    if (S.pet && typeof sceneFront === "function") sceneFront(ctx, now);   // a butterfly passing in front of her (already lit)
     weatherFront(ctx, now);
+    shakeLayer(ctx, fg, true);
     drawPortraits(now);
     if (now - ticonT > 60) { ticonT = now; drawTitleIcons(now); }
     // bubbles follow the pet and the passing cloud

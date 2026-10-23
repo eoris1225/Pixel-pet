@@ -333,7 +333,7 @@ function textBig(s, x, y, col, k) {
 /* ---------- state ---------- */
 // z is depth: how far back on the grass she stands (0 = the front line, Z_MAX = up by the hills). She is drawn z pixels higher,
 // and once she is deeper than the sign's post she walks behind it.
-const Z_MAX = 11, SIGN_Z = 4;
+const Z_MAX = 24, SIGN_Z = 4;   // (she wanders a good way back over the meadow, still in front of the trees)
 const pet = { x:90, z:0, tz:0, dir:1, act:"idle", t0:0, target:90, walked:0, blinkUntil:0, nextThink:0,
               petCooldown:0, earT:-9999, nextEar:0, lastStep:0, lastY:0, box:null };
 let parts = [];
@@ -1005,10 +1005,17 @@ function aroundSign() {
   return [pet.x, tz];                                                     // then cross the line clear of the post
 }
 // somewhere to stroll to: across the grass and up or down it; now and then over to the sign, in front of it or behind
+// (now and then straight towards us or away, over much of the meadow's depth; otherwise anywhere, often at a slant)
 function pickWalk() {
-  if (Math.random() < 0.3) { pet.target = SIGN_X + (Math.random() - 0.5) * 18; pet.tz = Math.random() < 0.55 ? Z_MAX - Math.random() * 3 : Math.random() * 2; return; }
-  pet.target = 36 + Math.random() * 108;
-  pet.tz = Math.random() < 0.3 ? pet.z : Math.random() * Z_MAX;
+  const r = Math.random();
+  if (r < 0.2) { pet.target = SIGN_X + (Math.random() - 0.5) * 18; pet.tz = Math.random() < 0.55 ? SIGN_Z + 3 + Math.random() * (Z_MAX - SIGN_Z - 3) : Math.random() * 2; return; }
+  if (r < 0.45) {
+    pet.target = Math.max(30, Math.min(150, pet.x + (Math.random() - 0.5) * 24));
+    pet.tz = pet.z > Z_MAX / 2 ? Math.random() * 5 : Z_MAX - Math.random() * 7;
+    return;
+  }
+  pet.target = 30 + Math.random() * 120;
+  pet.tz = Math.random() * Z_MAX;
 }
 
 /* ---------- update ---------- */
