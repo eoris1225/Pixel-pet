@@ -84,8 +84,30 @@ H = 320; FEET = 272; PEEK_BOT = 282; TOP_Y = 30;      // close-ups rise from jus
 fg.width = W; fg.height = H;
 sceneResize();
 let K = 2;
+// a phone held upright gets the whole screen, edge to edge, with nothing of the page round it: the game grows taller
+// to the phone's shape (more sky; the ground and the keys keep their place at the bottom) and its width fills the
+// screen exactly (not a whole number then; on a phone's dense screen that does not show)
+function fitHeight(vw, vh) {
+  const tall = vh / vw >= 320 / W - 0.005 && vw <= 700;
+  const h = tall ? Math.ceil(W * vh / vw) : 320;
+  if (h !== H) {
+    const d = (h - 48) - FEET;
+    H = h; FEET = H - 48; PEEK_BOT = H - 38;
+    fg.width = W; fg.height = H; sceneResize();
+    if (typeof newSky === "function") newSky();                // the clouds spread over the taller sky
+    appEl.style.height = H + "px";
+    if (typeof shiftGround === "function") shiftGround(d);
+  }
+  return tall;
+}
 function layout() {
   const vw = innerWidth, vh = innerHeight;
+  if (fitHeight(vw, vh)) {
+    K = vw / W;
+    frameEl.style.width = vw + "px"; frameEl.style.height = H * K + "px"; frameEl.style.left = "0px"; frameEl.style.top = "0px";
+    appEl.style.transform = `scale(${K})`;
+    return;
+  }
   const s = Math.min((vw - 8) / W, (vh - 22) / H);
   K = s >= 2 ? Math.floor(s) : Math.max(0.5, s);
   frameEl.style.width = W * K + "px"; frameEl.style.height = H * K + "px";
@@ -503,7 +525,8 @@ function updateHud() {
   if (!S.pet) return;
   const e = curExp(), lv = lvOf(e), frac = lv >= LEVEL.max ? 1 : e - Math.floor(e);
   const burning = isBurning(Date.now());
-  $("#hud-lv").textContent = `Lv.${lv}`;
+  const lvEl = $("#hud-lv"); if (!lvEl) return;            // (the page is going away)
+  lvEl.textContent = `Lv.${lv}`;
   { const wt = titleState().worn, el = $("#hud-title");
     if (el && el.dataset.tid !== (wt || "")) {
       el.dataset.tid = wt || ""; el.hidden = !wt;

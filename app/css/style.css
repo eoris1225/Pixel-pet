@@ -47,7 +47,6 @@
   --dark: #7a6252; --dark-sh: #5f4b3e; --dark-t: #fff6ea;
   --hud: rgba(255, 251, 244, .9); --plaque: rgba(252, 243, 230, .9);
   --dim: rgba(90, 70, 60, .3); --dot: rgba(170, 130, 90, .14);
-  --body: #f1e6d6;          /* the page round the screen: one cream for every friend */
   --accent: #ffcad7; --accent-soft: #fff0f4; --accent-deep: #eeaabb;
   /* a 2px pixel-rounded corner */
   --r2: polygon(2px 0, calc(100% - 2px) 0, calc(100% - 2px) 1px, calc(100% - 1px) 1px, calc(100% - 1px) 2px, 100% 2px,
@@ -82,10 +81,10 @@
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
-body { background: var(--body); overflow: hidden; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+body { background: #4a3550; overflow: hidden; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 [hidden] { display: none !important; }
 
-#frame { position: fixed; background: #8fcaf2; }
+#frame { position: fixed; box-shadow: 0 0 0 4px #2c2032, 0 10px 0 4px #2c2032; background: #8fcaf2; }
 #app {
   position: absolute; left: 0; top: 0; width: 180px; height: 320px; overflow: hidden; transform-origin: 0 0;
   color: var(--ink); image-rendering: pixelated;
@@ -145,7 +144,7 @@ h2, h3, h4, p, ul, ol, dl, dd { margin: 0; padding: 0; font-weight: normal; }
 
 /* ---------- world ---------- */
 #stage { position: absolute; inset: 0; touch-action: none; }
-#stage canvas { position: absolute; left: 0; top: 0; width: 180px; height: 320px; }
+#stage canvas { position: absolute; left: 0; top: 0; width: 180px; height: 100%; }   /* (taller on an upright phone: app.js fitHeight) */
 #fg { pointer-events: none; z-index: 1; }
 #app.coaching #fg { z-index: 55; }
 #speech { position: absolute; inset: 0; pointer-events: none; z-index: 5; }

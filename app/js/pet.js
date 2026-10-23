@@ -351,6 +351,11 @@ const Z_MAX = 24, SIGN_Z = 4;   // (she wanders a good way back over the meadow,
 const pet = { x:90, z:0, tz:0, dir:1, act:"idle", t0:0, target:90, walked:0, blinkUntil:0, nextThink:0,
               petCooldown:0, earT:-9999, nextEar:0, lastStep:0, lastY:0, box:null };
 let parts = [];
+// the ground moved (the game grew taller on a phone): what lies on the grass moves down with it
+function shiftGround(d) {
+  for (const o of [prop, wprop, gprop, cprop, lprop, pprop]) { if (typeof o.y === "number") o.y += d; if (typeof o.fy === "number") o.fy += d; }
+  if (typeof pet.hy === "number") pet.hy += d;
+}
 function startAct(a, now) {
   if (a === "strum" && !atStump()) { goStump(); return; }   // 하와 plays sitting on the stump: she goes there first
   pet.act = a; pet.t0 = now; pet.toStump = false;
