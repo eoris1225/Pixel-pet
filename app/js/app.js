@@ -774,6 +774,9 @@ const TITLE_LOOK = {
     ["......KKK", ".....KWWK", "....KWLK.", ".K.KWLK..", ".KKWLK...", "..KYK....", ".KYKK....", "KYK.K....", "KK......."]] },
 };
 for (const L of Object.values(TITLE_LOOK)) L.imgs = L.frames.map(f => gridToCanvas(f, L.pal));
+// the badge on the title she wears: a red check in a white box, drawn pixel by pixel
+const WEAR_CHECK = gridToCanvas(["KKKKKKKKK", "KWWWWWWWK", "KWWWWWWRK", "KWWWWWRRK", "KRWWWRRWK", "KRRWRRWWK", "KWRRRWWWK", "KWWRWWWWK", "KKKKKKKKK"],
+  { K: OUT, W: "#ffffff", R: "#e2504a" }).toDataURL();
 // the icon canvases on screen, each moving through its frames
 const titleIcons = [];
 const titleIcon = (id, k = 1) => `<canvas class="ticon" data-tid="${id}" width="9" height="9" style="width:${9 * k}px;height:${9 * k}px"></canvas>`;
@@ -857,7 +860,7 @@ function renderTitles() {
     <p class="titles-count f-sm">모은 칭호 <b class="f-num s">${n}</b> / ${TITLES.length}</p>
     <div class="titles">${TITLES.map(([id, name]) => {
       const got = !!ts.got[id], worn = ts.worn === id;
-      return got ? `<button class="ttl pxb got ${worn ? "worn" : ""}${titleFx(id)}" data-id="${id}" style="${titleStyle(id)}">${titleIcon(id)}<span class="nm">${esc(name)}</span>${worn ? '<span class="wear"></span>' : ""}</button>`
+      return got ? `<button class="ttl pxb got ${worn ? "worn" : ""}${titleFx(id)}" data-id="${id}" style="${titleStyle(id)}">${titleIcon(id)}<span class="nm">${esc(name)}</span>${worn ? `<img class="wear" src="${WEAR_CHECK}" alt="착용">` : ""}</button>`
         : `<button class="ttl pxb" data-id="${id}"><span class="q f-num">?</span></button>`;
     }).join("")}</div>
     <p class="hint f-sm" style="text-align:center;margin-top:7px">얻은 칭호를 누르면 달 수 있어요 · 단 칭호에 ✓</p>`;
