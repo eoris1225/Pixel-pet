@@ -289,6 +289,21 @@ function inPuddle(x, y) {
   const q = pudK();
   return PUDDLES.some(p => inThis(p, x, y, q) || inThis(p, x, y + 1, q) || inThis(p, x + 1, y, q) || inThis(p, x - 1, y, q));
 }
+// how much of the water a pixel has round it (0..1, cached while the puddle keeps its size): the edges fade out
+function pudMask(p, q) {
+  const key = Math.round(q * 40) * 1000 + horizon;
+  if (p.mk && p.mk.key === key) return p.mk;
+  const [cx, dy, , lobes, [l0, l1]] = p, cy = horizon + dy, ryM = Math.max(...lobes.map(l => Math.abs(l[1]) + l[3])) * q;
+  const x0 = Math.floor(cx + l0 * q) - 4, x1 = Math.ceil(cx + l1 * q) + 4, y0 = Math.floor(cy - ryM) - 2, y1 = Math.ceil(cy + ryM) + 2;
+  const w = x1 - x0 + 1, hh = y1 - y0 + 1, inn = new Uint8Array(w * hh), cov = new Float32Array(w * hh);
+  for (let y = 0; y < hh; y++) for (let x = 0; x < w; x++) inn[y * w + x] = inThis(p, x0 + x, y0 + y, q) ? 1 : 0;
+  for (let y = 0; y < hh; y++) for (let x = 0; x < w; x++) {       // a flat window (puddles lie flat): 7 wide, 3 high
+    let n = 0, t = 0;
+    for (let v = -1; v <= 1; v++) for (let u = -3; u <= 3; u++) { const yy = y + v, xx = x + u; t++; if (yy >= 0 && yy < hh && xx >= 0 && xx < w) n += inn[yy * w + xx]; }
+    cov[y * w + x] = n / t;
+  }
+  return (p.mk = { key, x0, y0, w, hh, inn, cov });
+}
 function drawPuddles(g, now, h) {
   const q = pudK(), sky = g.getImageData(0, 0, W, horizon).data;
   const feetRow = typeof pet !== "undefined" ? Math.round(FEET - 1 - pet.z) : -99, px0 = typeof pet !== "undefined" ? Math.round(pet.x) - 20 : 0;
@@ -296,12 +311,17 @@ function drawPuddles(g, now, h) {
   try { if (typeof fg !== "undefined" && feetRow > 0) me = fg.getContext("2d").getImageData(px0, feetRow - 40, 40, 40).data; } catch (e) {}
   const rim = typeof landP !== "undefined" && landP ? litc(landP.dark[0], h) : [70, 90, 70], tint = mixc(hex("#8fb0cc"), hex("#1e2848"), darkAt(h) * 0.7);
   PUDDLES.forEach((p, pi) => {
-    const [cx, dy, w, lobes, [l0, l1]] = p, cy = horizon + dy;
+    const [cx, dy, w, lobes] = p, cy = horizon + dy;
     if (w * q < 3) return;
-    const ryM = Math.max(...lobes.map(l => Math.abs(l[1]) + l[3])) * q;
+    const M = pudMask(p, q), ryM = Math.max(...lobes.map(l => Math.abs(l[1]) + l[3])) * q;
     const mine = me && cy - ryM <= feetRow + 3 && cy + ryM >= feetRow - 1;   // she shows only in a puddle she stands at
-    for (let y = Math.floor(cy - ryM) - 1; y <= Math.ceil(cy + ryM) + 1; y++) for (let x = Math.floor(cx + l0 * q) - 1; x <= Math.ceil(cx + l1 * q) + 1; x++) {
-      if (x < 0 || x >= W || !inThis(p, x, y, q)) continue;
+    for (let yy = 0; yy < M.hh; yy++) for (let xx = 0; xx < M.w; xx++) {
+      const x = M.x0 + xx, y = M.y0 + yy, c0 = M.cov[yy * M.w + xx];
+      if (x < 0 || x >= W || c0 <= 0.02) continue;
+      const inside = M.inn[yy * M.w + xx];
+      if (!inside) {                                             // the wet ground round it, darker, fading away
+        g.fillStyle = css(rim, Math.min(0.22, c0 * 0.5)); g.fillRect(x, y, 1, 1); continue;
+      }
       const sy = Math.max(0, Math.min(horizon - 1, Math.round(horizon - 3 - (y - horizon) * 0.9)));
       let j = (sy * W + x) * 4, c = [sky[j], sky[j + 1], sky[j + 2]];
       if (mine && y > feetRow && Math.abs(x - pet.x) < 20) {   // her reflection, upside down below her feet
@@ -309,10 +329,10 @@ function drawPuddles(g, now, h) {
         if (my >= 0 && my < 40) { const m = (my * 40 + mx) * 4; if (me[m + 3] > 200) c = mixc([me[m], me[m + 1], me[m + 2]], tint, 0.25); }
       }
       let col = mixc(c, tint, 0.28);
-      const edge = !inThis(p, x - 1, y, q) || !inThis(p, x + 1, y, q) || !inThis(p, x, y - 1, q) || !inThis(p, x, y + 1, q);
-      if (edge) col = mixc(col, rim, 0.32);                    // a softly darker wet rim
-      else if (!inThis(p, x, y - 2, q)) col = mixc(col, [255, 255, 255], 0.12);   // the far bank's light on the water
-      g.fillStyle = css(softc(col)); g.fillRect(x, y, 1, 1);
+      if (yy > 0 && !M.inn[(yy - 1) * M.w + xx] && c0 > 0.5) col = mixc(col, [255, 255, 255], 0.12);   // the far bank's light on the water
+      // the water thins out to its edge: full in the middle, fading in steps over the last pixels
+      const a = Math.min(1, Math.max(0.25, (c0 - 0.3) / 0.45));
+      g.fillStyle = css(softc(col), Math.round(a * 4) / 4); g.fillRect(x, y, 1, 1);
     }
     for (const r of RIPPLES) {                                   // rings spreading where drops fall
       if (r.p !== pi) continue;

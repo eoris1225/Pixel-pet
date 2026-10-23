@@ -1348,11 +1348,10 @@ function sceneUpdate(now, dt) {
 }
 
 /* ---------- little lives on the meadow ---------- */
-// butterflies (wandering, resting on a flower, circling her head, landing on it), a dragonfly that hovers and darts and
-// perches, bees that visit the flowers, a frog by the puddles after rain. Each keeps to its season and to fair daylight,
-// comes now and then and does not stay long; what passes in front of her is drawn over her (sceneFront)
+// butterflies (wandering, resting on a flower, circling her head, landing on it), bees that visit the flowers, a frog
+// by the puddles after rain. Each keeps to its season and to fair daylight, comes now and then and does not stay long; what passes in front of her is drawn over her (sceneFront)
 const BFLY = [], BEES = [];
-let nextBfly = performance.now() + R0(15000, 30000), dfly = null, nextDfly = performance.now() + R0(40000, 80000), frog = null, frogDone = false;
+let nextBfly = performance.now() + R0(15000, 30000), frog = null, frogDone = false;
 let nextBees = performance.now() + R0(20000, 40000);
 function R0(a, b) { return a + Math.random() * (b - a); }
 const R_ = R0;
@@ -1362,8 +1361,6 @@ function petHead() {
 }
 const dryFlower = () => { const ok = FLOWERS.filter(f => !(typeof inPuddle === "function" && inPuddle(Math.round(f.x), Math.round(f.yy)))); return ok[Math.random() * ok.length | 0] || FLOWERS[0]; };
 const airPoint = () => ({ x: R_(12, W - 12), y: R_(horizon - 24, FEET - 14) });
-// the sparrow's corner (the top of the sign): the dragonfly keeps out of it
-const nearSign = (x, y) => Math.abs(x - SIGN_X) < 20 && y < FEET - 22;
 function steer(b, tx, ty, speed, s, k = 3) {
   const dx = tx - b.x, dy = ty - b.y, d = Math.hypot(dx, dy) || 1;
   b.vx += (dx / d * speed - b.vx) * Math.min(1, k * s); b.vy += (dy / d * speed - b.vy) * Math.min(1, k * s);
@@ -1432,41 +1429,6 @@ function updateCritters(now, s, dark, foul) {
       else b.front = b.y > hd.y;
     }
   }
-  // a dragonfly in summer and autumn, once in a while: hovers, darts, perches on a grass tip or a flower, then flies off
-  if (!dfly && now > nextDfly && day && (se === "summer" || se === "autumn")) {
-    const left = Math.random() < 0.5;
-    dfly = { x: left ? -8 : W + 8, y: R_(horizon - 10, FEET - 30), st: "dart", t: 0, dir: left ? 1 : -1, kind: se, n: 0, max: 2 + (Math.random() * 3 | 0) };
-    dfly.tx = R_(60, 150); dfly.ty = R_(horizon - 10, FEET - 30);
-  }
-  if (dfly) {
-    const d = dfly; d.t += s * 1000;
-    if (!day && d.st !== "go") { d.st = "go"; d.tx = W + 30; d.ty = horizon - 40; }
-    if (d.st === "dart" || d.st === "go") {
-      const dx = d.tx - d.x, dy = d.ty - d.y, dist = Math.hypot(dx, dy), step = 90 * s;
-      if (Math.abs(dx) > 1) d.dir = Math.sign(dx);
-      if (dist <= step) {
-        d.x = d.tx; d.y = d.ty; d.t = 0;
-        if (d.st === "go" || d.n >= d.max) { dfly = null; nextDfly = now + R_(70000, 160000); }
-        else if (d.perchNext) { d.perchNext = false; d.n++; d.st = "perch"; d.hold = R_(2500, 5000); }
-        else {
-          d.n++; d.st = Math.random() < 0.35 ? "perch" : "hover"; d.hold = d.st === "perch" ? R_(2500, 5000) : R_(500, 1400);
-          if (d.st === "perch") {
-            const spots = [...TUFTS.filter(t => !nearSign(t.x, t.yy - t.h)).map(t => [t.x, t.yy - t.h - 1]), ...FLOWERS.filter(f => !nearSign(f.x, f.yy)).map(f => [f.x, f.yy - 6])]
-              .filter(([x, y]) => !(typeof inPuddle === "function" && inPuddle(Math.round(x), Math.round(y + 2))));
-            const sp = spots.length ? spots[Math.random() * spots.length | 0] : null;
-            if (sp) { d.st = "dart"; d.tx = sp[0]; d.ty = sp[1]; d.perchNext = true; d.n--; } else d.st = "hover";
-          }
-        }
-      } else { d.x += dx / dist * step; d.y += dy / dist * step; }
-    } else if (d.t > d.hold) {
-      d.st = d.n >= d.max ? "go" : "dart"; d.t = 0;
-      if (d.st === "go") { d.tx = Math.random() < 0.5 ? -30 : W + 30; d.ty = horizon - 30; }
-      else for (let tries = 0; tries < 8; tries++) {
-        d.tx = Math.max(10, Math.min(W - 10, d.x + R_(-60, 60))); d.ty = Math.max(horizon - 20, Math.min(FEET - 16, d.y + R_(-25, 25)));
-        if (!nearSign(d.tx, d.ty)) break;
-      }
-    } else if (d.st === "hover") d.y += Math.sin(d.t / 90) * 0.15;
-  }
   // bees: a pair comes to the flowers in spring and summer now and then, goes from flower to flower, and leaves
   if (!BEES.length && day && (se === "spring" || se === "summer") && now > nextBees) {
     const n = Math.random() < 0.5 ? 1 : 2, from = Math.random() < 0.5 ? -6 : W + 6;
@@ -1521,10 +1483,6 @@ function frogSpot(i) {
 // a little frog facing right, outlined like the friends (g green, G shade, l belly, w eye white, k ink)
 const FROG = ["...kk.kk..", "..kwkkwkk.", ".kgggggggk", "kgggggllgk", "kGGgggllk.", ".kkGkkkk.."];
 const FROG_HOP = ["...kk.kk..", "..kwkkwkk.", ".kgggggggk", "kGgggglllk", "kGGkkkkk..", "kk........"];
-// a dragonfly facing right: segmented tail (b/B), thorax t, big eye e, glassy wings w (raised, or spread flat)
-const DFLY_SPREAD = ["....ww.ww..", "bBbBbBbttee", "....ww.ww.."];
-const DFLY_UP = [".....w..w..", "....ww.ww..", "bBbBbBbttee"];
-const DFLY_COL = { summer: { b: "#9fd6cf", B: "#7dbcb9", t: "#76aeb4", e: "#5e93a0" }, autumn: { b: "#f2b3a2", B: "#e09684", t: "#cf8a7c", e: "#b9746c" } };
 // critters take the light of the meadow: the warm pastel, the sky's colour, the evening, a grey day
 function bugc(c, h) {
   let x = softc(hex(c), 1.4);
@@ -1555,12 +1513,6 @@ function drawCritters(g, now, h, front) {
     const x = Math.round(e.x), y = Math.round(e.y), up = Math.floor(now / 60) % 2;
     g.fillStyle = css(bugc("#ffd86a", h)); g.fillRect(x, y, 3, 2); g.fillStyle = css(bugc("#7a6450", h)); g.fillRect(x + 1, y, 1, 2);
     g.fillStyle = "rgba(255,255,255,.7)"; g.fillRect(x + 1, y - 1 - up, 1, 1);
-  }
-  if (dfly) {
-    const d = dfly, x = Math.round(d.x), y = Math.round(d.y), r = d.dir || 1, C = DFLY_COL[d.kind] || DFLY_COL.summer;
-    const pal = { b: bugc(C.b, h), B: bugc(C.B, h), t: bugc(C.t, h), e: bugc(C.e, h), w: bugc("#f4fbff", h) };
-    const flat = d.st === "perch" || Math.floor(now / 45) % 2 === 0;
-    paintMap(g, flat ? DFLY_SPREAD : DFLY_UP, x, y - (flat ? 1 : 2), r, pal, 9, { w: 0.6 });
   }
   if (frog && frog.cx !== undefined) {
     const f = frog, x = Math.round(f.cx), y = Math.round(f.cy), r = f.dir || 1, air = f.st === "hop" && f.t > 180 && f.t < 440;
