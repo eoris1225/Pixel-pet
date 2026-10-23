@@ -1114,7 +1114,7 @@ function paintLand(h) {
 // night, now and then, its eyes shine)
 const CAVE = { x: 31, y: 0 };
 function paintCave(g, col, hy) {
-  const P = landP, se = mainSeason(), rock = mixc(P.hill[1], P.wood[2], 0.45), rockHi = mixc(P.hill[0], P.hill[1], 0.5);
+  const P = landP, se = mainSeason(), rock = mixc(P.hill[1], P.wood[2], 0.45);
   // the swell: the hill's top colour, its far side in the hill's shade
   for (let dx = -10; dx <= 10; dx++) {
     const t = Math.round(5.5 * Math.cos(dx / 10 * Math.PI / 2) ** 1.4), x = CAVE.x + dx;
@@ -1123,12 +1123,14 @@ function paintCave(g, col, hy) {
   }
   // its mouth: an arch, darkest inside, a lip of stone over it and a stone or two at its feet
   const deep = col(mixc(P.wood[2], hex("#151320"), 0.55), 0.3), deeper = col(mixc(P.wood[2], hex("#0c0a14"), 0.75), 0.25);
-  const top = dx => hy - 4 + (Math.abs(dx) === 3 ? 2 : Math.abs(dx) === 2 ? 1 : 0);
-  for (let dx = -3; dx <= 3; dx++) { g.fillStyle = Math.abs(dx) < 2 ? deeper : deep; g.fillRect(CAVE.x + dx, top(dx), 1, hy + 3 - top(dx)); }
+  const top = dx => hy - 3 + (Math.abs(dx) === 3 ? 2 : Math.abs(dx) === 2 ? 1 : 0);
+  // (a softer dark round its edge and along its floor, the darkest deep inside)
+  for (let dx = -3; dx <= 3; dx++) for (let y = top(dx); y <= hy + 2; y++) {
+    g.fillStyle = Math.abs(dx) === 3 || y === top(dx) || y === hy + 2 ? deep : deeper; g.fillRect(CAVE.x + dx, y, 1, 1);
+  }
   g.fillStyle = col(rock, 0.3);
   for (let dx = -3; dx <= 3; dx++) g.fillRect(CAVE.x + dx, top(dx) - 1, 1, 1);
-  g.fillRect(CAVE.x - 4, hy - 1, 1, 3); g.fillRect(CAVE.x + 4, hy, 1, 3);
-  g.fillStyle = col(rockHi, 0.3); g.fillRect(CAVE.x - 2, top(-2) - 1, 2, 1); g.fillRect(CAVE.x - 5, hy + 1, 2, 1); g.fillRect(CAVE.x + 5, hy + 2, 1, 1);
+  g.fillRect(CAVE.x - 4, hy, 1, 2); g.fillRect(CAVE.x + 4, hy + 1, 1, 2);
   // bushes of the wood either side
   for (const [bx, r] of [[-8, 2.6], [-6, 1.6], [8, 2.2]]) {
     const cx = CAVE.x + bx, cy = hy - 1;
@@ -1136,7 +1138,7 @@ function paintCave(g, col, hy) {
     g.fillStyle = col(P.wood[1], 0.25); disc(g, cx - 0.6, cy - 0.6, Math.max(1, Math.round(r) - 1));
     g.fillStyle = col(P.wood[0], 0.25); g.fillRect(Math.round(cx - r * 0.6), Math.round(cy - r * 0.7), Math.max(1, Math.round(r * 0.8)), 1);
   }
-  if (se === "winter") { g.fillStyle = col(hex("#ffffff"), 0.2); for (let dx = -7; dx <= 7; dx++) { const t = Math.round(5.5 * Math.cos(dx / 10 * Math.PI / 2) ** 1.4); if (Math.abs(dx) > 3) g.fillRect(CAVE.x + dx, hy - t, 1, 1); } g.fillRect(CAVE.x - 3, top(-3) - 2, 7, 1); }
+  if (se === "winter") { g.fillStyle = col(hex("#ffffff"), 0.2); for (let dx = -7; dx <= 7; dx++) { const t = Math.round(5.5 * Math.cos(dx / 10 * Math.PI / 2) ** 1.4); if (Math.abs(dx) > 3) g.fillRect(CAVE.x + dx, hy - t, 1, 1); } g.fillRect(CAVE.x - 2, top(0) - 2, 5, 1); }
   CAVE.y = hy;
 }
 // the stump under the big tree (pet.js STUMP: 하와 sits on it to play), in the tree's own bark and a pale cut top with
