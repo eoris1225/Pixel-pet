@@ -6,7 +6,7 @@ const W = 180;
 let H = 320, FEET = 250, PEEK_BOT = 264, TOP_Y = 40;
 const fg = document.getElementById("fg");
 const ctx = fg.getContext("2d");
-const OUT = "#3a2a1a";
+const OUT = "#5b4433";   // the outline: a soft cocoa brown (the user asked for it softer than the ink it was, #3a2a1a)
 
 // what the app tells the pet
 const G = { pet: "mochi", sleeping: false, wantSleep: false, equip: null, lowMood: false };
@@ -707,6 +707,8 @@ function fetchPudding(now) {
   Object.assign(pprop, { state: "lift", t0: now });
   pet.dir = Math.sign(dx) || pet.dir; startAct("pickup", now); return true;
 }
+// what lies on the grass has the grass over its lowest pixels too (scene.js sceneFeet), like her feet
+const onGrass = (x0, x1, gy) => { if (typeof noteGround === "function") noteGround(ctx, x0, x1, gy); };
 function drawPuddingProp(now) {
   if (!puddingOn() || pprop.state === "held" || !propShown(pprop.z)) return;
   const sm = q => q * q * (3 - 2 * q), down = pprop.state === "place";
@@ -722,6 +724,7 @@ function drawPuddingProp(now) {
     if (!PUDDING_PAL[ch]) return;
     ctx.fillStyle = PUDDING_PAL[ch]; ctx.fillRect(x0 + i + (j <= 2 ? wob : j === 3 ? Math.round(wob / 2) : 0), y0 + j, 1, 1);
   }));
+  if (pprop.state === "ground") onGrass(x0 - 1, x0 + 8, Math.round(gy));
 }
 // when she is free and her weapon is on the grass, she walks over and picks it up, like her bear
 function fetchWeapon(now) {
@@ -741,6 +744,7 @@ function drawWeaponProp(front) {
   if (ang) ctx.rotate(ang);
   ctx.drawImage(f.img, f.x - mid, f.y - arm);
   ctx.restore();
+  if (wprop.state === "ground" && !k) onGrass(Math.round(wprop.x) - f.img.width, Math.round(wprop.x) + f.img.width, Math.round(wprop.y) - Math.round(wprop.z));
 }
 // 욱's weeding licence: a light little card. Dropped from a height it comes off her forehead and flies, fluttering down
 // like a leaf: tossed off at a random angle, turning over and over, swaying, caught by little gusts, dropping faster
@@ -763,7 +767,7 @@ function licencePics() {
   const back = document.createElement("canvas"); back.width = w; back.height = h;
   { const g = back.getContext("2d"), d = F.getContext("2d").getImageData(0, 0, w, h).data;
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const k = (y * w + x) * 4; if (d[k + 3] < 128) continue;
-      const out = d[k] < 90 && d[k + 1] < 70; g.fillStyle = out ? OUT : (y === 1 ? "#f4f5f6" : "#c8ccd0"); g.fillRect(x, y, 1, 1); } }
+      const out = d[k] < 110 && d[k + 1] < 90 && d[k + 2] < 80; /* (the outline: dark, warm) */ g.fillStyle = out ? OUT : (y === 1 ? "#f4f5f6" : "#c8ccd0"); g.fillRect(x, y, 1, 1); } }
   const turn = src => [1, 0.7, 0.4].map(k => resample(src, Math.max(2, Math.round(w * k)), h));
   const edge = document.createElement("canvas"); edge.width = 2; edge.height = h;
   { const g = edge.getContext("2d"); g.fillStyle = OUT; g.fillRect(0, 0, 2, h); g.fillStyle = "#c8ccd0"; g.fillRect(1, 1, 1, h - 2); }
@@ -879,6 +883,7 @@ function drawLicence(front) {
     put(licenceView(lprop.ang * 2.4, lprop.ang * 0.7 + Math.sin(t * 3.1) * 0.25, Math.sin(t * 4.3 + 1) * 0.9));
   } else if (lprop.state === "ground") {            // lying flat on the grass, seen from above
     groundShadow(ctx, x, y + 1, P.flat.width - 2, 1); ctx.drawImage(P.flat, x - (P.flat.width >> 1), y - P.flat.height + 1);
+    onGrass(x - (P.flat.width >> 1), x + (P.flat.width >> 1) + 1, y);
   } else if (lprop.state === "stick") {             // boing: squashed, stretched, then still
     const k = Math.floor((now - lprop.t0) / 110); put(P.boing[Math.min(2, k)]);
   } else {                                          // in her paw (caught, or picked up)
@@ -901,6 +906,7 @@ function drawTeddy(front) {
   const im = teddyImg(prop.rot), x = Math.round(prop.x - im.width / 2), y = Math.round(prop.y - im.height) - Math.round(prop.z);
   if (prop.state === "ground") groundShadow(ctx, prop.x, Math.round(prop.y) - Math.round(prop.z) - 1, im.width - 2, 1);
   ctx.drawImage(im, x, y);
+  if (prop.state === "ground") onGrass(x, x + im.width, y + im.height);
 }
 
 // 하와's guitar when she lies down (loaf, sleep): she puts it down on the grass a little way off to her side (it swings
@@ -921,6 +927,7 @@ function drawGuitarRest(pose, box, now) {
     const c = guitarTurned(GUITAR_REST, true);
     groundShadow(ctx, gprop.x, gprop.y, 22, 0.8);
     ctx.drawImage(c, Math.round(gprop.x - c.width / 2), gprop.y - guitarBottom(GUITAR_REST, true));
+    onGrass(Math.round(gprop.x - c.width / 2), Math.round(gprop.x + c.width / 2), gprop.y);
     return;
   }
   // on its way down or up: an arc between her back and the grass, turning over as it goes
@@ -975,6 +982,7 @@ function drawCameraProp(now) {
     dot(px, py, CAMERA_PAL.s); dot(px, py + 1, CAMERA_PAL.t);
   }
   CAMERA.forEach((r, j) => [...r].forEach((ch, i) => { if (CAMERA_PAL[ch]) dot(x + i, y + j, CAMERA_PAL[ch]); }));
+  if (cprop.state === "ground") onGrass(x - 1, x + 12, gy);
 }
 function fetchGuitar(now) {
   if (!guitarOn() || gprop.state !== "ground" || G.sleeping || G.wantSleep) return false;
@@ -1178,7 +1186,9 @@ function drawSprite(g, id, pose, cx, feet, dir, equip, shadow = true) {
   const items = equip && typeof drawItems === "function";
   const sun = shadow && g === ctx && typeof sunCast === "function" ? sunCast() : null;   // and her shadow from the sun (on the meadow), her shape and all she holds
   const dy = img.height - INFO[id].h;               // squash / stretch adds or drops a row low on the body (items below it shift)
-  if (!items && !sun) {
+  const main = g === ctx;                           // (the pet on the meadow: which of her pixels at the ground are her own, below)
+  if (main) pet._feetMask = null;
+  if (!items && !sun && !main) {
     g.save(); g.translate(dir < 0 ? x + dw : x, y); g.scale((dir < 0 ? -1 : 1) * dw / img.width, dh / img.height);
     g.drawImage(img, 0, 0); g.restore();
   } else {
@@ -1189,9 +1199,23 @@ function drawSprite(g, id, pose, cx, feet, dir, equip, shadow = true) {
     o.translate(dir < 0 ? M + dw : M, M); o.scale((dir < 0 ? -1 : 1) * dw / img.width, dh / img.height);
     o.worldY = g.getTransform().f + y - M;          // (where it sits on the screen: for things that move with her height)
     o.worldX = g.getTransform().e + x - M;          // (and across it: for things that swing as she moves)
+    // the grass at her feet goes over her own pixels only, never over what she holds (sceneFeet): her pixels in the two
+    // rows at the ground, alone, then those an item in front of her has not gone over
+    const cw = dw + 2 * M, r = feet - 1 - (y - M), rows = main && r >= 1 && r < dh + 2 * M;
+    const twoRows = () => o.getImageData(0, r - 1, cw, 2).data;
+    let body = null, mid = null;
+    if (rows) { o.drawImage(img, 0, 0); body = twoRows(); o.save(); o.setTransform(1, 0, 0, 1, 0, 0); o.clearRect(0, 0, c.width, c.height); o.restore(); }
     if (items) drawItems(o, id, equip, "back", dy, pose, img);
     o.drawImage(img, 0, 0);
+    if (rows) mid = twoRows();
     if (items) drawItems(o, id, equip, "front", dy, pose, img);
+    if (rows) {
+      const end = twoRows(), m = new Uint8Array(cw * 2), T = g.getTransform();
+      for (let i = 0; i < cw * 2; i++) {
+        const j = i * 4; m[i] = body[j + 3] > 200 && end[j] === mid[j] && end[j + 1] === mid[j + 1] && end[j + 2] === mid[j + 2] && end[j + 3] === mid[j + 3] ? 1 : 0;
+      }
+      pet._feetMask = { x0: Math.round(x - M + T.e), gy: Math.round(feet - 1 + T.f), w: cw, m, wx: Math.round(T.e) };
+    }
     if (sun) {
       g.fillStyle = `rgba(${shadowRGB(worldHour()).join(",")},${(0.55 * sun.a).toFixed(3)})`;
       for (const [X, Y] of castPixels(o.getImageData(0, 0, dw + 2 * M, dh + 2 * M).data, dw + 2 * M, dh + 2 * M, x - M, y - M, feet - 1, sun)) g.fillRect(X, Y, 1, 1);

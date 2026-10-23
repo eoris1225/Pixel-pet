@@ -20,7 +20,7 @@ const WX_LOOK = {
   fog:    { cover: 0.45, rain: 0, snow: 0, fog: 0.85, storm: 0, wind: 0 },
 };
 const WX = { kind: "clear", force: null, real: null, realAt: 0, realErr: "", cover: 0.05, rain: 0, snow: 0, fog: 0, storm: 0, wind: 0,
-  wet: 0, depth: 0, bow: 0, bowT: 0, flash: 0, bolt: null, nextBolt: 0, said: "", sayAt: -1e9 };
+  wet: 0, depth: 0, bow: 0, bowT: 0, flash: 0, strike: null, far: null, nextBolt: 0, nextFar: 0, shake: 0, said: "", sayAt: -1e9 };
 { const q = new URLSearchParams(location.search).get("weather"); if (WX_KINDS.includes(q)) WX.force = q; }
 
 /* ---------- which weather ---------- */
@@ -102,18 +102,24 @@ function weatherUpdate(now, dt) {
   wxPrev = WX.rain;
   WX.bow = WX.bowT ? Math.max(0, Math.min(1, (now - WX.bowT) / 3000) * Math.min(1, (45000 - (now - WX.bowT)) / 8000)) : 0;
   if (WX.bowT && now - WX.bowT > 45000) WX.bowT = 0;
-  // lightning now and then in a storm: a bolt and a flash, sometimes a second flicker
-  WX.flash = Math.max(0, WX.flash - s * 4);
+  // lightning in a storm, told mostly by the sky: the whole sky blazes up and the clouds light from within, flickering
+  // two or three times as a real stroke does (now and then a bolt shows under a cloud), and a moment later the
+  // thunder rolls and the meadow shakes. Between strikes, far-off flickers glow low behind the hills
   if (WX.storm > 0.5 && now > WX.nextBolt) {
-    if (WX.nextBolt) {
-      const x = 20 + Math.random() * (W - 40), pts = [[x, 0]];
-      let px = x, py = 0; while (py < horizon - 10) { py += 6 + Math.random() * 10; px += (Math.random() - 0.5) * 14; pts.push([px, py]); }
-      WX.bolt = { pts, t: now }; WX.flash = 0.55;
-      if (Math.random() < 0.5) setTimeout(() => { WX.flash = Math.max(WX.flash, 0.35); }, 160);
-    }
-    WX.nextBolt = now + 5000 + Math.random() * 9000;
+    if (WX.nextBolt) startStrike(now);
+    WX.nextBolt = now + 3500 + Math.random() * 6500;
   }
-  if (WX.bolt && now - WX.bolt.t > 180) WX.bolt = null;
+  if (WX.storm > 0.3 && now > WX.nextFar) {
+    if (WX.nextFar) WX.far = { t: now, x: Math.random() * W, k: 0.5 + Math.random() * 0.5 };
+    WX.nextFar = now + 1500 + Math.random() * 3500;
+  }
+  const st = WX.strike;
+  WX.flash = st ? st.pulses.reduce((a, [dt, amp]) => now - st.t >= dt ? Math.max(a, amp * Math.exp(-(now - st.t - dt) / 90)) : a, 0) : 0;
+  if (st && now - st.t > 1200 && now > st.rumble + st.roll) WX.strike = null;
+  // the thunder: a rumble that shakes the meadow, strongest at first and dying away
+  const r = st ? (now - st.rumble) / st.roll : 1;
+  WX.shake = r >= 0 && r < 1 ? st.loud * (1 - r) * (1 - r) : 0;
+  shakeStage(now);
   // keep as many drops and flakes as the weather calls for
   const nd = Math.round(WX.rain * 150), nf = Math.round(WX.snow * 110);
   const fillD = nd - DROPS.length > 20, fillF = nf - FLAKES.length > 20;   // a lot at once (loading into rain): all over at once
@@ -136,6 +142,32 @@ function weatherUpdate(now, dt) {
   if (before !== WX.kind && now > 4000 && now - WX.sayAt > 20000) { WX.sayAt = now; WX.said = WX.kind; weatherSay(WX.kind); }
   if (WX.bowT && now - WX.bowT > 3500 && now - WX.bowT < 3600 && now - WX.sayAt > 5000) { WX.sayAt = now; weatherSay("rainbow"); }
 }
+function startStrike(now) {
+  const near = Math.random() < 0.6, main = near ? 1 : 0.6;   // a near strike blazes and cracks; a far one glows and grumbles
+  const pulses = [[0, main], [60 + Math.random() * 40, 0.25], [150 + Math.random() * 120, main * (0.7 + Math.random() * 0.3)]];
+  if (Math.random() < 0.6) pulses.push([380 + Math.random() * 200, main * 0.5]);
+  const x = 20 + Math.random() * (W - 40);
+  WX.strike = { t: now, x, pulses, bolt: near && Math.random() < 0.6 ? boltPath(x) : null,
+    rumble: now + (near ? 250 : 900) + Math.random() * 500, roll: near ? 1400 : 2200, loud: near ? 2 : 1 };
+}
+// a jagged bolt from under the cloud nearest above x down to the far hills, with a branch
+function boltPath(x) {
+  let top = 20;
+  if (typeof clouds !== "undefined") for (const c of clouds) if (c.kind !== "cirrus" && x > c.x && x < c.x + c.shape.w) top = Math.max(top, c.y + c.shape.h - 3);
+  const pts = [[x, top]]; let px = x, py = top;
+  while (py < horizon - 6) { py += 4 + Math.random() * 8; px += (Math.random() - 0.5) * 12; pts.push([px, Math.min(py, horizon - 6)]); }
+  const i = 1 + (Math.random() * (pts.length - 2) | 0), br = [pts[i]]; let bx = pts[i][0], by = pts[i][1];
+  for (let k = 0; k < 3; k++) { by += 4 + Math.random() * 6; bx += (Math.random() < 0.5 ? -1 : 1) * (3 + Math.random() * 5); br.push([bx, by]); }
+  return [pts, br];
+}
+// the stage shakes by whole pixels while the thunder rolls
+let shakeAt = 0, shakeOn = false;
+function shakeStage(now) {
+  const el = typeof document !== "undefined" && document.getElementById("stage"); if (!el) return;
+  if (WX.shake > 0.05) {
+    if (now - shakeAt > 50) { shakeAt = now; const a = Math.round(WX.shake * (Math.random() < 0.5 ? -1 : 1)), b = Math.random() < WX.shake * 0.3 ? 1 : 0; el.style.transform = `translate(${a}px,${b}px)`; shakeOn = true; }
+  } else if (shakeOn) { el.style.transform = ""; shakeOn = false; }
+}
 const WX_SAY = {
   clear: ["날이 개었다!", "해님 나왔다~", "하늘 맑다!"],
   cloudy: ["구름이 많아졌네", "하늘이 꾸물꾸물…"],
@@ -154,11 +186,37 @@ function weatherSay(kind) {
 /* ---------- drawing ---------- */
 // over the sky, behind its clouds (which scene.js greys and gathers as it clouds over): overcast greys and darkens it
 // (darker in a storm); a rainbow after rain
+// the grey of an overcast sky and how thick it lies (the clouds take it too, scene.js cloudPal)
+function weatherVeil(h) {
+  const c = mixc(mixc(hex("#a3aab8"), hex("#5c6479"), WX.storm * 0.8 + WX.rain * 0.3), hex("#2a3048"), darkAt(h));
+  return { c, a: WX.cover <= 0.08 ? 0 : WX.cover * (0.42 + WX.storm * 0.25) };
+}
+const FLASH = [232, 228, 255];   // lightning's light: white with a little violet
 function weatherSky(g, now, h) {
-  const d = darkAt(h);
-  if (WX.cover > 0.08) {
-    const c = mixc(mixc(hex("#9aa3b4"), hex("#5c6479"), WX.storm * 0.8 + WX.rain * 0.2), hex("#2a3048"), d);
-    g.fillStyle = css(c, WX.cover * (0.3 + WX.storm * 0.2)); g.fillRect(0, 0, W, horizon + 24);
+  const d = darkAt(h), v = weatherVeil(h);
+  if (v.a > 0) { g.fillStyle = css(v.c, v.a); g.fillRect(0, 0, W, horizon + 24); }
+  if (WX.far) {                                            // a far flicker: a glow low over the hills, there and gone
+    const t = now - WX.far.t, a = WX.far.k * (t < 70 ? 1 : t < 140 ? 0.3 : t < 220 ? 0.7 : Math.exp(-(t - 220) / 120)) * WX.storm;
+    if (t > 1200) WX.far = null;
+    else for (let y = horizon - 40; y < horizon + 2; y += 3) for (let x = Math.round(WX.far.x - 60); x < WX.far.x + 60; x += 3) {
+      const q = (1 - Math.abs(x - WX.far.x) / 60) * ((y - horizon + 40) / 42);
+      if (q > 0) { g.fillStyle = css(FLASH, a * q * 0.35); g.fillRect(x, y, 3, 3); }
+    }
+  }
+  const st = WX.strike, f = WX.flash;
+  if (st && f > 0.01) {                                    // the sky blazes up, brightest round the strike
+    g.fillStyle = css(FLASH, f * 0.5); g.fillRect(0, 0, W, horizon + 24);
+    for (let x = 0; x < W; x += 4) { const q = Math.exp(-(((x + 2 - st.x) / 55) ** 2)); if (q > 0.05) { g.fillStyle = css(FLASH, f * 0.4 * q); g.fillRect(x, 0, 4, horizon + 24); } }
+    if (st.bolt && now - st.t < 520 && f > 0.15) {        // the bolt, under the clouds (they are drawn over it)
+      for (const [line, wgt] of [[st.bolt[0], 1], [st.bolt[1], 0.6]]) for (let i = 1; i < line.length; i++) {
+        const [x0, y0] = line[i - 1], [x1, y1] = line[i], n = Math.max(1, Math.round(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0))));
+        for (let k = 0; k <= n; k++) {
+          const x = Math.round(x0 + (x1 - x0) * k / n), y = Math.round(y0 + (y1 - y0) * k / n);
+          g.fillStyle = css(FLASH, Math.min(1, f) * 0.45 * wgt); g.fillRect(x - 1, y, 3, 1);
+          g.fillStyle = css([255, 255, 245], Math.min(1, f * 1.4) * wgt); g.fillRect(x, y, 1, 1);
+        }
+      }
+    }
   }
   if (WX.bow > 0.01 && d < 0.6) {                          // seven thin bands, low over the far hills
     const cx = W * 0.62, cy = horizon + 30, cols = ["#ff8a8a", "#ffb36b", "#ffe27a", "#9fe08c", "#86c9f0", "#8f9cf0", "#c39cf0"];
@@ -198,7 +256,7 @@ function weatherCap(g, h) {
   const by = FEET - 4 - 27, d = darkAt(h);
   g.fillStyle = css(mixc(hex("#ffffff"), hex("#8d96c4"), d * 0.8)); g.fillRect(SIGN_X - 13, by - cap, 27, cap); g.fillRect(SIGN_X - 12, by - cap - 1, 25, 1);
 }
-// over everything (the pet too): rain, splashes, snow, lightning, a veil of fog
+// over everything (the pet too): rain, splashes, snow, the lightning's light, a veil of fog
 function weatherFront(g, now) {
   const d = darkAt(worldHour());
   if (WX.fog > 0.02) { g.fillStyle = css(mixc(hex("#e6ecf2"), hex("#4a5274"), d), WX.fog * 0.16); g.fillRect(0, 0, W, H); }
@@ -216,14 +274,7 @@ function weatherFront(g, now) {
       g.fillStyle = css(col, a); g.fillRect(Math.round(f.x), Math.round(f.y), f.s, f.s);
     }
   }
-  if (WX.bolt) {
-    g.fillStyle = "#fff7c8"; const p = WX.bolt.pts;
-    for (let i = 1; i < p.length; i++) {
-      const [x0, y0] = p[i - 1], [x1, y1] = p[i], n = Math.max(1, Math.round(Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0))));
-      for (let k = 0; k <= n; k++) g.fillRect(Math.round(x0 + (x1 - x0) * k / n), Math.round(y0 + (y1 - y0) * k / n), 1, 1);
-    }
-  }
-  if (WX.flash > 0.01) { g.fillStyle = `rgba(255,255,240,${(WX.flash * 0.6).toFixed(3)})`; g.fillRect(0, 0, W, H); }
+  if (WX.flash > 0.01) { g.fillStyle = css(FLASH, WX.flash * 0.22); g.fillRect(0, 0, W, H); }   // the meadow (and she) lit a moment
 }
 // the weather's wind on the grass and flowers (scene.js), and in the gusts that carry 욱's licence
 const weatherWind = () => 1 + WX.wind * 1.6;

@@ -30,21 +30,38 @@ const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a
 // and the trees ("self": the thing's own deepest tone; "ink": the trees in the ink of her outline, the clouds still in
 // their own, as ink on them is too heavy), and the colours softened
 // towards her warm paper ("soft": a little less saturated, a little creamier). Candidates to pick from: ?look=b
-const LOOKS = { a: { line: "", soft: 0 }, b: { line: "self", soft: 0 }, c: { line: "ink", soft: 0 }, d: { line: "", soft: 1 }, e: { line: "ink", soft: 1 } };
-let LOOK = LOOKS[QS.get("look")] || LOOKS.b; LOOK.key = LOOKS[QS.get("look")] ? QS.get("look") : "b";   // the user picked B
-function softc(c) {
+// The user picked B (lines in their own tone), then asked for the clouds without lines (as they were before), softer
+// lines on the trees and the warm pastel colours: F
+const LOOKS = { a: { line: "", soft: 0 }, b: { line: "self", soft: 0, clouds: 1 }, c: { line: "ink", soft: 0, clouds: 1 }, d: { line: "", soft: 1 },
+  e: { line: "ink", soft: 1, clouds: 1 }, f: { line: "self", soft: 1 } };
+let LOOK = LOOKS[QS.get("look")] || LOOKS.f; LOOK.key = LOOKS[QS.get("look")] ? QS.get("look") : "f";
+// (in the sky the most vivid colours, a sunset's gold on the clouds, are calmed the most: vivid; k: how much)
+function softc(c, k = 1, vivid = 0) {
   if (!LOOK.soft) return c;
-  const l = (c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11), k = LOOK.soft;
-  return mixc(mixc(c, [l, l, l], 0.06 * k), [255, 240, 214], 0.13 * k);
+  k *= LOOK.soft;
+  const l = (c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11), sat = Math.max(...c) - Math.min(...c);
+  const calm = 0.06 * k + clampv((sat - 70) / 120, 0, 1) * vivid;
+  return mixc(mixc(c, [l, l, l], Math.min(0.6, calm)), [255, 240, 214], 0.13 * k);
 }
-// a 1px line round what is drawn in an image (onto its clear pixels next to it), in col; not below its last row
-function outlineData(d, w, h, col, minA = 128) {
-  const on = (x, y) => x >= 0 && y >= 0 && x < w && y < h && d[(y * w + x) * 4 + 3] >= minA, add = [];
+// a 1px line round what is drawn in an image (onto its clear pixels next to it): each line pixel is the colour of
+// the thing beside it taken a step towards its own deepest tone D, so the line follows it (light beside its lit edge,
+// deeper beside its shade) and is never black; where its edge is dark already, it needs no line. own(i): whether the
+// pixel i may be lined (not a tree's trunk). Not below its last row
+const lum = c => c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11;
+function outlineData(d, w, h, D, minA = 128, own = null) {
+  const on = (x, y) => x >= 0 && y >= 0 && x < w && y < h && d[(y * w + x) * 4 + 3] >= minA && (!own || own(y * w + x)), add = [], lD = lum(D);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    if (on(x, y)) continue;
-    if (on(x - 1, y) || on(x + 1, y) || on(x, y - 1) || (y < h - 1 && on(x, y + 1))) add.push((y * w + x) * 4);
+    if (d[(y * w + x) * 4 + 3] >= minA) continue;
+    let best = -1, bl = -1;                                 // the lightest thing beside it
+    for (const [X, Y] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]) {
+      if (Y === h || !on(X, Y)) continue;
+      const j = (Y * w + X) * 4, l = lum([d[j], d[j + 1], d[j + 2]]); if (l > bl) { bl = l; best = j; }
+    }
+    if (best < 0 || bl < lD * 1.35 + 10) continue;
+    const c = mixc([d[best], d[best + 1], d[best + 2]], D, 0.5);
+    add.push([(y * w + x) * 4, c, d[best + 3]]);
   }
-  for (const i of add) { d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255; }
+  for (const [i, c, a] of add) { d[i] = Math.round(c[0]); d[i + 1] = Math.round(c[1]); d[i + 2] = Math.round(c[2]); d[i + 3] = a; }
 }
 const INK = [58, 42, 26];
 
@@ -156,7 +173,7 @@ function skyRow(h) {
     const a = T[i], b = T[i + 1], t = smooth(0, 1, (h - a[0]) / (b[0] - a[0]));
     for (let j = 0; j < 2; j++) for (let k = 0; k < 5; k++) { const c = mixc(a[j + 1][k], b[j + 1][k], t); for (let q = 0; q < 3; q++) out[j][k][q] += c[q] * wgt; }
   }
-  if (LOOK.soft) for (const row of out) for (let k = 0; k < 5; k++) row[k] = softc(row[k]);
+  if (LOOK.soft) out.forEach((row, j) => { for (let k = 0; k < 5; k++) row[k] = softc(row[k], j ? 1.3 : 1, j ? 0.45 : 0.2); });   // (the clouds' tones softer still)
   return out;
 }
 const sky5 = h => skyRow(h)[0];
@@ -361,7 +378,10 @@ function cloudPal(h) {
   const wx = typeof WX !== "undefined" ? WX : null, d = darkAt(h);
   if (wx && wx.cover > 0.05) {                                    // overcast: greyer, and darker under storm clouds
     const g = Math.min(1, wx.cover * 0.9), lit = mixc(hex("#e2e5ea"), hex("#5a6078"), d), sh = mixc(hex(wx.storm > 0.5 ? "#5d6476" : "#8a92a4"), hex("#262a44"), d);
-    pal = pal.map((c, k) => mixc(c, mixc(lit, sh, k / 4), g * (0.55 + k * 0.03 + wx.storm * 0.3)));
+    pal = pal.map((c, k) => mixc(c, mixc(lit, sh, k / 4), g * (0.8 + k * 0.03 + wx.storm * 0.2)));
+  }
+  if (typeof weatherVeil === "function") {                        // and dimmed into the grey of the sky, softer, less contrast
+    const v = weatherVeil(h); if (v.a > 0) pal = pal.map(c => mixc(c, v.c, v.a * 0.7));
   }
   return pal;
 }
@@ -373,7 +393,7 @@ function cloudPal(h) {
 const CLOUD_Q = [0.3, 0.52, 0.71, 0.87], PUFF_Q = [0.42, 0.75, 0.94, 1];
 function paintCloud(c, pal, L) {
   const { w, h, area } = c.shape, tn = blobTones(c.shape, L, area < 90 ? PUFF_Q : CLOUD_Q);
-  const line = LOOK.line && (c.kind === "cu" || c.kind === "puff") ? 1 : 0, W2 = w + 2 * line, H2 = h + 2 * line;   // (room for an outline)
+  const line = LOOK.line && LOOK.clouds && (c.kind === "cu" || c.kind === "puff") ? 1 : 0, W2 = w + 2 * line, H2 = h + 2 * line;   // (room for an outline)
   if (!c.cv) { c.cv = document.createElement("canvas"); c.cv.width = W2; c.cv.height = H2; c.pad = line; }
   const g = c.cv.getContext("2d"), img = g.createImageData(W2, H2);
   for (let i = 0; i < w * h; i++) {
@@ -381,7 +401,7 @@ function paintCloud(c, pal, L) {
     const col = pal[k], j = ((Math.floor(i / w) + line) * W2 + i % w + line) * 4;
     img.data[j] = col[0]; img.data[j + 1] = col[1]; img.data[j + 2] = col[2]; img.data[j + 3] = Math.round(255 * c.shape.alpha[i]);
   }
-  if (line) outlineData(img.data, W2, H2, mixc(pal[4], pal[3], -0.25).map(v => Math.round(clampv(v, 0, 255))), 200);
+  if (line) outlineData(img.data, W2, H2, pal[4].map(v => v * 0.85), 200);
   g.putImageData(img, 0, 0);
 }
 // how big each kind comes, where it floats (its base, in the sky above the horizon) and how it drifts: the higher
@@ -422,8 +442,8 @@ function seedClouds() {
 let faceSeed = 5;
 const FACE_BLOB = cloudShape("tree", 50, 26, () => (faceSeed = (faceSeed * 16807) % 2147483647) / 2147483647);
 // painted like every other cloud, with sleepy happy eyes, a little smile and pink cheeks, like the clouds in the sketch
-function renderFaceCloud(h) {
-  const c = { shape: FACE_BLOB }; paintCloud(c, cloudPal(h).map(x => x.map(Math.round)), cloudLight(h));
+function renderFaceCloud(h, pal) {
+  const c = { shape: FACE_BLOB }; paintCloud(c, pal, cloudLight(h));
   const g = c.cv.getContext("2d"), cx = c.cv.width / 2 | 0, cy = Math.round(FACE_BLOB.base * 0.62);
   g.fillStyle = "#6a6f8e";
   g.fillRect(cx - 7, cy, 3, 1); g.fillRect(cx - 8, cy - 1, 1, 1); g.fillRect(cx - 4, cy - 1, 1, 1);
@@ -432,8 +452,41 @@ function renderFaceCloud(h) {
   g.fillStyle = "#ffb3c7"; g.fillRect(cx - 11, cy + 2, 3, 1); g.fillRect(cx + 9, cy + 2, 3, 1);
   return c.cv;
 }
-let faceImg = null, cloudKey = "";
-let faceCloud = null, nextFace = performance.now() + 25000;
+// and now and then, instead, a cloud that only looks a bit like something (not drawn as it: "oh, isn't that a
+// rabbit?"): a few round masses laid out roughly as the thing is, every one a little off, with stray puffs on it,
+// painted as every other cloud. [name, lobes (x, y up from the base, r, x-stretch, a big dome?)]
+const VISITOR_SHAPES = {
+  rabbit: ["토끼", j => [[0, 8, j(10), 1.3, true], [15, 15, j(7), 1, true], [-13, 9, j(3.5)],
+    ...[0, 1, 2, 3, 4].map(i => [13 - i * 0.6, 21 + i * 3, j(2.6) - i * 0.15]), ...[0, 1, 2, 3].map(i => [18 + i * 1.3, 21 + i * 2.6, j(2.4) - i * 0.15])]],
+  bear: ["곰돌이", j => [[0, 10, j(11), 1.15, true], [-10, 20, j(4.5)], [10, 20, j(4.5)], [0, 5, j(4.5), 1.2]]],
+  whale: ["고래", j => [[0, 8, j(9), 2.1, true], [-21, 11, j(3)], [-25, 15, j(3.4)], [-21, 16, j(2.6)], [14, 21, j(2)], [11, 24, j(2.4)], [17, 24, j(2.4)]]],
+  heart: ["하트", j => [[-6, 16, j(7), 1, true], [6, 16, j(7), 1, true], [0, 10, j(7)], [0, 5, j(4.5)], [0, 1.5, j(2.5)]]],
+  sheep: ["양", j => [[0, 10, j(8), 1.6, true], [-8, 15, j(4.5)], [0, 17, j(5)], [8, 15, j(4.5)], [-13, 10, j(4)], [13, 9, j(4)], [18, 9, j(4)],
+    [-7, 2.6, 2.3], [-2, 2.6, 2.3], [4, 2.6, 2.3], [9, 2.6, 2.3]]],
+  fish: ["물고기", j => [[0, 8, j(7), 1.8, true], [-15, 8, j(3)], [-19, 11.5, j(3.2)], [-19, 4.5, j(3.2)], [2, 15, j(2.6)]]],
+  cat: ["고양이", j => [[0, 10, j(10), 1.25, true], [-8, 19, j(3.4)], [-9.5, 22.5, j(2)], [8, 19, j(3.4)], [9.5, 22.5, j(2)]]],
+  pudding: ["푸딩", j => [[0, 7, j(9), 1.5, true], [0, 13, j(7.5), 1.35], [0, 17, j(6), 1.2], [0, 22, j(2.3)]]],
+  bird: ["새", j => [[0, 8, j(6), 1.6, true], [11, 12, j(4)], [-2, 15, j(5), 1.6], [-12, 10, j(2.6)], [15, 12, j(1.6)]]],
+};
+function visitorShape(kind) {
+  const R = Math.random, j = r => r * (0.85 + R() * 0.3), lobes = VISITOR_SHAPES[kind][1](j).map(([x, y, r, sx = 1, big = false]) => [x + (R() - 0.5) * 1.6, y + (R() - 0.5) * 1.6, r, sx, big]);
+  for (let i = 0, n = 2 + (R() * 3 | 0); i < n; i++) {           // a few stray puffs on its edge
+    const [x, y, r] = lobes[R() * lobes.length | 0], a = R() * Math.PI;
+    lobes.push([x + Math.cos(a) * r * 0.8, y + Math.sin(a) * r * 0.8, r * (0.3 + R() * 0.25)]);
+  }
+  return blobLayout(lobes, [], R);
+}
+let faceCloud = null, nextFace = performance.now() + 25000, lastVisitor = "";
+// the next visitor: the face cloud now and then, more often a shape (never the same twice running)
+function sendVisitor(kind) {
+  if (!kind) {
+    const ks = Object.keys(VISITOR_SHAPES).filter(k => k !== lastVisitor);
+    kind = Math.random() < 0.3 && lastVisitor !== "face" ? "face" : ks[Math.random() * ks.length | 0];
+  }
+  lastVisitor = kind;
+  const shape = kind === "face" ? FACE_BLOB : visitorShape(kind);
+  faceCloud = { kind, shape, x: -shape.w - 4, y: 30 + Math.random() * 30, v: kind === "face" ? 5.5 : 4 + Math.random() * 2, t0: performance.now(), key: "", img: null, said: false };
+}
 
 /* ---------- critters ---------- */
 let flock = null, nextFlock = performance.now() + 6000;
@@ -469,7 +522,7 @@ function sceneResize() {
 function setWorldHour(h) { T_FIX = h; T_FIX_AT = Date.now(); cacheKey = ""; }
 function setSkySeason(name) { skySeason = SKY_TABLE[name] ? name : null; cacheKey = ""; }
 function newSky() { clouds.length = 0; seedClouds(); }
-function setLook(k) { LOOK = LOOKS[k] || LOOKS.b; LOOK.key = k; cacheKey = ""; for (const c of clouds) { c.cv = null; c.key = ""; } }
+function setLook(k) { LOOK = LOOKS[k] || LOOKS.f; LOOK.key = k; cacheKey = ""; for (const c of clouds) { c.cv = null; c.key = ""; } }
 
 function lit(c, h, haze = 0, skyH = null) {
   let x = hex(c);
@@ -523,7 +576,7 @@ function landPal() {
     out[f] = out[f] || LAND_TABLE[name][f].map(() => [0, 0, 0]);
     LAND_TABLE[name][f].forEach((c, i) => { for (let q = 0; q < 3; q++) out[f][i][q] += c[q] * wgt; });
   }
-  if (LOOK.soft) for (const f in out) out[f] = out[f].map(softc);
+  if (LOOK.soft) for (const f in out) out[f] = out[f].map(c => softc(c));
   return out;
 }
 const mainSeason = () => seasonMix().reduce((a, b) => (b[1] > a[1] ? b : a))[0];
@@ -884,7 +937,10 @@ function paintTrees(h, P, skyLow) {
       const c = pal[v], j = ((Math.floor(i / m.w) + line) * w2 + i % m.w + line) * 4;
       ti.data[j] = c[0]; ti.data[j + 1] = c[1]; ti.data[j + 2] = c[2]; ti.data[j + 3] = 255;
     }
-    if (line) outlineData(ti.data, w2, h2, (LOOK.line === "ink" ? mixc(litc(INK, h), pal[n - 1], 0.35) : mixc(pal[n - 1], litc([20, 26, 40], h), 0.12)).map(Math.round));
+    if (line) {                                                       // round its leaves (or snow), not its trunk
+      const tone = i => { const X = i % w2 - line, Y = Math.floor(i / w2) - line; return X >= 0 && Y >= 0 && X < m.w ? m.t[Y * m.w + X] : -1; };
+      outlineData(ti.data, w2, h2, LOOK.line === "ink" ? mixc(litc(INK, h), pal[n - 1], 0.35) : pal[n - 1].map(v => v * 0.85), 128, i => tone(i) < n);
+    }
     cv.getContext("2d").putImageData(ti, 0, 0);
     TREE_CVS.push({ cv, x: x - ox - line, y: base - (m.h - 1) - line, stem: kind === "broad" ? 22 : 3, amp: kind === "broad" ? 2.2 : at === "hill" ? 0.8 : 1.3, ph: x * 0.37 });
   }
@@ -959,26 +1015,45 @@ function drawPrints(g, h) {
 // lowest row with a ragged top, here and there a blade tip a row higher bending with the wind; as she bobs or hops
 // her feet come out of it on their own. In snow she sinks a row. Not while she is held up. Painted after her light
 // (sceneTint) so the ground on her feet stays the ground's colour
-let feetMarks = null;
+let feetMarks = null, groundThings = [];
+// a thing lying on the grass between x0 and x1 with its lowest pixels about row gy (pet.js onGrass)
+function noteGround(g, x0, x1, gy) { const T = g.getTransform(); groundThings.push([Math.round(x0 + T.e), Math.round(x1 + T.e), Math.round(gy + T.f), Math.round(T.e)]); }
+const grassK = wx => ((wx * 2654435761) >>> 0) % 7;
 function sceneFeet(g, now, box) {
   feetMarks = null;
-  if (!landP || box.w <= 0 || typeof pet === "undefined" || pet.act === "held") return;
-  const T = g.getTransform(), snow = snowyGround(), x0 = Math.round(box.x + T.e), gy = Math.round(FEET - 1 + T.f);   // the ground's top row
-  if (box.y + box.h < FEET - 2 || gy < 2) return;
-  const d = g.getImageData(x0, gy - 1, box.w, 2).data, mine = (i, r) => d[((1 - r) * box.w + i) * 4 + 3] > 200;   // (her, not her shadow)
-  const out = [];
-  for (let i = 0; i < box.w; i++) {
-    const X = x0 + i, wx = Math.round(X - T.e), k = ((wx * 2654435761) >>> 0) % 7;
-    if (mine(i, 0) && (snow || k < 5)) out.push([X, gy, 0]);                          // the ground row, ragged in the grass
+  const fm = typeof pet !== "undefined" ? pet._feetMask : null;
+  if (!landP || !fm || pet.act === "held") return;
+  const snow = snowyGround(), out = [], mine = (i, r) => fm.m[(1 - r) * fm.w + i] === 1;   // (her, not her shadow or what she holds)
+  for (let i = 0; i < fm.w; i++) {
+    const X = fm.x0 + i, wx = X - fm.wx, k = grassK(wx);
+    if (mine(i, 0) && (snow || k < 5)) out.push([X, fm.gy, 0]);                       // the ground row, ragged in the grass
     if (!snow && k === 0) {                                                           // a blade tip, swaying, over her
       const sw = Math.round(Math.sin(now / 900 + wx * 0.15) * wind * 0.9);
-      if (i + sw >= 0 && i + sw < box.w && mine(i + sw, 1)) out.push([X + sw, gy - 1, 1]);
+      if (i + sw >= 0 && i + sw < fm.w && mine(i + sw, 1)) out.push([X + sw, fm.gy - 1, 1]);
     }
   }
   feetMarks = out;
 }
+// the grass over the lowest pixels of the things lying on it: in each column the lowest pixel near the ground
+function groundMarks(g) {
+  const out = [], snow = snowyGround(), b = typeof pet !== "undefined" && pet._box, now = performance.now();
+  for (const [x0, x1, gy, ox] of groundThings) {
+    const w = x1 - x0 + 1; if (w <= 0) continue;
+    const d = g.getImageData(x0, gy - 3, w, 5).data, at = (i, r) => d[(r * w + i) * 4 + 3] > 200;
+    for (let i = 0; i < w; i++) {
+      const X = x0 + i, k = grassK(X - ox);
+      if (b && X >= b.x && X < b.x + b.w && gy >= b.y && gy <= b.y + b.h + 2) continue;   // (not where she is)
+      let r = 4; while (r >= 0 && !at(i, r)) r--; if (r < 1) continue;
+      if (snow || k < 5) out.push([X, gy - 3 + r, 0]);
+      if (!snow && k === 0 && at(i, r - 1)) out.push([X + Math.round(Math.sin(now / 900 + X * 0.15) * wind * 0.6), gy - 4 + r, 1]);
+    }
+  }
+  groundThings = [];
+  return out;
+}
 function paintFeet(g) {
-  if (!feetMarks || !feetMarks.length) return;
+  feetMarks = (feetMarks || []).concat(groundMarks(g));
+  if (!feetMarks.length) return;
   let ax = 1e9, bx = -1e9, ay = 1e9, by = -1e9;
   for (const [x, y] of feetMarks) { ax = Math.min(ax, x); bx = Math.max(bx, x); ay = Math.min(ay, y); by = Math.max(by, y); }
   const w = bx - ax + 1, d = sctx.getImageData(ax, ay, w, by - ay + 1).data, h = worldHour();
@@ -1021,8 +1096,18 @@ function sceneUpdate(now, dt) {
     have[c.kind] = (have[c.kind] || 0) + 1;
   }
   for (const k in want) for (let n = have[k] || 0; n < want[k]; n++) clouds.push(newCloud(k));   // more drifting in
-  if (!faceCloud && now > nextFace) { faceCloud = { x: -60, y: 34 + rnd() * 26, v: 5.5, t0: now }; }
-  if (faceCloud) { faceCloud.x += faceCloud.v * s; if (faceCloud.x > W + 8) { faceCloud = null; nextFace = now + 90000 + rnd() * 120000; } }
+  if (!faceCloud && now > nextFace) sendVisitor();
+  if (faceCloud) {
+    faceCloud.x += faceCloud.v * s;
+    if (faceCloud.x > W + 8) { faceCloud = null; nextFace = now + 70000 + rnd() * 100000; }
+    else if (faceCloud.kind !== "face" && !faceCloud.said && faceCloud.x + faceCloud.shape.w / 2 > W * 0.4) {   // she notices it, now and then
+      faceCloud.said = true;
+      if (Math.random() < 0.6 && typeof say === "function" && typeof S !== "undefined" && S.pet && !(typeof G !== "undefined" && G.sleeping) && !(typeof bubbleUntil !== "undefined" && now < bubbleUntil)) {
+        const n = VISITOR_SHAPES[faceCloud.kind][0], l = [`어? 저 구름 ${n} 닮았다!`, `저 구름… ${n} 같지 않아?`, `${n} 구름이다~`];
+        say(l[Math.random() * l.length | 0], 3000);
+      }
+    }
+  }
 
   if (!flock && now > nextFlock && dark < 0.45 && !foul) {
     const dir = rnd() < 0.5 ? 1 : -1, n = 2 + (rnd() * 4 | 0);
@@ -1166,13 +1251,29 @@ function drawSignOver(g, now) {
   drawSparrow(g, now);
 }
 
+// lightning lights the clouds from within: each cloud's shape in the flash's light over it, the ones near the strike
+// brightest, their thin edges glowing most (the glow shape is kept until the cloud is repainted)
+function cloudFlash(g, cv, x, y) {
+  const st = typeof WX !== "undefined" && WX.strike, f = st ? WX.flash : 0; if (f < 0.02) return;
+  if (!cv._glow) {
+    const gc = document.createElement("canvas"); gc.width = cv.width; gc.height = cv.height;
+    const o = gc.getContext("2d"); o.drawImage(cv, 0, 0); o.globalCompositeOperation = "source-in"; o.fillStyle = "rgb(240,236,255)"; o.fillRect(0, 0, gc.width, gc.height);
+    cv._glow = gc;
+  }
+  const near = Math.exp(-(((x + cv.width / 2 - st.x) / 70) ** 2));
+  g.globalAlpha = Math.min(1, f * (0.35 + 0.55 * near)); g.drawImage(cv._glow, x, y); g.globalAlpha = 1;
+}
 function sceneRender(now, signInfo) {
   const h = worldHour(), dark = darkAt(h);
   const key = (Math.round(h * 60)) + ":" + H;          // the sky and land are repainted once a game-minute
   if (key !== cacheKey) { cacheKey = key; paintSky(h); paintLand(h); }
-  const ck = Math.round(h * 12) + "";
-  if (ck !== cloudKey) { cloudKey = ck; faceImg = renderFaceCloud(h); }
   const pal = cloudPal(Math.round(h * 60) / 60).map(c => c.map(v => Math.round(v))), pk = pal.map(c => c.join(",")).join("|");
+  const ck = pk + "|" + cloudLight(h).join(",");                 // (the visiting cloud greys with the weather as the others do)
+  if (faceCloud && faceCloud.key !== ck) {
+    faceCloud.key = ck;
+    if (faceCloud.kind === "face") faceCloud.img = renderFaceCloud(h, pal);
+    else { const c = { shape: faceCloud.shape, kind: "cu" }; paintCloud(c, pal, cloudLight(h)); faceCloud.img = c.cv; }
+  }
   const g = sctx;
   g.imageSmoothingEnabled = false;
   g.drawImage(skyCv, 0, 0);
@@ -1196,7 +1297,11 @@ function sceneRender(now, signInfo) {
   if (typeof weatherSky === "function") weatherSky(g, now, h);   // an overcast sky, a rainbow (behind the clouds, which grey themselves)
   const L = cloudLight(h), lk = pk + "|" + L.join(",");
   clouds.sort((a, b) => b.base - a.base);
-  for (const c of clouds) { if (c.key !== lk) { c.key = lk; paintCloud(c, pal, L); } g.drawImage(c.cv, Math.round(c.x) - (c.pad || 0), Math.round(c.y) - (c.pad || 0)); }
+  for (const c of clouds) {
+    if (c.key !== lk) { c.key = lk; paintCloud(c, pal, L); c.cv._glow = null; }
+    const x = Math.round(c.x) - (c.pad || 0), y = Math.round(c.y) - (c.pad || 0);
+    g.drawImage(c.cv, x, y); cloudFlash(g, c.cv, x, y);
+  }
   if (flock) {
     const col = css(mixc(hex("#5b6280"), hex("#3a2a40"), warmAt(h)));
     flock.birds.forEach(b => {
@@ -1204,7 +1309,7 @@ function sceneRender(now, signInfo) {
       drawGlyph(g, BIRD[fl], bx, by, col);
     });
   }
-  if (faceCloud && faceImg) g.drawImage(faceImg, Math.round(faceCloud.x), Math.round(faceCloud.y + Math.sin(now / 900) * 1.5));
+  if (faceCloud && faceCloud.img) { const im = faceCloud.img, x = Math.round(faceCloud.x), y = Math.round(faceCloud.y + Math.sin(now / 900) * 1.5); g.drawImage(im, x, y); cloudFlash(g, im, x, y); }
   g.drawImage(landCv, 0, 0);
   if (typeof weatherLand === "function") weatherLand(g, now, h);   // wet grass, snow
   g.drawImage(treeCv, 0, 0);                           // their shadows and the leaves fallen round them
@@ -1249,8 +1354,8 @@ function sceneRender(now, signInfo) {
 
 // speech from the world (the passing cloud) in game pixels, for the HTML layer
 function sceneSpeech(now) {
-  if (!faceCloud || !faceImg) return null;
-  const x = faceCloud.x + faceImg.width / 2;
+  if (!faceCloud || !faceCloud.img || faceCloud.kind !== "face") return null;
+  const x = faceCloud.x + faceCloud.img.width / 2;
   if (x < 20 || x > W - 10) return null;
   return { x, y: faceCloud.y - 2, text: "지나가유~" };
 }
