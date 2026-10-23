@@ -1109,27 +1109,55 @@ function paintLand(h) {
   }
   paintTrees(h, P, skyLow);
 }
-// a rocky knoll on the near hill with a cave in it (something lives in there: at night, now and then, its eyes shine)
+// a cave in the near hill: the hill swells up a little there (in its own colours), and at the swell's foot opens a low
+// dark mouth framed by a few stones of the hill, with bushes of the wood either side (something lives in there: at
+// night, now and then, its eyes shine)
 const CAVE = { x: 31, y: 0 };
 function paintCave(g, col, hy) {
-  const se = mainSeason(), R = { spring: "a9a8a2 8f8c86 6f6b68", summer: "a3a49a 878880 696a64", autumn: "a69c8c 8a8073 6b6358", winter: "aab2bf 8d96a6 6c7586" }[se].split(" ").map(c => hex("#" + c));
-  const top = dx => Math.round(8.5 * Math.sqrt(Math.max(0, 1 - (dx / 10) ** 2)) + (dx === -4 || dx === 3 ? 1 : 0));
+  const P = landP, se = mainSeason(), rock = mixc(P.hill[1], P.wood[2], 0.45), rockHi = mixc(P.hill[0], P.hill[1], 0.5);
+  // the swell: the hill's top colour, its far side in the hill's shade
   for (let dx = -10; dx <= 10; dx++) {
-    const t = top(dx), x = CAVE.x + dx;
-    for (let y = hy - t; y <= hy + 2; y++) {
-      const u = y - (hy - t), k = dx < -3 && u < 3 ? 0 : dx > 4 || u > t - 1 ? 2 : 1;   // lit up on its left, shaded on its right and foot
-      g.fillStyle = col(R[k], 0.3); g.fillRect(x, y, 1, 1);
-    }
-    if (dx > -8 && dx < 6 && (dx * 5 + 7) % 4 === 0) { g.fillStyle = col(R[2], 0.3); g.fillRect(x, hy - t + 3 + (dx & 1), 1, 1); }   // cracks
-    if (se === "winter") { g.fillStyle = col(hex("#ffffff"), 0.2); g.fillRect(x, hy - t, 1, dx > -7 && dx < 6 ? 2 : 1); }      // snow on top
+    const t = Math.round(5.5 * Math.cos(dx / 10 * Math.PI / 2) ** 1.4), x = CAVE.x + dx;
+    if (t <= 0) continue;
+    g.fillStyle = col(dx > 3 ? P.hill[1] : P.hill[0], 0.3); g.fillRect(x, hy - t, 1, t + 1);
   }
-  // its mouth: a low dark arch, darkest inside
-  const deep = col(mixc(R[2], hex("#1a1626"), 0.75)), deeper = col(mixc(R[2], hex("#0e0c18"), 0.9));
-  for (let dx = -4; dx <= 4; dx++) {
-    const ad = Math.abs(dx), y0 = hy - 5 + (ad === 4 ? 2 : ad === 3 ? 1 : 0);
-    g.fillStyle = ad < 3 ? deeper : deep; g.fillRect(CAVE.x + dx, y0, 1, hy + 2 - y0);
+  // its mouth: an arch, darkest inside, a lip of stone over it and a stone or two at its feet
+  const deep = col(mixc(P.wood[2], hex("#151320"), 0.55), 0.3), deeper = col(mixc(P.wood[2], hex("#0c0a14"), 0.75), 0.25);
+  const top = dx => hy - 4 + (Math.abs(dx) === 3 ? 2 : Math.abs(dx) === 2 ? 1 : 0);
+  for (let dx = -3; dx <= 3; dx++) { g.fillStyle = Math.abs(dx) < 2 ? deeper : deep; g.fillRect(CAVE.x + dx, top(dx), 1, hy + 3 - top(dx)); }
+  g.fillStyle = col(rock, 0.3);
+  for (let dx = -3; dx <= 3; dx++) g.fillRect(CAVE.x + dx, top(dx) - 1, 1, 1);
+  g.fillRect(CAVE.x - 4, hy - 1, 1, 3); g.fillRect(CAVE.x + 4, hy, 1, 3);
+  g.fillStyle = col(rockHi, 0.3); g.fillRect(CAVE.x - 2, top(-2) - 1, 2, 1); g.fillRect(CAVE.x - 5, hy + 1, 2, 1); g.fillRect(CAVE.x + 5, hy + 2, 1, 1);
+  // bushes of the wood either side
+  for (const [bx, r] of [[-8, 2.6], [-6, 1.6], [8, 2.2]]) {
+    const cx = CAVE.x + bx, cy = hy - 1;
+    g.fillStyle = col(P.wood[2], 0.25); disc(g, cx, cy, Math.round(r));
+    g.fillStyle = col(P.wood[1], 0.25); disc(g, cx - 0.6, cy - 0.6, Math.max(1, Math.round(r) - 1));
+    g.fillStyle = col(P.wood[0], 0.25); g.fillRect(Math.round(cx - r * 0.6), Math.round(cy - r * 0.7), Math.max(1, Math.round(r * 0.8)), 1);
   }
-  CAVE.y = hy - 2;
+  if (se === "winter") { g.fillStyle = col(hex("#ffffff"), 0.2); for (let dx = -7; dx <= 7; dx++) { const t = Math.round(5.5 * Math.cos(dx / 10 * Math.PI / 2) ** 1.4); if (Math.abs(dx) > 3) g.fillRect(CAVE.x + dx, hy - t, 1, 1); } g.fillRect(CAVE.x - 3, top(-3) - 2, 7, 1); }
+  CAVE.y = hy;
+}
+// the stump under the big tree (pet.js STUMP: 하와 sits on it to play), in the tree's own bark and a pale cut top with
+// rings, lined like the trees (a step deeper than its bark, never ink), lit with the land; snow on its top in winter
+const STUMP_MAP = ["....KKKKKKK....", "..KKtttttttKK..", ".KttrrrrrrrttK.", "KttrttrrrttrttK", "KbttrrrrrrrttbK", "KbbbtttttttbbbK",
+  "KbBbbbbbbbbbBbK", "KbBbbbBbbbbbBbK", "KbbbbbBbbbBbbbK", "KKbbbbbbbbbbbKK"];
+function drawStump(g, h) {
+  if (typeof STUMP === "undefined" || !landP) return;
+  const se = mainSeason(), bark = mainSeason() === "autumn" ? LAND_TABLE.summer.bark.map(c => softc(c)) : landP.bark;   // (autumn's bark is near black)
+  const wood = mixc(bark[0], hex("#e9cf9f"), 0.62), ring = mixc(bark[0], hex("#c99b6a"), 0.55);
+  const P = { K: litc(mixc(bark[2], bark[1], 0.3), h), t: litc(wood, h), r: litc(ring, h), b: litc(mixc(bark[0], hex("#8a6a4c"), 0.35), h), B: litc(bark[1], h) };
+  const gy = FEET - Math.round(STUMP.z), x0 = STUMP.x - 7, y0 = gy - STUMP_MAP.length;
+  groundShadow(g, STUMP.x, gy, 15, 0.7);
+  STUMP_MAP.forEach((row, j) => [...row].forEach((ch, i) => { if (P[ch]) { g.fillStyle = css(P[ch]); g.fillRect(x0 + i, y0 + j, 1, 1); } }));
+  const sitting = typeof pet !== "undefined" && pet.act === "strum" && Math.abs(pet.x - STUMP.x) < 2;
+  if (!sitting && (se === "winter" || typeof WX !== "undefined" && WX.depth > 0.2)) {
+    g.fillStyle = css(litc(hex("#f4f7fc"), h)); g.fillRect(x0 + 4, y0, 7, 1); g.fillRect(x0 + 2, y0 + 1, 11, 1); g.fillRect(x0 + 2, y0 + 2, 11, se === "winter" || WX.depth > 0.5 ? 2 : 1);
+  } else if (se === "spring" || se === "summer") {                 // a little sprout off its side
+    g.fillStyle = css(litc(landP.grass[2], h)); g.fillRect(x0 + 13, y0 + 6, 1, 2); g.fillRect(x0 + 14, y0 + 5, 2, 1);
+    g.fillStyle = css(litc(landP.grass[0], h)); g.fillRect(x0 + 12, y0 + 5, 1, 1);
+  }
 }
 // at night, deep in the night mostly, a pair of eyes opens in the dark of the cave now and then: they glow, blink,
 // look this way and that, and close again (sometimes two of them)
@@ -1791,6 +1819,7 @@ function sceneRender(now, signInfo) {
   if (typeof weatherLand === "function") weatherLand(g, now, h);   // wet grass, snow
   g.drawImage(treeCv, 0, 0);                           // their shadows and the leaves fallen round them
   drawTrees(g, now);
+  drawStump(g, h);
   drawLeaves(g, h);
   drawPrints(g, h);
   // grass tufts and flowers sway in the wind

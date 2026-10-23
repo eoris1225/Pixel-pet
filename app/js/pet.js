@@ -163,29 +163,12 @@ const strumFrame = t => { let i = 0; while (i < STRUM_SEQ.length - 1 && STRUM_AT
 // she gets her guitar round with a boing: a squash, then she pops up already playing, bouncing a little; the same
 // back again at the end
 const STRUM_IN = 280, STRUM_ALL = STRUM_IN + STRUM_LEN + STRUM_IN;
-// the tree stump on the meadow, where 하와 sits to play (her strum frames were drawn sitting): she walks over, hops up
-// onto it with the boing, plays, and hops down. K ink, t its cut top, r the rings, b bark, B the bark's furrows
-const STUMP = { x: 150, z: 7 }, STUMP_SEAT = 6;
-const STUMP_MAP = ["....KKKKKKK....", "..KKtttttttKK..", ".KttrrrrrrrttK.", "KttrttrrrttrttK", "KbttrrrrrrrttbK", "KbbbtttttttbbbK",
-  "KbBbbbbbbbbbBbK", "KbBbbbBbbbbbBbK", "KbbbbbBbbbBbbbK", "KKKKKKKKKKKKKKK"];
-const STUMP_PAL = { K: OUT, t: "#efd3a2", r: "#d2a573", b: "#a8754d", B: "#87593a" };
-const STUMP_IMG = gridToCanvas(STUMP_MAP, STUMP_PAL);
+// the tree stump under the big tree, where 하와 sits to play (her strum frames were drawn sitting): she walks over, hops
+// up onto it with the boing, plays, and hops down. It is drawn with the meadow (scene.js drawStump), in the tree's own
+// colours; she is always in front of it (it stands further back than she walks)
+const STUMP = { x: 125, z: 29 }, STUMP_SEAT = 6;
 const atStump = () => Math.abs(pet.x - STUMP.x) < 1.5 && Math.abs(pet.z - STUMP.z) < 1;
 function goStump() { pet.act = "walk"; pet.target = STUMP.x; pet.tz = STUMP.z; pet.toStump = true; pet.chase = false; }
-function drawStump() {
-  const im = STUMP_IMG, x = STUMP.x - (im.width >> 1), y = FEET - im.height;
-  ctx.save(); ctx.translate(0, -Math.round(STUMP.z));
-  if (typeof groundShadow === "function") groundShadow(ctx, STUMP.x, FEET, 15, 0.8);
-  ctx.drawImage(im, x, y);
-  if (typeof WX !== "undefined" && WX.depth > 0.2) {                // snow on its top, when nobody sits there
-    const sat = pet.act === "strum" && atStump();
-    ctx.fillStyle = "#f6f8fc"; if (!sat) { ctx.fillRect(x + 4, y, 7, 1); ctx.fillRect(x + 2, y + 1, 11, 1); ctx.fillRect(x + 2, y + 2, 11, WX.depth > 0.5 ? 2 : 1); }
-  } else if (typeof mainSeason === "function" && ["spring", "summer"].includes(mainSeason())) {   // a sprout on its side
-    ctx.fillStyle = "#7fbf6a"; ctx.fillRect(x + 13, y + 6, 1, 2); ctx.fillRect(x + 14, y + 5, 2, 1); ctx.fillStyle = "#a6d98a"; ctx.fillRect(x + 12, y + 5, 1, 1);
-  }
-  onGrass(x, x + im.width, FEET);
-  ctx.restore();
-}
 function strumPose(a, t) {
   const pop = (q, img) => { a.img = img; a.sy = 1 + 0.16 * Math.cos(q * Math.PI * 1.5) * (1 - q); a.sx = 2 - a.sy; };
   const squash = (q, img) => { a.img = img; a.sy = 1 - 0.16 * q; a.sx = 1 + 0.1 * q; };
@@ -1326,8 +1309,6 @@ function petRender(now) {
   if (!petBehind && signFn && anyPropBehind()) {           // things left behind the sign while she is in front of it
     propPass("behind", pose, pet._box || { x: pet.x, y: FEET - 30, w: 0, h: 30 }, now); drawSignOver(ctx, now);
   }
-  const stumpOver = pet.z > STUMP.z + 0.5 && Math.abs(pet.x - STUMP.x) < 22;   // the stump: behind her, or over her when she is behind it
-  if (!stumpOver) drawStump();
   ctx.save(); ctx.translate(0, -Math.round(pet.z));     // her depth on the grass
   const box = pose.hidden ? { x: pet.x, y: FEET - 30, w: 0, h: 30 } : drawSprite(ctx, G.pet, pose, pet.x, FEET, pet.dir, G.equip);
   pet._box = box;
@@ -1352,7 +1333,6 @@ function petRender(now) {
   drawParts(now);
   ctx.restore();
   box.y -= Math.round(pet.z);                            // back to screen space, for the Zzz and the speech bubble
-  if (stumpOver) drawStump();
   if (petBehind && signFn) { propPass("behind", pose, box, now); drawSignOver(ctx, now); }   // she is behind the sign, and so is what she put down there
   propPass("front", pose, box, now);
   if (pet.act === "peek" && pet.peek.phase !== "out" && pet.peek.phase !== "in") {
