@@ -163,6 +163,29 @@ const strumFrame = t => { let i = 0; while (i < STRUM_SEQ.length - 1 && STRUM_AT
 // she gets her guitar round with a boing: a squash, then she pops up already playing, bouncing a little; the same
 // back again at the end
 const STRUM_IN = 280, STRUM_ALL = STRUM_IN + STRUM_LEN + STRUM_IN;
+// the tree stump on the meadow, where 하와 sits to play (her strum frames were drawn sitting): she walks over, hops up
+// onto it with the boing, plays, and hops down. K ink, t its cut top, r the rings, b bark, B the bark's furrows
+const STUMP = { x: 150, z: 7 }, STUMP_SEAT = 6;
+const STUMP_MAP = ["....KKKKKKK....", "..KKtttttttKK..", ".KttrrrrrrrttK.", "KttrttrrrttrttK", "KbttrrrrrrrttbK", "KbbbtttttttbbbK",
+  "KbBbbbbbbbbbBbK", "KbBbbbBbbbbbBbK", "KbbbbbBbbbBbbbK", "KKKKKKKKKKKKKKK"];
+const STUMP_PAL = { K: OUT, t: "#efd3a2", r: "#d2a573", b: "#a8754d", B: "#87593a" };
+const STUMP_IMG = gridToCanvas(STUMP_MAP, STUMP_PAL);
+const atStump = () => Math.abs(pet.x - STUMP.x) < 1.5 && Math.abs(pet.z - STUMP.z) < 1;
+function goStump() { pet.act = "walk"; pet.target = STUMP.x; pet.tz = STUMP.z; pet.toStump = true; pet.chase = false; }
+function drawStump() {
+  const im = STUMP_IMG, x = STUMP.x - (im.width >> 1), y = FEET - im.height;
+  ctx.save(); ctx.translate(0, -Math.round(STUMP.z));
+  if (typeof groundShadow === "function") groundShadow(ctx, STUMP.x, FEET, 15, 0.8);
+  ctx.drawImage(im, x, y);
+  if (typeof WX !== "undefined" && WX.depth > 0.2) {                // snow on its top, when nobody sits there
+    const sat = pet.act === "strum" && atStump();
+    ctx.fillStyle = "#f6f8fc"; if (!sat) { ctx.fillRect(x + 4, y, 7, 1); ctx.fillRect(x + 2, y + 1, 11, 1); ctx.fillRect(x + 2, y + 2, 11, WX.depth > 0.5 ? 2 : 1); }
+  } else if (typeof mainSeason === "function" && ["spring", "summer"].includes(mainSeason())) {   // a sprout on its side
+    ctx.fillStyle = "#7fbf6a"; ctx.fillRect(x + 13, y + 6, 1, 2); ctx.fillRect(x + 14, y + 5, 2, 1); ctx.fillStyle = "#a6d98a"; ctx.fillRect(x + 12, y + 5, 1, 1);
+  }
+  onGrass(x, x + im.width, FEET);
+  ctx.restore();
+}
 function strumPose(a, t) {
   const pop = (q, img) => { a.img = img; a.sy = 1 + 0.16 * Math.cos(q * Math.PI * 1.5) * (1 - q); a.sx = 2 - a.sy; };
   const squash = (q, img) => { a.img = img; a.sy = 1 - 0.16 * q; a.sx = 1 + 0.1 * q; };
@@ -173,6 +196,14 @@ function strumPose(a, t) {
   else if (t < STRUM_IN + STRUM_LEN + STRUM_IN * 0.35) squash((t - STRUM_IN - STRUM_LEN) / (STRUM_IN * 0.35), last);
   else pop(Math.min(1, (t - STRUM_IN - STRUM_LEN - STRUM_IN * 0.35) / (STRUM_IN * 0.65)), null);
   if (!a.img) a.body = "base";
+  // up onto the stump in the pop, sitting there while she plays, and down off it in the last pop (a little arc each way)
+  const q1 = (t - STRUM_IN * 0.35) / (STRUM_IN * 0.65), q2 = (t - STRUM_IN - STRUM_LEN - STRUM_IN * 0.35) / (STRUM_IN * 0.65);
+  let up = 0, arc = 0;
+  if (q1 >= 0 && q1 < 1) { up = q1 * q1 * (3 - 2 * q1); arc = Math.sin(q1 * Math.PI) * 4; }
+  else if (q1 >= 1 && q2 < 0) up = 1;
+  else if (q2 >= 0 && q2 < 1) { up = 1 - q2 * q2 * (3 - 2 * q2); arc = Math.sin(q2 * Math.PI) * 3; }
+  a.yoff = (a.yoff || 0) - Math.round(STUMP_SEAT * up + arc);
+  a.seat = up > 0.5;
 }
 const MOCHIWAVE_IMG = tagFrames(MOCHIWAVE.map(g => gridToCanvas(g, PET.mochi.pal)), "mochi-wave");
 const WAVE_MS = 100, WAVE_LEN = MOCHIWAVE.length * WAVE_MS;
@@ -337,7 +368,10 @@ const Z_MAX = 24, SIGN_Z = 4;   // (she wanders a good way back over the meadow,
 const pet = { x:90, z:0, tz:0, dir:1, act:"idle", t0:0, target:90, walked:0, blinkUntil:0, nextThink:0,
               petCooldown:0, earT:-9999, nextEar:0, lastStep:0, lastY:0, box:null };
 let parts = [];
-function startAct(a, now) { pet.act = a; pet.t0 = now; }
+function startAct(a, now) {
+  if (a === "strum" && !atStump()) { goStump(); return; }   // 하와 plays sitting on the stump: she goes there first
+  pet.act = a; pet.t0 = now; pet.toStump = false;
+}
 const busy = () => ["lieDown", "getUp", "peek", "held", "fall", "land", "skyland"].includes(pet.act);
 function wakeUp(now) { if (G.pet === "nori" || G.pet === "sora") startAct("getUp", now); else { pet.act = "idle"; pet.nextThink = now + 1500; } }
 
@@ -584,6 +618,10 @@ function petPose(now) {
 const prop = { state: "hug", x: 0, y: 0, z: 0, vx: 0, vy: 0, rot: 0, spin: 0, t0: 0, fx: 0, fy: 0, ready: 0, lastAct: "" };
 const teddyOn = () => G.pet === "mochi" && !!(G.equip && G.equip.teddy);
 const teddyHugged = () => !teddyOn() || prop.state === "hug";
+// her paw that holds the bear is busy from the moment she reaches for it (so the fork stays in her other paw), and the bear
+// comes up into that arm (her left: the side teddyOneArm hugs it on), not into the middle of her
+const teddyInPaw = () => teddyOn() && (prop.state === "hug" || prop.state === "lift");
+const hugSpot = () => ({ x: pet.x - 7 * (pet.dir < 0 ? -1 : 1), y: FEET - 3 });
 let TEDDY_ROT = null;
 function teddyImg(rot) {                // the bear turned in quarter turns, pixel for pixel
   if (!TEDDY_ROT) {
@@ -637,7 +675,8 @@ function updateTeddy(now, dt) {
   }
   if (prop.state === "lift") {
     const q = Math.min(1, (now - prop.t0) / (prop.dur || 260)), arc = prop.arc ?? 10;
-    prop.x = prop.fx + (pet.x - prop.fx) * q; prop.y = prop.fy + (FEET - 1 - prop.fy) * q - Math.sin(q * Math.PI) * arc; prop.rot = 0;
+    const hs = G.equip && G.equip.fork ? hugSpot() : { x: pet.x, y: FEET - 1 };
+    prop.x = prop.fx + (hs.x - prop.fx) * q; prop.y = prop.fy + (hs.y - prop.fy) * q - Math.sin(q * Math.PI) * arc; prop.rot = 0;
     if (q >= 1) Object.assign(prop, { state: "hug", arc: undefined, dur: undefined });
   }
   if (prop.state === "place") {
@@ -804,13 +843,14 @@ function licenceView(yaw, roll, pitch) {
   g.putImageData(img, 0, 0);
   return view;
 }
-// where her forehead is on the screen right now (from the frame she is drawn with)
+// where her forehead is right now (from the frame she is drawn with), on the front line like the things on the grass
 function foreheadAt() {
   const b = pet._box, pose = pet._pose, g = pose && pose.img && pose.img.grid ? pose.img.grid : SPRITES.nori;
   if (!b || !b.w) return { x: pet.x, y: FEET - INFO.nori.h + 12 };
   const f = faceOf(g) || faceOf(SPRITES.nori), flip = pose && pose.img ? pose.flip : pet.dir < 0;
   const k = b.w / g[0].length, fx = flip ? g[0].length - f.cx : f.cx;
-  return { x: b.x + fx * k, y: b.y + (f.cy - 8.5) * (b.h / g.length) };
+  // (her box is on the screen, lifted by her depth; the card keeps its own depth z, so this is on the front line)
+  return { x: b.x + fx * k, y: b.y + (f.cy - 8.5) * (b.h / g.length) + Math.round(pet.z) };
 }
 function updateLicence(now, dt) {
   if (!licenceOn()) { lprop.state = "on"; lprop.lastAct = pet.act; pet.chase = false; return; }
@@ -898,7 +938,8 @@ function fetchTeddy(now) {
   const dx = prop.x - pet.x;
   if (Math.abs(dx) > 9 || Math.abs(prop.z - pet.z) > 1.5) { pet.act = "walk"; pet.target = prop.x - Math.sign(dx) * 7; pet.tz = prop.z; return true; }
   Object.assign(prop, { state: "lift", t0: now, fx: prop.x, fy: prop.y });
-  pet.dir = Math.sign(dx) || pet.dir; startAct("pet", now); return true;
+  // she turns her bear arm to it (with the fork, that is the side away from the fork's paw)
+  pet.dir = (G.equip && G.equip.fork ? -1 : 1) * (Math.sign(dx) || pet.dir); startAct("pet", now); return true;
 }
 function drawTeddy(front) {
   if (!teddyOn() || prop.state === "hug") return;
@@ -951,7 +992,7 @@ function updateCameraProp(now) {
   if (!cameraOn()) { cprop.state = "held"; return; }
   if (cprop.state === "held" && pet.act === "strum") {
     const n = CAMS.neck || { x: pet.x, y: FEET - Math.round(pet.z) - 16 }, gy = FEET - Math.round(pet.z);
-    Object.assign(cprop, { state: "place", t0: now, fx: n.x, fy: n.y, x: Math.max(8, Math.round(pet.x) - 21) + 5.5, y: gy, z: pet.z, dy: n.y - gy, ready: 0 });
+    Object.assign(cprop, { state: "place", t0: now, fx: n.x, fy: n.y, x: Math.max(8, Math.round(pet.x) - 21) + 5.5, y: FEET, z: pet.z, dy: n.y - gy, ready: 0 });   // (y on the front line: its depth z lifts it)
   }
   if (cprop.state === "place" && now - cprop.t0 >= STRUM_IN) cprop.state = "ground";
   if (cprop.state === "lift" && now - cprop.t0 >= C_LIFT) cprop.state = "held";
@@ -1155,7 +1196,10 @@ function petUpdate(now, dt) {
     else if (pk.phase === "down" && t >= PEEK_DOWN) { pk.phase = "in"; pk.t0 = now; pet.x = pk.edge; pet.target = 90; }
   }
   if (pet.act === "walk") {
-    if (Math.hypot(pet.target - pet.x, (pet.tz - pet.z) * 1.6) < 1) pet.act = "idle";
+    if (Math.hypot(pet.target - pet.x, (pet.tz - pet.z) * 1.6) < 1) {
+      pet.act = "idle";
+      if (pet.toStump) { pet.toStump = false; pet.x = STUMP.x; pet.z = STUMP.z; if (G.pet === "sora" && guitarOn() && gprop.state === "held") startAct("strum", now); }
+    }
     else {
       const [gx, gz] = aroundSign();
       const dx = gx - pet.x, dz = gz - pet.z, dist = Math.max(0.001, Math.hypot(dx, dz * 1.6));   // depth reads shorter on screen, so it is walked slower
@@ -1185,7 +1229,7 @@ function drawSprite(g, id, pose, cx, feet, dir, equip, shadow = true) {
   const dw = Math.round(img.width * kx), dh = Math.round(img.height * ky);
   cx += pose.dx || 0;
   const x = Math.round(cx) - (dw >> 1), y = feet - dh + pose.yoff;
-  if (shadow) {                                     // as wide as her footprint; it shrinks and fades as she leaves the ground
+  if (shadow && !pose.seat) {                       // as wide as her footprint; it shrinks and fades as she leaves the ground
     const up = Math.max(0, -pose.yoff), k = Math.max(0.45, 1 - up / 70);
     groundShadow(g, cx, feet, Math.round(footprint(img) * kx * k), Math.max(0.35, 1 - up / 90));
   }
@@ -1282,6 +1326,8 @@ function petRender(now) {
   if (!petBehind && signFn && anyPropBehind()) {           // things left behind the sign while she is in front of it
     propPass("behind", pose, pet._box || { x: pet.x, y: FEET - 30, w: 0, h: 30 }, now); drawSignOver(ctx, now);
   }
+  const stumpOver = pet.z > STUMP.z + 0.5 && Math.abs(pet.x - STUMP.x) < 22;   // the stump: behind her, or over her when she is behind it
+  if (!stumpOver) drawStump();
   ctx.save(); ctx.translate(0, -Math.round(pet.z));     // her depth on the grass
   const box = pose.hidden ? { x: pet.x, y: FEET - 30, w: 0, h: 30 } : drawSprite(ctx, G.pet, pose, pet.x, FEET, pet.dir, G.equip);
   pet._box = box;
@@ -1306,6 +1352,7 @@ function petRender(now) {
   drawParts(now);
   ctx.restore();
   box.y -= Math.round(pet.z);                            // back to screen space, for the Zzz and the speech bubble
+  if (stumpOver) drawStump();
   if (petBehind && signFn) { propPass("behind", pose, box, now); drawSignOver(ctx, now); }   // she is behind the sign, and so is what she put down there
   propPass("front", pose, box, now);
   if (pet.act === "peek" && pet.peek.phase !== "out" && pet.peek.phase !== "in") {

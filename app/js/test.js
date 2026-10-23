@@ -62,7 +62,7 @@
       <h3>계절 (하늘 색)</h3><div class="row"><button data-se="" class="${skySeason ? "" : "on"}">자동</button>${SEASONS.map(([k, n]) => `<button data-se="${k}" class="${skySeason === k ? "on" : ""}">${n}</button>`).join("")}</div>
       <h3>시간</h3><div class="row"><button data-hr="" class="${T_FIX === null ? "on" : ""}">지금</button>${HOURS.map(([h, n]) => `<button data-hr="${h}" class="${T_FIX === h ? "on" : ""}">${n}</button>`).join("")}</div>
       <div class="row" style="margin-top:6px"><button data-bow="1">비 그친 뒤 (무지개·웅덩이)</button></div>
-      <div class="row" style="margin-top:6px"><button data-sky="1">구름 새로 띄우기</button><button data-visit="1">모양 구름 띄우기</button><button data-bolt="1">번개 치기</button></div>
+      <div class="row" style="margin-top:6px"><button data-sky="1">구름 새로 띄우기</button><button data-visit="1">모양 구름 띄우기</button><button data-bolt="1">번개 치기</button><button data-eyes="1">동굴 눈 (밤)</button></div>
       <h3>UI 색감</h3><div class="row">${[["", "캐릭터별"], ["a", "A 크림"], ["b", "B 하늘"], ["c", "C 라벤더"], ["old", "예전"]].map(([k, n]) => `<button data-ui="${k}" class="${(uiPick || "") === k ? "on" : ""}">${n}</button>`).join("")}</div>
       <h3>배경 스타일 후보</h3><div class="row">${LOOK_NAMES.map(([k, n]) => `<button data-look="${k}" class="${LOOK.key === k ? "on" : ""}">${n}</button>`).join("")}</div>
       <h3>칭호</h3><div class="row"><button data-ttl="all">모두 얻기</button><button data-ttl="first">첫걸음만</button><button data-ttl="reset">초기화</button><button data-ttl="taps">클릭 99번으로</button><button data-ttl="away">일주일 비우기</button></div>
@@ -85,6 +85,7 @@
     panel.querySelector("[data-sky]").onclick = () => newSky();
     panel.querySelector("[data-bow]").onclick = () => { WX.force = "clear"; WX.rain = 0; WX.cover = 0.1; WX.wet = 0.8; WX.pud = 0.9; newPuddles(); WX.bowT = performance.now(); render(); };
     panel.querySelector("[data-visit]").onclick = () => sendVisitor();
+    panel.querySelector("[data-eyes]").onclick = () => { caveEyes = { t0: performance.now(), dur: 4000, two: Math.random() < 0.5, c: Math.random() < 0.7 ? [255, 214, 90] : [255, 110, 110] }; };
     panel.querySelector("[data-bolt]").onclick = () => { if (WX.storm < 0.5) { WX.force = "storm"; render(); } startStrike(performance.now()); };
     panel.querySelectorAll("[data-ui]").forEach(b => b.onclick = () => { uiPick = b.dataset.ui || null; applyUi(); render(); });
     panel.querySelectorAll("[data-look]").forEach(b => b.onclick = () => { setLook(b.dataset.look); render(); });

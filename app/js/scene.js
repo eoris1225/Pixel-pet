@@ -185,7 +185,8 @@ function skyRow(h) {
     const a = T[i], b = T[i + 1], t = smooth(0, 1, (h - a[0]) / (b[0] - a[0]));
     for (let j = 0; j < 2; j++) for (let k = 0; k < 5; k++) { const c = mixc(a[j + 1][k], b[j + 1][k], t); for (let q = 0; q < 3; q++) out[j][k][q] += c[q] * wgt; }
   }
-  if (LOOK.soft) out.forEach((row, j) => { for (let k = 0; k < 5; k++) row[k] = softc(row[k], j ? 1.3 : 1, j ? 0.45 : 0.2); });   // (the clouds' tones softer still)
+  const nk = 1 - 0.75 * darkAt(h);                     // (at night less: the night keeps the packs' deep, clear blue)
+  if (LOOK.soft) out.forEach((row, j) => { for (let k = 0; k < 5; k++) row[k] = softc(row[k], (j ? 1.3 : 1) * nk, (j ? 0.45 : 0.2) * nk); });   // (the clouds' tones softer still)
   return out;
 }
 const sky5 = h => skyRow(h)[0];
@@ -197,7 +198,7 @@ const warmAt = h => Math.max(Math.exp(-(((h - 6.2) / 0.9) ** 2)), Math.exp(-(((h
 /* ---------- random but stable layout ---------- */
 let seed = 7;
 const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-const STARS = Array.from({ length: 80 }, () => ({ x: rnd() * W, y: rnd(), b: 0.35 + rnd() * 0.65, p: rnd() * 6 }));
+const STARS = Array.from({ length: 80 }, () => ({ x: rnd() * W, y: rnd() ** 1.5, b: 0.35 + rnd() * 0.65, p: rnd() * 6 }));   // (thicker high up)
 const TUFTS = Array.from({ length: 46 }, () => ({ x: rnd() * W, y: rnd(), h: 2 + (rnd() * 3 | 0), p: rnd() * 6 }));
 const FLOWERS = Array.from({ length: 16 }, () => ({ x: 4 + rnd() * (W - 8), y: rnd(), c: ["#ffffff", "#ffc4d6", "#ffe58a", "#d9c8ff", "#ffffff"][rnd() * 5 | 0], p: rnd() * 6 }));
 
@@ -739,7 +740,7 @@ function lit(c, h, haze = 0, skyH = null) {
   let x = hex(c);
   if (haze && skyH) x = mixc(x, skyH, haze);
   x = mixc(x, hex("#ff9e72"), warmAt(h) * 0.16);
-  x = mixc(x, hex("#1b2648"), darkAt(h) * 0.64);
+  x = mixc(x, hex("#172a5e"), darkAt(h) * 0.64);
   return x;
 }
 const ridge = (x, base, parts) => base + parts.reduce((a, [amp, f, p]) => a + amp * Math.sin(x * f + p), 0);
@@ -796,7 +797,7 @@ function litc(c, h, haze = 0, skyH = null) {
   let x = c;
   if (haze && skyH) x = mixc(x, skyH, haze);
   x = mixc(x, hex("#ff9e72"), warmAt(h) * 0.16);
-  return mixc(x, hex("#1b2648"), darkAt(h) * 0.64).map(Math.round);
+  return mixc(x, hex("#172a5e"), darkAt(h) * 0.64).map(Math.round);
 }
 // the land's layout, the same every time (its own seeded random)
 let lseed = 11;
@@ -1073,6 +1074,7 @@ function paintLand(h) {
   for (const [cx, cy, r] of crowns) { g.fillStyle = col(P.wood[1], 0.25); disc(g, cx - 0.6, cy - 0.6, Math.max(1, Math.round(r) - 1)); }
   for (const [cx, cy, r] of crowns) { g.fillStyle = col(P.wood[0], 0.25); g.fillRect(Math.round(cx - r * 0.6), Math.round(cy - r * 0.7), Math.max(1, Math.round(r * 0.8)), 1); }
   fillTo(front, col(P.hill[0], 0.3)); fillTo(x => front(x) + 5 + 3 * Math.sin(x * 0.05), col(P.hill[1], 0.3));
+  paintCave(g, col, Math.round(front(CAVE.x)));
   // the meadow, band by band, each with a ragged top edge of grass blades
   for (let b = 0; b < 5; b++) {
     g.fillStyle = col(P.grass[b], b ? 0 : 0.15);
@@ -1106,6 +1108,52 @@ function paintLand(h) {
     g.fillRect(x, y, 1, 1); g.fillRect(x - 1, y + 1, 1, 1); g.fillRect(x + 1, y + 1, 1, 1); if (big) g.fillRect(x, y - 1, 1, 1);
   }
   paintTrees(h, P, skyLow);
+}
+// a rocky knoll on the near hill with a cave in it (something lives in there: at night, now and then, its eyes shine)
+const CAVE = { x: 31, y: 0 };
+function paintCave(g, col, hy) {
+  const se = mainSeason(), R = { spring: "a9a8a2 8f8c86 6f6b68", summer: "a3a49a 878880 696a64", autumn: "a69c8c 8a8073 6b6358", winter: "aab2bf 8d96a6 6c7586" }[se].split(" ").map(c => hex("#" + c));
+  const top = dx => Math.round(8.5 * Math.sqrt(Math.max(0, 1 - (dx / 10) ** 2)) + (dx === -4 || dx === 3 ? 1 : 0));
+  for (let dx = -10; dx <= 10; dx++) {
+    const t = top(dx), x = CAVE.x + dx;
+    for (let y = hy - t; y <= hy + 2; y++) {
+      const u = y - (hy - t), k = dx < -3 && u < 3 ? 0 : dx > 4 || u > t - 1 ? 2 : 1;   // lit up on its left, shaded on its right and foot
+      g.fillStyle = col(R[k], 0.3); g.fillRect(x, y, 1, 1);
+    }
+    if (dx > -8 && dx < 6 && (dx * 5 + 7) % 4 === 0) { g.fillStyle = col(R[2], 0.3); g.fillRect(x, hy - t + 3 + (dx & 1), 1, 1); }   // cracks
+    if (se === "winter") { g.fillStyle = col(hex("#ffffff"), 0.2); g.fillRect(x, hy - t, 1, dx > -7 && dx < 6 ? 2 : 1); }      // snow on top
+  }
+  // its mouth: a low dark arch, darkest inside
+  const deep = col(mixc(R[2], hex("#1a1626"), 0.75)), deeper = col(mixc(R[2], hex("#0e0c18"), 0.9));
+  for (let dx = -4; dx <= 4; dx++) {
+    const ad = Math.abs(dx), y0 = hy - 5 + (ad === 4 ? 2 : ad === 3 ? 1 : 0);
+    g.fillStyle = ad < 3 ? deeper : deep; g.fillRect(CAVE.x + dx, y0, 1, hy + 2 - y0);
+  }
+  CAVE.y = hy - 2;
+}
+// at night, deep in the night mostly, a pair of eyes opens in the dark of the cave now and then: they glow, blink,
+// look this way and that, and close again (sometimes two of them)
+let caveEyes = null, nextEyes = performance.now() + 15000;
+function drawCaveEyes(g, now, h) {
+  const night = darkAt(h), late = h >= 21.5 || h < 4;
+  if (!caveEyes && night > 0.8 && (late || Math.random() < 0.3) && now > nextEyes) {
+    caveEyes = { t0: now, dur: 2600 + Math.random() * 2200, two: Math.random() < 0.25, c: Math.random() < 0.7 ? [255, 214, 90] : [255, 110, 110] };
+    nextEyes = now + (late ? 25000 + Math.random() * 35000 : 60000 + Math.random() * 60000);
+  }
+  if (!caveEyes) return;
+  const e = caveEyes, t = now - e.t0;
+  if (t > e.dur || night < 0.6) { caveEyes = null; return; }
+  const a = Math.min(1, t / 350, (e.dur - t) / 350);           // they open slowly and close
+  const blink = (t > e.dur * 0.45 && t < e.dur * 0.45 + 130) || (t > e.dur * 0.8 && t < e.dur * 0.8 + 110);
+  if (blink) return;
+  const look = t < e.dur * 0.3 ? 0 : t < e.dur * 0.6 ? -1 : 1;
+  const eye = (x, y, k) => {
+    g.fillStyle = css(e.c, 0.28 * a * k); g.fillRect(x - 1, y, 1, 1); g.fillRect(x + 1, y, 1, 1); g.fillRect(x, y - 1, 1, 1); g.fillRect(x, y + 1, 1, 1);   // a faint glow round each
+    g.fillStyle = css(mixc(e.c, [255, 255, 255], 0.35), a * k); g.fillRect(x, y, 1, 1);
+  };
+  const pair = (x, y, k) => { eye(x, y, k); eye(x + 3, y, k); };
+  pair(CAVE.x - 2 + look, CAVE.y - 1, 1);
+  if (e.two && t > 600) pair(CAVE.x + (look > 0 ? -3 : 1), CAVE.y + 1, 0.7);
 }
 // the trees on their own layer (over the snow), back to front, each with its shadow on the grass; the big tree as
 // the season has it (green, autumn 1's peach and rust with fallen leaves round it, bare with snow on its boughs)
@@ -1282,7 +1330,7 @@ function sceneTint(g, now) {
   g.save(); g.globalCompositeOperation = "source-atop";
   g.fillStyle = css(sky[1], 0.1); g.fillRect(0, 0, W, H);
   if (wm > 0.02) { g.fillStyle = css(mixc(sky[2], hex("#ff9e72"), 0.7), wm * 0.16); g.fillRect(0, 0, W, H); }
-  if (d > 0.02) { g.fillStyle = css(hex("#1b2648"), d * 0.45); g.fillRect(0, 0, W, H); }
+  if (d > 0.02) { g.fillStyle = css(hex("#172a5e"), d * 0.45); g.fillRect(0, 0, W, H); }
   g.restore();
   paintFeet(g);
   if (typeof pet !== "undefined" && typeof SIGN_Z !== "undefined" && pet.z > SIGN_Z + 0.5) drawSignOver(g, now);
@@ -1489,7 +1537,7 @@ function bugc(c, h) {
   x = mixc(x, skyAt(h)[1], 0.1);
   if (typeof WX !== "undefined" && WX.cover > 0.05) x = mixc(x, hex("#a8adb8"), WX.cover * 0.25);
   x = mixc(x, hex("#ff9e72"), warmAt(h) * 0.16);
-  return mixc(x, hex("#1b2648"), darkAt(h) * 0.64);
+  return mixc(x, hex("#172a5e"), darkAt(h) * 0.64);
 }
 function paintMap(g, rows, x, y, r, pal, cx, alpha) {
   rows.forEach((row, j) => [...row].forEach((ch, i) => {
@@ -1536,20 +1584,26 @@ function drawSun(h, g) {
   if (h < 5.3 || h > 19.6) return;
   const p = (h - 6) / 13, x = 12 + (W - 24) * Math.max(-0.05, Math.min(1.05, p));
   const alt = Math.sin(Math.PI * Math.max(0, Math.min(1, p))), y = horizon - 6 - alt * (horizon - 50), low = 1 - alt;
-  const doy = (dayNum() % 365.25) / 365.25, r = Math.round(6 + 0.8 * Math.cos(2 * Math.PI * doy) + low * 1.6);
-  const core = mixc(hex("#fffbe6"), hex("#ffc27a"), low), mid = mixc(hex("#fff0b0"), hex("#ffa25c"), low), rim = mixc(hex("#ffd977"), hex("#ff7e4e"), low);
-  rings(g, x, y, r, mixc(hex("#fff3c4"), hex("#ffb27a"), low), 0.09 + low * 0.08);
+  const doy = (dayNum() % 365.25) / 365.25, r = Math.round(6 + 0.8 * Math.cos(2 * Math.PI * doy) + low * 2.4);
+  // (Ocean's sun: a flat cream disc, a touch warmer at its edge, hardly any glow; gold-peach low down)
+  const core = mixc(hex("#fffef0"), hex("#fffbd0"), low), mid = mixc(hex("#fff7cc"), hex("#ffe7a8"), low), rim = mixc(hex("#ffeaa0"), hex("#ffc58a"), low);
+  rings(g, x, y, r, mixc(hex("#fff8dc"), hex("#ffd2a0"), low), 0.06 + low * 0.06);
   g.fillStyle = css(rim); disc(g, x, y, r);
   g.fillStyle = css(mid); disc(g, x - 0.5, y - 0.5, r - 1);
   g.fillStyle = css(core); disc(g, x - 1, y - 1, Math.max(1, r - 3));
+  if (low > 0.55) {                                       // low: thin streaks of the sky drawn across its lower half
+    const band = css(skyAt(h)[2], Math.min(1, (low - 0.55) * 3)), X = Math.round(x), Y = Math.round(y);
+    [[2, 0.9], [4, 1.1], [6, 0.8]].forEach(([dy, w]) => { if (dy < r) { const hw = Math.round(Math.sqrt(r * r - dy * dy) * w); g.fillStyle = band; g.fillRect(X - hw - 1, Y + dy, hw * 2 + 3, 1); } });
+  }
 }
 function disc(g, cx, cy, r) {
   cx = Math.round(cx); cy = Math.round(cy);
   for (let dy = -r; dy <= r; dy++) { const hw = Math.round(Math.sqrt(r * r - dy * dy)); g.fillRect(cx - hw, cy + dy, hw * 2 + 1, 1); }
 }
 function moonPhase() { return (((Date.now() / 86400000 - 10962.76) % 29.530588853) + 29.530588853) % 29.530588853 / 29.530588853; }
-// the moon is up every night (in its real phase): the lit part pale gold with grey seas and a bright rim towards the
-// light, the dark part dim blue (it still shows against the sky, earthshine), in a soft glow that grows as it fills
+// the moon is up every night (in its real phase), as in Ocean 6: the lit part pale cyan-white with soft blue seas, a
+// white rim towards the light and a cooler edge away from it, the dark part dim blue (earthshine), in a cool glow that
+// grows as it fills
 const MOON_SEAS = [[-0.35, -0.25, 0.28], [0.15, -0.4, 0.2], [0.25, 0.2, 0.3], [-0.2, 0.35, 0.18], [0.45, -0.05, 0.12]];
 function drawMoon(h, g) {
   const t = h >= 18 ? h - 18 : h + 6;                 // 18:00 -> 0, 06:00 -> 12
@@ -1559,17 +1613,18 @@ function drawMoon(h, g) {
   const peri = Math.cos(2 * Math.PI * ((dayNum() - 10962.3) / 27.5545)), r = Math.round(7 + 1.2 * peri + (1 - alt) * 1.2);
   const vis = smooth(0.15, 0.55, darkAt(h)); if (vis <= 0.02) return;   // pale and then gone as day comes on
   g.save(); g.globalAlpha = vis;
-  rings(g, x, y, r, hex("#fff2cf"), 0.04 + full * 0.08);
+  rings(g, x, y, r, hex("#a9dcf2"), 0.05 + full * 0.09);
   for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
     if (dx * dx + dy * dy > r * r + 0.5) continue;
     const sq = Math.sqrt(Math.max(0, 1 - (dy / r) ** 2)), xn = (dx + 0.5) / r;
     const on = ph < 0.5 ? xn > sq * k : xn < -sq * k;
     let c;
-    if (!on) c = "#3a4378";
+    if (!on) c = "#2c3f7c";
     else {
       const sea = MOON_SEAS.some(([sx, sy, sr]) => (dx / r - sx) ** 2 + (dy / r - sy) ** 2 < sr * sr);
       const rimLit = dx * dx + dy * dy > (r - 1.2) ** 2 && (ph < 0.5 ? dx > 0 : dx < 0);
-      c = rimLit ? "#fffaf0" : sea ? "#ddd2b0" : "#f6ecd0";
+      const shadeSide = dx * dx + dy * dy > (r - 1.5) ** 2 && !rimLit;
+      c = rimLit ? "#ffffff" : sea ? "#9fd6e8" : shadeSide ? "#b8e4f2" : "#e2f7fc";
     }
     g.fillStyle = c; g.fillRect(x + dx, y + dy, 1, 1);
   }
@@ -1584,20 +1639,53 @@ function drawSign(g, now, h, info, over = false) {
   const glow = darkAt(h);
   if (!over) { groundShadow(g, SIGN_X + 1, base + 1, 14, 0.8); signShadow(g, h, bx, by, bw, bh, base); }
   if (glow > 0.3 && !over) { for (let r = 26, a = 0.035 * glow; r >= 12; r -= 5) { g.fillStyle = `rgba(255,214,140,${a})`; disc(g, SIGN_X, by + 7, r); } }
-  const shade = c => css(mixc(hex(c), hex("#1b2648"), glow * 0.35));
-  g.fillStyle = OUT; g.fillRect(SIGN_X - 2, by + bh, 4, base - by - bh + 1);
-  g.fillStyle = shade("#a8714a"); g.fillRect(SIGN_X - 1, by + bh, 2, base - by - bh);
+  const shade = c => css(mixc(lit(c, h), lit(c, 12), 0.45));       // the day's light, a little held back (it is close by)
+  // the post: lit on its left, a knot in it
+  const pt = by + bh - 1;
+  g.fillStyle = OUT; g.fillRect(SIGN_X - 2, pt, 4, base - pt + 1);
+  g.fillStyle = shade("#ad7850"); g.fillRect(SIGN_X - 1, pt, 2, base - pt);
+  g.fillStyle = shade("#c99568"); g.fillRect(SIGN_X - 1, pt, 1, base - pt);
+  g.fillStyle = shade("#8c5d3d"); g.fillRect(SIGN_X, pt + 5, 1, 2); g.fillRect(SIGN_X, base - 3, 1, 1);
+  // the board: a wooden frame with pixel-rounded corners, a lit top edge, a shaded foot, a little grain and four nails,
+  // round a cream plaque that is shaded along its top and left (set into the frame)
   g.fillStyle = OUT; g.fillRect(bx + 1, by, bw - 2, bh); g.fillRect(bx, by + 1, bw, bh - 2);
   g.fillStyle = shade("#c98f5e"); g.fillRect(bx + 1, by + 1, bw - 2, bh - 2);
-  g.fillStyle = shade("#f6dcb0"); g.fillRect(bx + 3, by + 3, bw - 6, bh - 6);
-  g.fillStyle = shade("#a8714a"); g.fillRect(bx + 1, by + bh - 2, bw - 2, 1);
+  g.fillStyle = shade("#dcaa76"); g.fillRect(bx + 2, by + 1, bw - 4, 1); g.fillRect(bx + 1, by + 2, 1, bh - 5);
+  g.fillStyle = shade("#a8714a"); g.fillRect(bx + 1, by + bh - 3, bw - 2, 2); g.fillRect(bx + bw - 2, by + 2, 1, bh - 4);
+  g.fillStyle = shade("#b77f53");                                    // grain
+  [[5, 1, 4], [17, 1, 6], [9, bh - 3, 5], [21, bh - 3, 3]].forEach(([x, y, l]) => g.fillRect(bx + x, by + y, l, 1));
+  g.fillStyle = shade("#f8e4bf"); g.fillRect(bx + 3, by + 3, bw - 6, bh - 6);
+  g.fillStyle = shade("#e9cc9b"); g.fillRect(bx + 3, by + 3, bw - 6, 1); g.fillRect(bx + 3, by + 3, 1, bh - 6);
+  g.fillStyle = shade("#7a5236"); [[2, 2], [bw - 3, 2], [2, bh - 4], [bw - 3, bh - 4]].forEach(([x, y]) => g.fillRect(bx + x, by + y, 1, 1));
   const s = info.text, mode = info.mode;
   text(s, SIGN_X - (tw(s) >> 1), by + 5, mode === "run" ? "#d0485a" : mode === "rest" ? "#6a63b8" : OUT, g);
   if (mode === "run" && Math.floor(now / 600) % 2) { g.fillStyle = "#e2504a"; g.fillRect(SIGN_X - 1, by - 3, 3, 2); g.fillRect(SIGN_X, by - 4, 1, 4); }
   if (mode === "rest") text("Z", bx + bw - 4, by - 6 - (Math.floor(now / 500) % 2), "#6a63b8", g);
-  // a few blades of grass around the post
-  g.fillStyle = css(landP ? litc(landP.dark[0], h) : lit("#5fae6b", h));
-  [[-4, 3], [-3, 2], [3, 2], [4, 3]].forEach(([dx, hh]) => g.fillRect(SIGN_X + dx, base - hh + 1, 1, hh));
+  signFoot(g, now, h, base);
+}
+// round the foot of the post, in front of it: grass blades over it, and a little of the season (a clump of leaves
+// with a flower in spring, leaves in summer, a few fallen leaves in autumn), all swaying with the wind; snow lies there
+// in winter (weatherCap)
+function signFoot(g, now, h, base) {
+  if (!landP) return;
+  const se = mainSeason(), snowy = typeof WX !== "undefined" && WX.depth > 0.25;
+  const dark = css(litc(landP.dark[0], h)), mid = css(litc(landP.grass[0], h)), hi = css(litc(landP.grass[1], h));
+  const sw = t => Math.round(Math.sin(now / 900 + t) * (typeof wind !== "undefined" ? wind : 1) * 0.7);
+  if (se === "autumn") {
+    [["#e39a5c", -6, 0], ["#c9694a", -4, 1], ["#e8b76a", 3, 0], ["#b65a45", 5, 1], ["#d98552", 1, 1]].forEach(([c, dx, dy]) => {
+      g.fillStyle = css(lit(c, h)); g.fillRect(SIGN_X + dx, base + dy, 2, 1); });
+    g.fillStyle = css(litc(landP.grass[0], h)); [[-3, 3], [2, 2], [4, 3]].forEach(([dx, hh], k) => g.fillRect(SIGN_X + dx + (sw(k) > 0 ? 1 : 0), base - hh + 1, 1, hh));
+    return;
+  }
+  if (!snowy && se !== "winter") {
+    // a clump of leaves: two to each side of the post, their tips nodding
+    const leaf = (x, y, dir, c, t) => { const o = sw(t); g.fillStyle = c; g.fillRect(x, y, 2, 1); g.fillRect(x + dir + o, y - 1, 2, 1); };
+    leaf(SIGN_X - 6, base, -1, mid, 0); leaf(SIGN_X - 4, base - 1, -1, hi, 1); leaf(SIGN_X + 3, base - 1, 1, hi, 2); leaf(SIGN_X + 4, base, 1, mid, 3);
+    if (se === "spring") { g.fillStyle = css(lit("#ffd1dc", h)); g.fillRect(SIGN_X - 7 + sw(4), base - 3, 1, 1); g.fillStyle = css(lit("#ffe38a", h)); g.fillRect(SIGN_X - 7 + sw(4), base - 2, 1, 1); }
+  }
+  // blades in front of the post (over its foot), the grass layer it stands in
+  g.fillStyle = dark; [[-2, 2], [-1, 3], [1, 2], [2, 3]].forEach(([dx, hh], k) => { g.fillRect(SIGN_X + dx, base - hh + 2, 1, hh - 1); g.fillRect(SIGN_X + dx + (sw(k + 5) > 0 ? 1 : 0), base - hh + 1, 1, 1); });
+  g.fillStyle = hi; g.fillRect(SIGN_X - 1, base - 1, 1, 1); g.fillRect(SIGN_X + 2, base - 1, 1, 1);
 }
 
 // the sign's shadow from the sun: its board and post, cast on the grass
@@ -1661,14 +1749,18 @@ function sceneRender(now, signInfo) {
   const g = sctx;
   g.imageSmoothingEnabled = false;
   g.drawImage(skyCv, 0, 0);
-  // stars
+  // stars, as in the packs' nights: dots of cool white and pale blue and gold, the brightest a little four-point sparkle
+  // that twinkles (its arms come and go)
   if (dark > 0.05) for (const st of STARS) {
     const tw_ = 0.55 + 0.45 * Math.sin(now / 700 + st.p * 3);
     const a = dark * st.b * tw_ * (typeof WX !== "undefined" ? 1 - WX.cover * 0.9 : 1); if (a < 0.08) continue;
-    g.fillStyle = `rgba(255,250,230,${a.toFixed(2)})`;
-    const x = Math.round(st.x), y = Math.round(st.yy);
-    g.fillRect(x, y, 1, 1);
-    if (st.b > 0.9 && tw_ > 0.8) { g.fillStyle = `rgba(255,250,230,${(a * 0.5).toFixed(2)})`; g.fillRect(x - 1, y, 1, 1); g.fillRect(x + 1, y, 1, 1); g.fillRect(x, y - 1, 1, 1); g.fillRect(x, y + 1, 1, 1); }
+    const c = st.p < 1.2 ? "200,225,255" : st.p < 1.8 ? "255,236,190" : "245,248,255", x = Math.round(st.x), y = Math.round(st.yy);
+    g.fillStyle = `rgba(${c},${a.toFixed(2)})`; g.fillRect(x, y, 1, 1);
+    if (st.b > 0.86 && tw_ > 0.6) {
+      const arm = st.b > 0.96 && tw_ > 0.9 ? 2 : 1;
+      g.fillStyle = `rgba(${c},${(a * 0.45).toFixed(2)})`;
+      for (let k = 1; k <= arm; k++) { g.fillRect(x - k, y, 1, 1); g.fillRect(x + k, y, 1, 1); g.fillRect(x, y - k, 1, 1); g.fillRect(x, y + k, 1, 1); }
+    }
   }
   if (star) {
     const a = 1 - star.t / 900;
@@ -1695,6 +1787,7 @@ function sceneRender(now, signInfo) {
   }
   if (faceCloud && faceCloud.img) { const im = faceCloud.img, x = Math.round(faceCloud.x), y = Math.round(faceCloud.y + Math.sin(now / 900) * 1.5); g.drawImage(im, x, y); cloudFlash(g, im, x, y); }
   g.drawImage(landCv, 0, 0);
+  drawCaveEyes(g, now, h);
   if (typeof weatherLand === "function") weatherLand(g, now, h);   // wet grass, snow
   g.drawImage(treeCv, 0, 0);                           // their shadows and the leaves fallen round them
   drawTrees(g, now);

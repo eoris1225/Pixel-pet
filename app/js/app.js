@@ -618,7 +618,7 @@ function renderStats() {
       <ul class="legend f-sm">${parts.map(p => `<li><span class="sw" style="--c:${p.c}"></span>${esc(p.n)}<b>${fmtDur(p.v)}</b></li>`).join("") || '<li class="muted t-low">이 날은 기록이 없어요…</li><li class="muted f-sm">옆으로 밀면 다른 날을 볼 수 있어요</li>'}
         ${rest ? `<li><span class="sw" style="--c:#b9b4c9"></span>휴식<b>${fmtDur(rest)}</b></li>` : ""}</ul>
     </div>
-    ${goal ? `<div class="card pxp"><div class="card-t">목표 순공<span class="f-amb muted">임시</span></div>
+    ${goal ? `<div class="card pxp"><div class="card-t">목표 순공</div>
       <div class="f-sm">${fmtDur(goal)} 중 ${fmtDur(study)} <span class="f-num s">${pct}%</span></div><div class="goal-bar"><i style="width:${pct}%"></i></div></div>` : ""}
     <div class="card pxp">
       <div class="donuts">

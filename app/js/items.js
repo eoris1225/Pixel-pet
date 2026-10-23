@@ -400,7 +400,7 @@ function turnedSprite(key, src, deg) {
 // swings and twirls as always) and uses the other for her other thing: 치카 hugs her bear in her left arm (the fork in her
 // right), 욱 holds up her pudding in her right paw (the pole in her left). (하와 keeps both paws on her trident; her camera then just hangs from her neck.)
 function weaponOneHand(petId, equip) {
-  return petId === "mochi" && equip.teddy && (typeof teddyHugged !== "function" || teddyHugged())
+  return petId === "mochi" && equip.teddy && (typeof teddyInPaw !== "function" || teddyInPaw())
       || petId === "nori" && equip.pudding;
 }
 function weaponFlat(pet) { const k = "flat:" + pet; return ITEM_CACHE[k] || (ITEM_CACHE[k] = WEAPON_FLAT[pet]()); }

@@ -271,6 +271,7 @@ function newPuddles() {
     const dy = Math.round(10 + Math.random() * 46), w = Math.round((10 + dy * 0.45) * (0.6 + Math.random() * 0.7));
     const cx = Math.round(w / 2 + 3 + Math.random() * (W - w - 6));
     if (Math.abs(cx - SIGN_X) < w / 2 + 8 && Math.abs(dy - signDy) < 8) continue;          // not round the sign's post
+    if (typeof STUMP !== "undefined" && Math.abs(cx - STUMP.x) < w / 2 + 10 && Math.abs(dy - (FEET - horizon - STUMP.z)) < 6) continue;   // nor the stump
     if (PUDDLES.some(([x2, dy2, w2]) => Math.abs(dy - dy2) < 7 + (w + w2) * 0.06 && Math.abs(cx - x2) < (w + w2) / 2 + 4)) continue;
     const ry0 = Math.max(1.2, w * (0.12 + dy * 0.0015)), lobes = [[0, 0, w / 2, ry0]];
     for (let k = 1 + (Math.random() * 3 | 0); k > 0; k--)
@@ -351,11 +352,27 @@ function weatherFog(g, now, h) {
     for (let y = horizon - 40; y < H; y += 2) { const a = WX.fog * 0.5 * Math.min(1, (y - horizon + 40) / 60); g.fillStyle = css(c, a); g.fillRect(0, y, W, 2); }
   }
 }
-// a cap of snow on top of the sign board (drawn again with the sign over a pet behind it)
+// snow on the sign (drawn again with the sign over a pet behind it): a soft cap on the board that grows with the snow
+// lying, bulging in little mounds and lipping over both ends with a drip, a line on the plaque's ledge, and a drift
+// heaped round the post's foot
 function weatherCap(g, h) {
-  const cap = Math.round(WX.depth * 2.4); if (!cap) return;
-  const by = FEET - 4 - 27, d = darkAt(h);
-  g.fillStyle = css(mixc(hex("#ffffff"), hex("#8d96c4"), d * 0.8)); g.fillRect(SIGN_X - 13, by - cap, 27, cap); g.fillRect(SIGN_X - 12, by - cap - 1, 25, 1);
+  const k = WX.depth; if (k < 0.08) return;
+  const bx = SIGN_X - 14, base = FEET - 4, by = base - 27, bw = 29, d = darkAt(h);
+  const W1 = css(mixc(hex("#ffffff"), hex("#8d96c4"), d * 0.8)), W2 = css(mixc(hex("#dfe6f2"), hex("#5f6894"), d * 0.8));
+  const cap = Math.min(3, Math.max(1, Math.round(k * 3.2)));
+  for (let x = -1; x <= bw; x++) {                                   // its top: little mounds, lower at the ends
+    const end = Math.min(x + 1, bw - x), bump = (x * 7 + 3) % 5 === 0 ? 1 : 0;
+    const t = Math.max(1, Math.min(cap + bump, end + (x < 0 || x >= bw ? 0 : 1)));
+    g.fillStyle = W1; g.fillRect(bx + x, by - t + 1, 1, t);
+    g.fillStyle = W2; g.fillRect(bx + x, by, 1, 1);                    // its shaded underside on the board's edge
+  }
+  if (k > 0.35) { g.fillStyle = W2; g.fillRect(bx - 1, by + 1, 1, 1); g.fillRect(bx + bw, by + 1, 1, 2); }   // drips at the ends
+  if (k > 0.25) { g.fillStyle = W1; g.fillRect(bx + 3, by + 12 - 1, bw - 6, 1); }                          // on the ledge under the plaque
+  const drift = Math.round(k * 4);                                     // the drift round the post
+  for (let dx = -drift - 2; dx <= drift + 2; dx++) {
+    const hh = Math.max(0, Math.round((1 - (dx / (drift + 3)) ** 2) * (1 + k * 2)));
+    if (!hh) continue; g.fillStyle = W1; g.fillRect(SIGN_X + dx, base + 1 - hh, 1, hh); g.fillStyle = W2; g.fillRect(SIGN_X + dx, base, 1, 1);
+  }
 }
 // over everything (the pet too): rain, splashes, snow, the lightning's light, a veil of fog
 function weatherFront(g, now) {

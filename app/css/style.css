@@ -46,7 +46,7 @@
   --dark: #7a6252; --dark-sh: #5f4b3e; --dark-t: #fff6ea;
   --hud: rgba(255, 251, 244, .9); --plaque: rgba(252, 243, 230, .9);
   --dim: rgba(90, 70, 60, .3); --dot: rgba(170, 130, 90, .14);
-  --body: #e6d8c8; --body-sh: #cdb9a4;
+  --body: #f1e6d6;          /* the page round the screen: one cream for every friend */
   --accent: #ffcad7; --accent-soft: #fff0f4; --accent-deep: #eeaabb;
   /* a 2px pixel-rounded corner */
   --r2: polygon(2px 0, calc(100% - 2px) 0, calc(100% - 2px) 1px, calc(100% - 1px) 1px, calc(100% - 1px) 2px, 100% 2px,
@@ -64,7 +64,7 @@
   --mint: #cdeccf; --mint-d: #a5d2ab; --lilac: #dfe0fb; --lilac-d: #b8bbea; --peach: #ffe0d2; --peach-d: #efbba5;
   --off: #eceeea; --off-sh: #d8ddd8; --off-t: #aeb4b0; --dark: #66707e; --dark-sh: #4c5562; --dark-t: #f4f7fa;
   --hud: rgba(252, 252, 248, .88); --plaque: rgba(243, 245, 241, .88); --dim: rgba(60, 70, 90, .3); --dot: rgba(110, 140, 150, .13);
-  --body: #cfdde6; --body-sh: #aebfcc; }
+ }
 :root[data-ui="b"] #app[data-pet="mochi"] { --accent: #f9cbd8; --accent-soft: #fdf0f4; --accent-deep: #e6a8ba; }
 :root[data-ui="b"] #app[data-pet="sora"]  { --accent: #bde0f4; --accent-soft: #eaf5fb; --accent-deep: #8fc3e2; }
 :root[data-ui="b"] #app[data-pet="nori"]  { --accent: #fbe3a6; --accent-soft: #fdf6dd; --accent-deep: #e8c674; --bar: #f2d07e; }
@@ -73,7 +73,7 @@
   --mint: #d3ecd2; --mint-d: #aed3b0; --lilac: #e3d7f5; --lilac-d: #c0afe2; --peach: #fddbd0; --peach-d: #eeb5a5;
   --off: #f0e8ea; --off-sh: #dfd3d7; --off-t: #b8a9b0; --dark: #6e5670; --dark-sh: #54405a; --dark-t: #fbf1f3;
   --hud: rgba(255, 250, 247, .9); --plaque: rgba(248, 239, 239, .9); --dim: rgba(80, 60, 80, .3); --dot: rgba(160, 120, 140, .13);
-  --body: #dccfdf; --body-sh: #bfaec6; }
+ }
 :root[data-ui="c"] #app[data-pet="mochi"] { --accent: #f6c3d0; --accent-soft: #fdeef2; --accent-deep: #e2a1b4; }
 :root[data-ui="c"] #app[data-pet="sora"]  { --accent: #c3d8f2; --accent-soft: #edf3fb; --accent-deep: #97b5de; }
 :root[data-ui="c"] #app[data-pet="nori"]  { --accent: #f8deac; --accent-soft: #fdf3e0; --accent-deep: #e6c07c; --bar: #f0cd86; }
@@ -81,7 +81,7 @@
 :root[data-ui="old"] { --ink: #3a2a1a; --paper: #fffaf0; --ivory: #fff4dc; --ivory-2: #f1e2c2; --line: #e6d3ab; --muted: #9b8a6e; --sub: var(--sub); --red: #e2504a;
   --mint: #b6ecae; --mint-d: #86cc84; --lilac: #d9cdff; --lilac-d: #ab9be8; --peach: #ffcfb0; --peach-d: #f2a07c;
   --off: #ece8de; --off-sh: #d6d0c2; --off-t: #b2ab9a; --dark: #3a2a1a; --dark-sh: #241a10; --dark-t: #fff4dc;
-  --hud: rgba(255, 250, 240, .94); --plaque: rgba(255, 244, 220, .92); --dim: rgba(44, 32, 50, .38); --dot: #f7e9c9; --body: #4a3550; --body-sh: #2c2032; }
+  --hud: rgba(255, 250, 240, .94); --plaque: rgba(255, 244, 220, .92); --dim: rgba(44, 32, 50, .38); --dot: #f7e9c9; }
 :root[data-ui="old"] #app[data-pet="mochi"] { --accent: #ffb3c7; --accent-soft: #ffe3ea; --accent-deep: #e88fa8; }
 :root[data-ui="old"] #app[data-pet="sora"]  { --accent: #9fd3f5; --accent-soft: #e0f2fd; --accent-deep: #6cb8e6; }
 :root[data-ui="old"] #app[data-pet="nori"]  { --accent: #ffd96b; --accent-soft: #fff3c4; --accent-deep: #f2b93b; --bar: #fcc63f; }
@@ -91,7 +91,7 @@ html, body { height: 100%; margin: 0; }
 body { background: var(--body); overflow: hidden; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 [hidden] { display: none !important; }
 
-#frame { position: fixed; box-shadow: 0 0 0 4px var(--body-sh), 0 10px 0 4px var(--body-sh); background: #8fcaf2; }
+#frame { position: fixed; background: #8fcaf2; }
 #app {
   position: absolute; left: 0; top: 0; width: 180px; height: 320px; overflow: hidden; transform-origin: 0 0;
   color: var(--ink); image-rendering: pixelated;
