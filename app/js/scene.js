@@ -422,6 +422,14 @@ function paintCloud(c, pal, L) {
 // how big each kind comes, where it floats (its base, in the sky above the horizon) and how it drifts: the higher
 // it is, the nearer, so the bigger and the faster
 const logr = (a, b) => a * Math.pow(b / a, Math.random());
+// the big cumulus low over the hills, numbered candidates (the same cloud for the same number): the user picks which
+// may come (BIG_CU_PICK; empty: any)
+const BIG_CU_PICK = [];
+function bigCuShape(n) {
+  let q = (n * 6271 + 99991) % 2147483647; const R = () => (q = (q * 48271) % 2147483647) / 2147483647; for (let i = 0; i < 5; i++) R();
+  const w = 80 + R() * 70, h = Math.min(w * (0.35 + R() * 0.45), horizon * 0.5);
+  return cloudShape("cu", Math.round(w), Math.round(h), R);
+}
 function newCloud(kind, x) {
   const R = Math.random;
   let w, h, base;
@@ -430,7 +438,8 @@ function newCloud(kind, x) {
   else if (kind === "strato") { w = logr(40, 140); h = 5 + R() * 8; base = 24 + R() * (horizon - 70); }
   else { w = logr(16, 90); h = 4; base = 8 + R() * (horizon * 0.55); }
   h = Math.min(h, horizon * 0.5);
-  const shape = cloudShape(kind, Math.round(w), Math.round(h)), near = 1 - clampv(base / horizon, 0, 1);
+  const big = kind === "cu" && w > 80 && BIG_CU_PICK.length;          // (a big one: one of those the user picked)
+  const shape = big ? bigCuShape(BIG_CU_PICK[R() * BIG_CU_PICK.length | 0]) : cloudShape(kind, Math.round(w), Math.round(h)), near = 1 - clampv(base / horizon, 0, 1);
   return { kind, base, x: x === undefined ? -shape.w - R() * 40 : x, y: Math.round(base - shape.base), v: (0.5 + 2.6 * near) * (0.8 + R() * 0.4) * (kind === "cirrus" ? 1.3 : 1), shape, cv: null, key: "" };
 }
 const clouds = [];
