@@ -708,7 +708,7 @@ function fetchPudding(now) {
   pet.dir = Math.sign(dx) || pet.dir; startAct("pickup", now); return true;
 }
 function drawPuddingProp(now) {
-  if (!puddingOn() || pprop.state === "held") return;
+  if (!puddingOn() || pprop.state === "held" || !propShown(pprop.z)) return;
   const sm = q => q * q * (3 - 2 * q), down = pprop.state === "place";
   const q = pprop.state === "ground" ? 1 : down ? sm(Math.min(1, (now - pprop.t0) / P_PLACE)) : 1 - sm(Math.min(1, (now - pprop.t0) / P_LIFT));
   // her paw: where it was as she set it down; picking it up, where her paw is now (the same side of her)
@@ -732,7 +732,7 @@ function fetchWeapon(now) {
   pet.dir = Math.sign(dx) || pet.dir; startAct("pickup", now); return true;   // the boing, as for the guitar
 }
 function drawWeaponProp(front) {
-  if (!weaponOn() || wprop.state === "held" || !front) return;            // set down or moving, it shows in front of her
+  if (!weaponOn() || wprop.state === "held" || !front || !propShown(wprop.z)) return;            // set down or moving, it shows in front of her
   const t = wprop.state === "ground" ? performance.now() - (wprop.tl || 0) : 1e9, k = t < 900 ? Math.exp(-t / 170) : 0;
   const hop = k ? Math.round(Math.abs(Math.sin(t / 60)) * 2.5 * k) : 0, ang = wprop.state === "ground" ? 0.09 * k * Math.sin(t / 45) : wprop.ang || 0;
   const bend = G.pet === "nori" && k ? Math.round(3.5 * Math.exp(-t / 230) * Math.cos(t / 42)) : 0;
@@ -871,7 +871,7 @@ function fetchLicence(now) {
   pet.dir = Math.sign(dx) || pet.dir; startAct("pickup", now); return true;
 }
 function drawLicence(front) {
-  if (!licenceOn() || lprop.state === "on" || !front || typeof itemImg !== "function") return;
+  if (!licenceOn() || lprop.state === "on" || !front || typeof itemImg !== "function" || !propShown(lprop.z)) return;
   const P = licencePics(), x = Math.round(lprop.x), y = Math.round(lprop.y) - Math.round(lprop.z), now = performance.now();
   const put = (c, dy = 0) => ctx.drawImage(c, x - (c.width >> 1), y - (c.height >> 1) + dy);
   if (lprop.state === "fly") {                      // turning over: face on, narrower, edge-on, its back, and round again
@@ -897,7 +897,7 @@ function fetchTeddy(now) {
 }
 function drawTeddy(front) {
   if (!teddyOn() || prop.state === "hug") return;
-  if (!front) return;                                                     // set down or in the air, it shows in front of her
+  if (!front || !propShown(prop.z)) return;                              // set down or in the air, it shows in front of her
   const im = teddyImg(prop.rot), x = Math.round(prop.x - im.width / 2), y = Math.round(prop.y - im.height) - Math.round(prop.z);
   if (prop.state === "ground") groundShadow(ctx, prop.x, Math.round(prop.y) - Math.round(prop.z) - 1, im.width - 2, 1);
   ctx.drawImage(im, x, y);
@@ -913,10 +913,10 @@ const restAt = () => ({ x: gprop.x, y: gprop.y - guitarBottom(GUITAR_REST, true)
 function drawGuitarRest(pose, box, now) {
   if (!guitarOn()) { gprop.state = "held"; return; }
   const lying = !pose.hidden && pose.img && pose.img.lying;
-  if (lying && gprop.state === "held") Object.assign(gprop, { state: "place", t0: now, from: backGuitarAt(), x: box.x - 16, y: FEET - Math.round(pet.z), ready: 0 });
+  if (lying && gprop.state === "held") Object.assign(gprop, { state: "place", t0: now, from: backGuitarAt(), x: box.x - 16, y: FEET - Math.round(pet.z), z: pet.z, ready: 0 });
   if (gprop.state === "place" && now - gprop.t0 >= G_PLACE) gprop.state = "ground";
   if (gprop.state === "lift" && now - gprop.t0 >= G_LIFT) gprop.state = "held";
-  if (gprop.state === "held") return;
+  if (gprop.state === "held" || !propShown(gprop.z)) return;
   if (gprop.state === "ground") {                         // lying on its back, seen from above at a slant
     const c = guitarTurned(GUITAR_REST, true);
     groundShadow(ctx, gprop.x, gprop.y, 22, 0.8);
@@ -959,7 +959,7 @@ function fetchCamera(now) {
   pet.dir = Math.sign(dx) || pet.dir; startAct("pickup", now); return true;
 }
 function drawCameraProp(now) {
-  if (!cameraOn() || cprop.state === "held") return;
+  if (!cameraOn() || cprop.state === "held" || !propShown(cprop.z)) return;
   // q: 0 round her neck, 1 on the grass; on the way it goes along an arc
   const down = cprop.state === "place", sm = q => q * q * (3 - 2 * q);
   const q = cprop.state === "ground" ? 1 : down ? sm(Math.min(1, (now - cprop.t0) / STRUM_IN)) : 1 - sm(Math.min(1, (now - cprop.t0) / C_LIFT));
@@ -1219,6 +1219,18 @@ function groundShadow(g, cx, feet, w, alpha = 1) {
   }
 }
 
+// the things she has put down are on the grass at their own depth: those behind the sign are drawn before it goes over
+// them (and before her, when she is in front of it), the rest after her. PROP_PASS: which of them to draw now
+let PROP_PASS = null;
+const propBehind = z => (z || 0) > SIGN_Z + 0.5;
+const propShown = z => PROP_PASS === null || (PROP_PASS === "behind") === propBehind(z);
+function drawProps(pose, box, now) { drawTeddy(true); drawWeaponProp(true); drawLicence(true); drawGuitarRest(pose, box, now); drawCameraProp(now); drawPuddingProp(now); }
+function anyPropBehind() {
+  return [teddyOn() && prop.state !== "hug" && prop.z, weaponOn() && wprop.state !== "held" && wprop.z, licenceOn() && lprop.state !== "on" && lprop.z,
+    guitarOn() && gprop.state !== "held" && gprop.z, cameraOn() && cprop.state !== "held" && cprop.z, puddingOn() && pprop.state !== "held" && pprop.z]
+    .some(z => z !== false && propBehind(z));
+}
+function propPass(pass, pose, box, now) { PROP_PASS = pass; drawProps(pose, box, now); PROP_PASS = null; }
 function petRender(now) {
   ctx.clearRect(0, 0, W, H);
   const pose = petPose(now); pet._pose = pose;            // (items know which drawing is her, live on the grass)
@@ -1230,6 +1242,10 @@ function petRender(now) {
     dashDust({ x: Math.round(pet.x + (pose.dx || 0)) - (img.width >> 1), y: FEET - img.height + pose.yoff }, false);
   }
   drawTeddy(false); drawWeaponProp(false);
+  const petBehind = pet.z > SIGN_Z + 0.5, signFn = typeof drawSignOver === "function";
+  if (!petBehind && signFn && anyPropBehind()) {           // things left behind the sign while she is in front of it
+    propPass("behind", pose, pet._box || { x: pet.x, y: FEET - 30, w: 0, h: 30 }, now); drawSignOver(ctx, now);
+  }
   ctx.save(); ctx.translate(0, -Math.round(pet.z));     // her depth on the grass
   const box = pose.hidden ? { x: pet.x, y: FEET - 30, w: 0, h: 30 } : drawSprite(ctx, G.pet, pose, pet.x, FEET, pet.dir, G.equip);
   pet._box = box;
@@ -1253,8 +1269,8 @@ function petRender(now) {
   drawParts(now);
   ctx.restore();
   box.y -= Math.round(pet.z);                            // back to screen space, for the Zzz and the speech bubble
-  if (pet.z > SIGN_Z + 0.5 && typeof drawSignOver === "function") drawSignOver(ctx, now);   // behind the sign
-  drawTeddy(true); drawWeaponProp(true); drawLicence(true); drawGuitarRest(pose, box, now); drawCameraProp(now); drawPuddingProp(now);
+  if (petBehind && signFn) { propPass("behind", pose, box, now); drawSignOver(ctx, now); }   // she is behind the sign, and so is what she put down there
+  propPass("front", pose, box, now);
   if (pet.act === "peek" && pet.peek.phase !== "out" && pet.peek.phase !== "in") {
     const pk = pet.peek, t = now - pk.t0, sora = pk.kind === "sora";
     let img = sora ? soraPeekImg(pk, t) : PEEK_IMG[0], off = 0;
