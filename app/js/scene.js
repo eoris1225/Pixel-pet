@@ -629,7 +629,7 @@ function bareTree(rows, R) {
       ang *= 0.97;                                                         // and drawn slowly upright
       x += Math.sin(ang); y -= Math.cos(ang);
       const X = Math.round(x), Y = Math.round(y);
-      if (!inside(X, Y)) { depth = Math.min(depth, 0); break; }
+      if (!inside(X, Y)) { x -= Math.sin(ang); y += Math.cos(ang); depth = Math.min(depth, 0); break; }   // stop on the last pixel drawn
       if (X === lastX && Y === lastY) continue; lastX = X; lastY = Y;
       m.set(X, Y, 8); if (thick > 1) m.set(X + (Math.sin(ang) > 0.4 ? 0 : 1), Y + (Math.sin(ang) > 0.4 ? 1 : 0), thick > 2 ? 6 : 8);
       if (Math.abs(Math.sin(ang)) > 0.55 && m.get(X, Y - 1) < 0 && R() < 0.6) m.set(X, Y - 1, R() < 0.8 ? 0 : 1);   // snow on a leaning bough
@@ -661,7 +661,21 @@ function bareTree(rows, R) {
       next = 4 + (R() * 6 | 0);
     }
   }
-  grow(13, 74, -0.45, 12, 2, 3);                                           // the limb up to the left (the stub in the middle stays a stub)
+  grow(13, 74, -0.45, 12, 2, 3);                                           // the limb up to the left
+  grow(18, 75, -0.12, 7, 1, 1);                                            // the one in the middle, short
+  // its own lit bough up to the left goes on lit for a little way where it carries on
+  for (let Y = 70; Y <= 77; Y++) for (let X = 9; X <= 17; X++) if (m.get(X, Y) === 8 && m.get(X, Y - 1) < 0 && m.get(X + 1, Y) === 8) m.set(X, Y, 6);
+  // keep only what joins on to the trunk: anything left loose (a stub, a twig) goes
+  const keep = new Uint8Array(w * h), st = [];
+  for (let X = 0; X < w; X++) if (m.get(X, h - 1) >= 0) { keep[(h - 1) * w + X] = 1; st.push([X, h - 1]); }
+  while (st.length) {
+    const [X, Y] = st.pop();
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const nx = X + dx, ny = Y + dy, k = ny * w + nx;
+      if (nx >= 0 && nx < w && ny >= 0 && ny < h && !keep[k] && m.t[k] >= 0) { keep[k] = 1; st.push([nx, ny]); }
+    }
+  }
+  for (let k = 0; k < w * h; k++) if (!keep[k]) m.t[k] = -1;
   return { m, ox: rows[h - 1].indexOf("8") + 2 };
 }
 // a fir: tiers of drooping boughs, each wider at its foot with its tips hanging a pixel lower, lit on the left and
