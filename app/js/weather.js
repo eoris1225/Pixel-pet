@@ -92,7 +92,7 @@ function weatherUpdate(now, dt) {
   const s = Math.min(0.1, dt / 1000), w = weatherNow(), L = WX_LOOK[w.kind], day = darkAt(worldHour()) < 0.5;
   WX.kind = w.kind; WX.src = w.src;
   // opening the game, it is already raining (or snowing, the snow lying): the weather is there from the first frame
-  if (!WX.started) { WX.started = true; Object.assign(WX, L); WX.wet = L.rain ? 0.7 : 0; WX.pud = L.rain ? 0.8 : 0; WX.depth = L.snow ? 0.8 : 0; return; }
+  if (!WX.started) { WX.started = true; newPuddles(); Object.assign(WX, L); WX.wet = L.rain ? 0.7 : 0; WX.pud = L.rain ? 0.8 : 0; WX.depth = L.snow ? 0.8 : 0; return; }
   // ease every part towards the new weather over some seconds (rain and snow start a little after the clouds come)
   const ease = (k, rate) => { WX[k] += Math.max(-rate * s, Math.min(rate * s, L[k] - WX[k])); };
   ease("cover", 0.08); ease("fog", 0.06); ease("storm", 0.2);
@@ -102,8 +102,9 @@ function weatherUpdate(now, dt) {
   WX.wet = Math.max(0, Math.min(1, WX.wet + (WX.rain > 0.05 ? WX.rain * s / 15 : -s / 90)));
   WX.depth = Math.max(0, Math.min(1, WX.depth + (WX.snow > 0.05 ? WX.snow * s / 40 : -s / (WX.rain > 0.1 ? 25 : 80))));
   // puddles fill in the rain and dry off over a few minutes
+  if (WX.pud < 0.04) { if (WX.rain > 0.05 && !WX.pudNew) { newPuddles(); WX.pudNew = true; } else if (WX.rain <= 0.05) WX.pudNew = false; }   // a new rain, new puddles
   WX.pud = Math.max(0, Math.min(1, (WX.pud || 0) + (WX.rain > 0.05 ? WX.rain * s / 14 : -s / 200)));
-  if (WX.rain > 0.05 && WX.pud > 0.15 && Math.random() < WX.rain * s * 9) RIPPLES.push({ p: Math.random() * PUDDLES.length | 0, u: Math.random() * 2 - 1, v: Math.random() * 2 - 1, t: now });
+  if (WX.rain > 0.05 && WX.pud > 0.15 && Math.random() < WX.rain * s * 9) PUDDLES.length && RIPPLES.push({ p: Math.random() * PUDDLES.length | 0, u: Math.random() * 2 - 1, v: Math.random() * 2 - 1, t: now });
   for (let i = RIPPLES.length - 1; i >= 0; i--) if (now - RIPPLES[i].t > 600) RIPPLES.splice(i, 1);
   // the rain stops in the daytime: a rainbow for a while
   if (WX.rain < 0.05 && wxPrev >= 0.05 && L.rain === 0 && L.snow === 0 && day && WX.wet > 0.3) WX.bowT = now;
@@ -257,48 +258,68 @@ function weatherLand(g, now, h) {
   if (WX.depth > 0.02) { g.globalAlpha = Math.min(0.8, WX.depth * 0.85); g.drawImage(snowCv, 0, 0); g.globalAlpha = 1; }
   if (WX.pud > 0.04 && WX.depth < 0.15 && typeof mainSeason === "function" && mainSeason() !== "winter") drawPuddles(g, now, h);
 }
-// puddles on the meadow after rain: flat ovals (flatter far off) that grow as they fill and shrink as they dry, each
-// a mirror: the sky over the horizon turned upside down (clouds, the rainbow, the sun), and her too, upside down
-// under her feet when she stands by one; rings spread on them while it rains. [x, rows below the horizon, width]
-const PUDDLES = [[44, 15, 16], [128, 21, 22], [95, 32, 28], [150, 45, 30], [64, 50, 34]], RIPPLES = [];
+// puddles on the meadow after rain. Each rain lays out new ones (newPuddles): a few, here and there, bigger near and
+// smaller and flatter far off, each a main oval with a couple of lobes so no two are alike. They grow as they fill and
+// shrink as they dry, and each is a mirror: the sky over the horizon turned upside down (clouds, the rainbow, the sun),
+// and her too, upside down under her feet when she stands by one; rings spread on them while it rains.
+// [x, rows below the horizon, width, lobes [dx, dy, rx, ry], [left, right] reach from x]
+const PUDDLES = [], RIPPLES = [];
+function newPuddles() {
+  PUDDLES.length = 0; RIPPLES.length = 0;
+  const n = 3 + (Math.random() * 3 | 0), signDy = FEET - 4 - horizon;
+  for (let tries = 0; tries < 80 && PUDDLES.length < n; tries++) {
+    const dy = Math.round(10 + Math.random() * 46), w = Math.round((10 + dy * 0.45) * (0.6 + Math.random() * 0.7));
+    const cx = Math.round(w / 2 + 3 + Math.random() * (W - w - 6));
+    if (Math.abs(cx - SIGN_X) < w / 2 + 8 && Math.abs(dy - signDy) < 8) continue;          // not round the sign's post
+    if (PUDDLES.some(([x2, dy2, w2]) => Math.abs(dy - dy2) < 7 + (w + w2) * 0.06 && Math.abs(cx - x2) < (w + w2) / 2 + 4)) continue;
+    const ry0 = Math.max(1.2, w * (0.12 + dy * 0.0015)), lobes = [[0, 0, w / 2, ry0]];
+    for (let k = 1 + (Math.random() * 3 | 0); k > 0; k--)
+      lobes.push([(Math.random() - 0.5) * w * 0.7, (Math.random() - 0.5) * ry0 * 0.9, w * (0.18 + Math.random() * 0.22), ry0 * (0.55 + Math.random() * 0.5)]);
+    PUDDLES.push([cx, dy, w, lobes, [Math.min(...lobes.map(l => l[0] - l[2])), Math.max(...lobes.map(l => l[0] + l[2]))]]);
+  }
+}
+const pudK = () => Math.sqrt(smooth(0.04, 0.6, WX.pud));
+function inThis(p, x, y, q) {
+  const [cx, dy, , lobes] = p, cy = horizon + dy;
+  return lobes.some(([ox, oy, rx, ry]) => ((x + 0.5 - cx - ox * q) / (rx * q)) ** 2 + ((y + 0.5 - cy - oy * q) / (ry * q)) ** 2 < 1);
+}
 // whether a point of the meadow is under water now (no grass tufts or flowers stand in a puddle)
 function inPuddle(x, y) {
   if (!(WX.pud > 0.04) || WX.depth >= 0.15) return false;
-  const k = smooth(0.04, 0.6, WX.pud);
-  return PUDDLES.some(([cx, dy, w]) => { const rx = w / 2 * Math.sqrt(k) + 1, ry = Math.max(1, w * (0.12 + dy * 0.0015) * Math.sqrt(k)) + 1; return ((x - cx) / rx) ** 2 + ((y - horizon - dy) / ry) ** 2 < 1; });
+  const q = pudK();
+  return PUDDLES.some(p => inThis(p, x, y, q) || inThis(p, x, y + 1, q) || inThis(p, x + 1, y, q) || inThis(p, x - 1, y, q));
 }
 function drawPuddles(g, now, h) {
-  const k = smooth(0.04, 0.6, WX.pud), sky = g.getImageData(0, 0, W, horizon).data;
+  const q = pudK(), sky = g.getImageData(0, 0, W, horizon).data;
   const feetRow = typeof pet !== "undefined" ? Math.round(FEET - 1 - pet.z) : -99, px0 = typeof pet !== "undefined" ? Math.round(pet.x) - 20 : 0;
   let me = null;
   try { if (typeof fg !== "undefined" && feetRow > 0) me = fg.getContext("2d").getImageData(px0, feetRow - 40, 40, 40).data; } catch (e) {}
-  const rim = typeof landP !== "undefined" && landP ? litc(landP.dark[0], h) : [70, 90, 70], tint = mixc(hex("#6f8fb0"), hex("#1e2848"), darkAt(h) * 0.7);
-  PUDDLES.forEach(([cx, dy, w], pi) => {
-    const cy = horizon + dy, rx = w / 2 * Math.sqrt(k), ry = Math.max(1, w * (0.12 + dy * 0.0015) * Math.sqrt(k));
-    if (rx < 1.5) return;
-    for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++) {
-      const v = (y + 0.5 - cy) / ry; if (Math.abs(v) > 1) continue;
-      const half = Math.round(rx * Math.sqrt(1 - v * v));        // whole pixels: a stepped oval
-      for (let x = Math.round(cx) - half; x < Math.round(cx) + half; x++) {
-        if (x < 0 || x >= W) continue;
-        const sy = Math.max(0, Math.min(horizon - 1, Math.round(horizon - 3 - (y - horizon) * 0.9)));
-        let j = (sy * W + x) * 4, c = [sky[j], sky[j + 1], sky[j + 2]];
-        if (me && y > feetRow && Math.abs(x - pet.x) < 20) {   // her reflection, upside down below her feet
-          const my = 2 * feetRow - y - (feetRow - 40), mx = x - px0;
-          if (my >= 0 && my < 40) { const m = (my * 40 + mx) * 4; if (me[m + 3] > 200) c = mixc([me[m], me[m + 1], me[m + 2]], tint, 0.25); }
-        }
-        let col = mixc(c, tint, 0.3);
-        const edge = Math.abs(x + 0.5 - cx) > half - 1.5 || Math.abs(v) > 0.7;
-        if (edge) col = mixc(col, rim, 0.45);                    // a darker wet rim
-        g.fillStyle = css(col); g.fillRect(x, y, 1, 1);
+  const rim = typeof landP !== "undefined" && landP ? litc(landP.dark[0], h) : [70, 90, 70], tint = mixc(hex("#8fb0cc"), hex("#1e2848"), darkAt(h) * 0.7);
+  PUDDLES.forEach((p, pi) => {
+    const [cx, dy, w, lobes, [l0, l1]] = p, cy = horizon + dy;
+    if (w * q < 3) return;
+    const ryM = Math.max(...lobes.map(l => Math.abs(l[1]) + l[3])) * q;
+    const mine = me && cy - ryM <= feetRow + 3 && cy + ryM >= feetRow - 1;   // she shows only in a puddle she stands at
+    for (let y = Math.floor(cy - ryM) - 1; y <= Math.ceil(cy + ryM) + 1; y++) for (let x = Math.floor(cx + l0 * q) - 1; x <= Math.ceil(cx + l1 * q) + 1; x++) {
+      if (x < 0 || x >= W || !inThis(p, x, y, q)) continue;
+      const sy = Math.max(0, Math.min(horizon - 1, Math.round(horizon - 3 - (y - horizon) * 0.9)));
+      let j = (sy * W + x) * 4, c = [sky[j], sky[j + 1], sky[j + 2]];
+      if (mine && y > feetRow && Math.abs(x - pet.x) < 20) {   // her reflection, upside down below her feet
+        const my = 2 * feetRow - y - (feetRow - 40), mx = x - px0;
+        if (my >= 0 && my < 40) { const m = (my * 40 + mx) * 4; if (me[m + 3] > 200) c = mixc([me[m], me[m + 1], me[m + 2]], tint, 0.25); }
       }
+      let col = mixc(c, tint, 0.28);
+      const edge = !inThis(p, x - 1, y, q) || !inThis(p, x + 1, y, q) || !inThis(p, x, y - 1, q) || !inThis(p, x, y + 1, q);
+      if (edge) col = mixc(col, rim, 0.32);                    // a softly darker wet rim
+      else if (!inThis(p, x, y - 2, q)) col = mixc(col, [255, 255, 255], 0.12);   // the far bank's light on the water
+      g.fillStyle = css(softc(col)); g.fillRect(x, y, 1, 1);
     }
     for (const r of RIPPLES) {                                   // rings spreading where drops fall
       if (r.p !== pi) continue;
-      const t = (now - r.t) / 600, rr = 1 + t * 4, ox = cx + r.u * rx * 0.6, oy = cy + r.v * ry * 0.5;
+      const t = (now - r.t) / 600, rr = 1 + t * 4, ox = cx + r.u * w * q * 0.3, oy = cy + r.v * lobes[0][3] * q * 0.5;
       g.fillStyle = css([235, 244, 255], 0.5 * (1 - t));
       for (let a = 0; a < 12; a++) { const x = Math.round(ox + Math.cos(a / 12 * Math.PI * 2) * rr), y = Math.round(oy + Math.sin(a / 12 * Math.PI * 2) * rr * 0.35);
-        if (((x - cx) / rx) ** 2 + ((y + 0.5 - cy) / ry) ** 2 < 0.8) g.fillRect(x, y, 1, 1); }
+        if (inThis(p, x, y, q * 0.85)) g.fillRect(x, y, 1, 1); }
     }
   });
 }

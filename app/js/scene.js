@@ -1349,41 +1349,63 @@ function sceneUpdate(now, dt) {
 
 /* ---------- little lives on the meadow ---------- */
 // butterflies (wandering, resting on a flower, circling her head, landing on it), a dragonfly that hovers and darts and
-// perches, bees about the flowers, a frog by the puddles after rain. Each keeps to its season and to fair daylight;
-// what passes in front of her is drawn over her (sceneFront)
+// perches, bees that visit the flowers, a frog by the puddles after rain. Each keeps to its season and to fair daylight,
+// comes now and then and does not stay long; what passes in front of her is drawn over her (sceneFront)
 const BFLY = [], BEES = [];
-let nextBfly = performance.now() + 6000, dfly = null, nextDfly = performance.now() + 20000, frog = null;
-const R_ = (a, b) => a + Math.random() * (b - a);
+let nextBfly = performance.now() + R0(15000, 30000), dfly = null, nextDfly = performance.now() + R0(40000, 80000), frog = null, frogDone = false;
+let nextBees = performance.now() + R0(20000, 40000);
+function R0(a, b) { return a + Math.random() * (b - a); }
+const R_ = R0;
 function petHead() {
   if (typeof pet === "undefined" || !pet.box || ["held", "fall", "peek", "dash"].includes(pet.act)) return null;
   return { x: pet.box.x + pet.box.w / 2, y: pet.box.y + 2, still: pet.act === "idle" || (typeof G !== "undefined" && G.sleeping) };
 }
 const dryFlower = () => { const ok = FLOWERS.filter(f => !(typeof inPuddle === "function" && inPuddle(Math.round(f.x), Math.round(f.yy)))); return ok[Math.random() * ok.length | 0] || FLOWERS[0]; };
 const airPoint = () => ({ x: R_(12, W - 12), y: R_(horizon - 24, FEET - 14) });
+// the sparrow's corner (the top of the sign): the dragonfly keeps out of it
+const nearSign = (x, y) => Math.abs(x - SIGN_X) < 20 && y < FEET - 22;
 function steer(b, tx, ty, speed, s, k = 3) {
   const dx = tx - b.x, dy = ty - b.y, d = Math.hypot(dx, dy) || 1;
   b.vx += (dx / d * speed - b.vx) * Math.min(1, k * s); b.vy += (dy / d * speed - b.vy) * Math.min(1, k * s);
   b.x += b.vx * s; b.y += b.vy * s; if (Math.abs(b.vx) > 2) b.dir = Math.sign(b.vx);
   return d;
 }
+// butterfly kinds: wing colour a, its marks b, hind wing c, and where the marks go (tips, spots, bands)
+const BFLY_KINDS = [
+  { a: "#fff0a8", b: "#e9bd6a", c: "#ffe48e", m: "tips" },     // a pale yellow with amber tips
+  { a: "#fffaf0", b: "#a9a7b8", c: "#f1ece2", m: "tips" },     // a cabbage white, grey tips
+  { a: "#ffd0dc", b: "#fff6f8", c: "#ffbccd", m: "spots" },    // pink with white dots
+  { a: "#c9e4f7", b: "#8fbfe3", c: "#b5d8f2", m: "tips" },     // a little blue
+  { a: "#ddd2f8", b: "#9f8bd8", c: "#cbbcf2", m: "spots" },    // lavender with eye spots
+  { a: "#fff1c4", b: "#a08064", c: "#f5e2a8", m: "bands" },    // a swallowtail, soft brown bands
+];
+// wings open (9x7, body k in the middle column, feelers on top), each wing edged a step deeper (e) so it reads on the
+// grass; half open drops the outer columns; shut is the pair raised together, seen edge on
+const BFLY_OPEN = {
+  tips:  ["...k.k...", ".bbekebb.", "bbaakaabb", "eaaakaaae", ".eeakaee.", ".ecckcce.", "..ee.ee.."],
+  spots: ["...k.k...", ".eeekeee.", "eaaakaaae", "eabakabae", ".eeakaee.", ".ecckcce.", "..ee.ee.."],
+  bands: ["...k.k...", ".eeekeee.", "eabakabae", "eaabkbaae", ".eeakaee.", ".ebckcbe.", "..ee.ee.."],
+};
+const halfOf = rows => rows.map(r => r[0] + r.slice(2, 7) + r[8]);
+const BFLY_SHUT = ["...k.k...", "..eeee...", "..eaae...", "..eabe...", "...eke...", "....k....", "........."];
 function updateCritters(now, s, dark, foul) {
   const se = mainSeason(), day = dark < 0.3 && !foul, hd = petHead();
-  // butterflies: two in spring and summer, one in autumn, none in winter
-  const want = !day ? 0 : se === "spring" || se === "summer" ? 2 : se === "autumn" ? 1 : 0;
-  if (BFLY.length < want && now > nextBfly) {
-    const left = Math.random() < 0.5;
-    BFLY.push({ x: left ? -6 : W + 6, y: R_(horizon, FEET - 30), vx: 0, vy: 0, dir: left ? 1 : -1, st: "wander", t: 0, ...airPoint(), tx: 0, ty: 0,
-      c: ["#ffd84d", "#ffffff", "#ffb3c7", "#c6b5ff", "#9fd3f5"][Math.random() * 5 | 0], p: Math.random() * 6 });
-    const b = BFLY[BFLY.length - 1]; b.x = left ? -6 : W + 6; Object.assign(b, { tx: R_(30, 150), ty: R_(horizon, FEET - 20) });
-    nextBfly = now + R_(8000, 20000);
+  // butterflies: now and then one comes (two at times in spring and summer), stays a little while and goes
+  const most = !day ? 0 : se === "spring" || se === "summer" ? 2 : se === "autumn" ? 1 : 0;
+  if (BFLY.length < most && now > nextBfly) {
+    const left = Math.random() < 0.5, kind = BFLY_KINDS[Math.random() * BFLY_KINDS.length | 0];
+    BFLY.push({ x: left ? -6 : W + 6, y: R_(horizon, FEET - 30), vx: 0, vy: 0, dir: left ? 1 : -1, st: "wander", t: 0, life: now + R_(20000, 45000),
+      tx: R_(30, 150), ty: R_(horizon, FEET - 20), k: kind, p: Math.random() * 6 });
+    nextBfly = now + (BFLY.length > 1 ? R_(60000, 120000) : Math.random() < 0.3 ? R_(8000, 20000) : R_(45000, 100000));
   }
   for (let i = BFLY.length - 1; i >= 0; i--) {
     const b = BFLY[i]; b.t += s * 1000; b.front = false;
-    if (!day && b.st !== "leave") { b.st = "leave"; b.tx = b.x < W / 2 ? -20 : W + 20; b.ty = b.y - 30; }
+    if ((!day || now > b.life) && b.st !== "leave" && !b.sit) { b.st = "leave"; b.tx = b.x < W / 2 ? -20 : W + 20; b.ty = b.y - 30; }
     const choose = () => {                                        // what next
       const r = Math.random(), fl = (se === "spring" || se === "summer") && FLOWERS.length;
       b.t = 0; b.near = false;
-      if (hd && r < 0.3) { b.st = "orbit"; b.a = Math.atan2(b.y - hd.y, b.x - hd.x); b.dur = R_(4000, 7000); }
+      if (now > b.life) { b.st = "leave"; b.tx = b.x < W / 2 ? -20 : W + 20; b.ty = R_(horizon - 40, horizon); }
+      else if (hd && r < 0.3) { b.st = "orbit"; b.a = Math.atan2(b.y - hd.y, b.x - hd.x); b.dur = R_(4000, 7000); }
       else if (hd && hd.still && r < 0.42) b.st = "land";
       else if (fl && r < 0.7) { b.st = "flower"; b.f = dryFlower(); }
       else if (r < 0.9) { b.st = "wander"; const p = airPoint(); b.tx = p.x; b.ty = p.y; }
@@ -1391,7 +1413,7 @@ function updateCritters(now, s, dark, foul) {
     };
     const bob = Math.sin(b.t / 160 + b.p) * 6;                    // the up-and-down of a butterfly's flight
     if (b.st === "wander") { if (steer(b, b.tx, b.ty + bob, 16, s) < 3) choose(); }
-    else if (b.st === "leave") { steer(b, b.tx, b.ty + bob, 20, s); if (b.x < -15 || b.x > W + 15) BFLY.splice(i, 1); }
+    else if (b.st === "leave") { steer(b, b.tx, b.ty + bob, 20, s); if (b.x < -15 || b.x > W + 15) { BFLY.splice(i, 1); nextBfly = Math.max(nextBfly, now + R_(30000, 70000)); } }
     else if (b.st === "flower") {
       const fx = b.f.x + 0.5, fy = b.f.yy - 6;
       if (b.sit) { b.x = fx; b.y = fy; b.vx = b.vy = 0; if (b.t > b.sit) { b.sit = 0; choose(); } }
@@ -1410,101 +1432,142 @@ function updateCritters(now, s, dark, foul) {
       else b.front = b.y > hd.y;
     }
   }
-  // a dragonfly in summer and autumn (red in autumn): hovers, darts, now and then perches on the sign or a tuft
+  // a dragonfly in summer and autumn, once in a while: hovers, darts, perches on a grass tip or a flower, then flies off
   if (!dfly && now > nextDfly && day && (se === "summer" || se === "autumn")) {
-    dfly = { x: -8, y: R_(horizon - 10, FEET - 30), st: "dart", t: 0, ...airPoint(), dir: 1, c: se === "autumn" ? "#e0503a" : "#3fa7a0", n: 0 };
-    dfly.tx = R_(40, 140); dfly.ty = R_(horizon - 10, FEET - 30);
+    const left = Math.random() < 0.5;
+    dfly = { x: left ? -8 : W + 8, y: R_(horizon - 10, FEET - 30), st: "dart", t: 0, dir: left ? 1 : -1, kind: se, n: 0, max: 2 + (Math.random() * 3 | 0) };
+    dfly.tx = R_(60, 150); dfly.ty = R_(horizon - 10, FEET - 30);
   }
   if (dfly) {
     const d = dfly; d.t += s * 1000;
     if (!day && d.st !== "go") { d.st = "go"; d.tx = W + 30; d.ty = horizon - 40; }
     if (d.st === "dart" || d.st === "go") {
-      const dx = d.tx - d.x, dy = d.ty - d.y, dist = Math.hypot(dx, dy), step = 110 * s;
+      const dx = d.tx - d.x, dy = d.ty - d.y, dist = Math.hypot(dx, dy), step = 90 * s;
       if (Math.abs(dx) > 1) d.dir = Math.sign(dx);
       if (dist <= step) {
         d.x = d.tx; d.y = d.ty; d.t = 0;
-        if (d.st === "go" || d.n > 7) { dfly = null; nextDfly = now + R_(25000, 50000); }
-        else { d.n++; d.st = Math.random() < 0.25 ? "perch" : "hover"; d.hold = R_(500, 1600) * (d.st === "perch" ? 4 : 1);
-          if (d.st === "perch") { const t = Math.random() < 0.4 ? null : TUFTS[Math.random() * TUFTS.length | 0];
-            if (t && !(typeof inPuddle === "function" && inPuddle(t.x, t.yy))) { d.x = t.x; d.y = t.yy - t.h - 1; } else { d.x = SIGN_X + 9; d.y = FEET - 4 - 28; } } }
+        if (d.st === "go" || d.n >= d.max) { dfly = null; nextDfly = now + R_(70000, 160000); }
+        else if (d.perchNext) { d.perchNext = false; d.n++; d.st = "perch"; d.hold = R_(2500, 5000); }
+        else {
+          d.n++; d.st = Math.random() < 0.35 ? "perch" : "hover"; d.hold = d.st === "perch" ? R_(2500, 5000) : R_(500, 1400);
+          if (d.st === "perch") {
+            const spots = [...TUFTS.filter(t => !nearSign(t.x, t.yy - t.h)).map(t => [t.x, t.yy - t.h - 1]), ...FLOWERS.filter(f => !nearSign(f.x, f.yy)).map(f => [f.x, f.yy - 6])]
+              .filter(([x, y]) => !(typeof inPuddle === "function" && inPuddle(Math.round(x), Math.round(y + 2))));
+            const sp = spots.length ? spots[Math.random() * spots.length | 0] : null;
+            if (sp) { d.st = "dart"; d.tx = sp[0]; d.ty = sp[1]; d.perchNext = true; d.n--; } else d.st = "hover";
+          }
+        }
       } else { d.x += dx / dist * step; d.y += dy / dist * step; }
     } else if (d.t > d.hold) {
-      d.st = Math.random() < 0.1 ? "go" : "dart"; d.t = 0;
+      d.st = d.n >= d.max ? "go" : "dart"; d.t = 0;
       if (d.st === "go") { d.tx = Math.random() < 0.5 ? -30 : W + 30; d.ty = horizon - 30; }
-      else { d.tx = Math.max(10, Math.min(W - 10, d.x + R_(-60, 60))); d.ty = Math.max(horizon - 20, Math.min(FEET - 16, d.y + R_(-25, 25))); }
+      else for (let tries = 0; tries < 8; tries++) {
+        d.tx = Math.max(10, Math.min(W - 10, d.x + R_(-60, 60))); d.ty = Math.max(horizon - 20, Math.min(FEET - 16, d.y + R_(-25, 25)));
+        if (!nearSign(d.tx, d.ty)) break;
+      }
     } else if (d.st === "hover") d.y += Math.sin(d.t / 90) * 0.15;
   }
-  // bees about the flowers in spring and summer
-  const beeWant = day && (se === "spring" || se === "summer") ? 2 : 0;
-  while (BEES.length < beeWant) BEES.push({ f: dryFlower(), x: R_(0, W), y: horizon, t: 0, p: Math.random() * 6, next: now + R_(3000, 8000) });
-  if (BEES.length > beeWant) BEES.length = beeWant;
-  for (const e of BEES) {
+  // bees: a pair comes to the flowers in spring and summer now and then, goes from flower to flower, and leaves
+  if (!BEES.length && day && (se === "spring" || se === "summer") && now > nextBees) {
+    const n = Math.random() < 0.5 ? 1 : 2, from = Math.random() < 0.5 ? -6 : W + 6;
+    for (let k = 0; k < n; k++) BEES.push({ f: dryFlower(), x: from, y: horizon + R_(0, 20), p: Math.random() * 6, next: now + R_(3000, 7000), until: now + R_(15000, 30000) });
+  }
+  for (let i = BEES.length - 1; i >= 0; i--) {
+    const e = BEES[i];
+    if (now > e.until || !day) {                                  // off it goes
+      e.x += (e.x < W / 2 ? -40 : 40) * s; e.y -= 8 * s;
+      if (e.x < -8 || e.x > W + 8) { BEES.splice(i, 1); if (!BEES.length) nextBees = now + R_(60000, 150000); }
+      continue;
+    }
     if (now > e.next) { e.f = dryFlower(); e.next = now + R_(3000, 8000); }
     const tx = e.f.x + Math.sin(now / 230 + e.p) * 4, ty = e.f.yy - 8 + Math.sin(now / 170 + e.p * 2) * 2;
     e.x += (tx - e.x) * Math.min(1, 2.5 * s); e.y += (ty - e.y) * Math.min(1, 2.5 * s);
   }
-  // a frog by the puddles after rain (not in winter): it hops in, sits puffing its throat, hops between puddles, leaves
-  const wetOk = typeof WX !== "undefined" && WX.pud > 0.3 && WX.rain < 0.3 && se !== "winter" && dark < 0.7;
-  if (!frog && wetOk) frog = { x: -6, y: horizon + 46, st: "hop", t: 0, i: 3, n: 0, ...frogSpot(3) };
+  // a frog by the puddles after rain (not in winter), once per rain: it hops in, sits puffing its throat, hops to another
+  // puddle or two, and leaves
+  if (typeof WX !== "undefined" && WX.pud < 0.05) frogDone = false;
+  const wetOk = typeof WX !== "undefined" && WX.pud > 0.3 && WX.rain < 0.3 && se !== "winter" && dark < 0.7 && PUDDLES.length;
+  // she goes in hops of a few pixels towards where she is going (gx, gy), a little rest between hops
+  const hopTo = (f, gx, gy) => { f.gx = gx; f.gy = gy; f.st = "hop"; f.t = 0; nextHop(f); };
+  const nextHop = f => { const dx = f.gx - f.x, dy = f.gy - f.y, d = Math.hypot(dx, dy) || 1, st = Math.min(d, R_(9, 14));
+    f.tx = f.x + dx / d * st; f.ty = f.y + dy / d * st; f.dir = Math.sign(dx) || f.dir || 1; };
+  if (!frog && wetOk && !frogDone) {
+    frogDone = true; const i = Math.random() * PUDDLES.length | 0, sp = frogSpot(i), left = sp.tx < W / 2;
+    frog = { x: left ? -6 : W + 6, y: sp.ty, n: 0, dir: left ? 1 : -1 }; hopTo(frog, sp.tx, sp.ty);
+  }
   if (frog) {
     const f = frog; f.t += s * 1000;
     if (f.st === "hop") {
-      const q = Math.min(1, f.t / 420);
-      f.cx = f.x + (f.tx - f.x) * q; f.cy = f.y + (f.ty - f.y) * q - Math.sin(q * Math.PI) * 6; f.dir = Math.sign(f.tx - f.x) || 1;
+      const q = Math.min(1, Math.max(0, f.t - 120) / 380);           // a breath, then the leap
+      f.cx = f.x + (f.tx - f.x) * q; f.cy = f.y + (f.ty - f.y) * q - Math.sin(q * Math.PI) * 4;
       if (q >= 1) {
         f.x = f.tx; f.y = f.ty; f.t = 0;
-        if (f.tx < -5 || f.tx > W + 5) frog = null;
-        else if (f.hops > 0) { f.hops--; const sp = { tx: f.x + f.dir * R_(8, 14), ty: f.y + R_(-1, 1) }; Object.assign(f, sp); }
-        else { f.st = "sit"; f.hold = R_(4000, 9000); }
+        if (f.x < -5 || f.x > W + 5) frog = null;
+        else if (Math.hypot(f.gx - f.x, f.gy - f.y) > 0.5) nextHop(f);
+        else { f.st = "sit"; f.hold = R_(4000, 8000); }
       }
     } else if (f.t > f.hold) {
-      f.t = 0; f.st = "hop";
-      if (!wetOk || f.n > 3) { f.tx = f.x < W / 2 ? -10 : W + 10; f.ty = f.y; f.hops = 0; }
-      else { f.n++; f.i = Math.random() * PUDDLES.length | 0; Object.assign(f, frogSpot(f.i)); f.hops = 0; }
+      if (!wetOk || f.n >= 2) hopTo(f, f.x < W / 2 ? -10 : W + 10, f.y);
+      else { f.n++; const sp = frogSpot(Math.random() * PUDDLES.length | 0); hopTo(f, sp.tx, sp.ty); }
     }
     if (frog && f.st === "sit") { f.cx = f.x; f.cy = f.y; }
   }
 }
-// a little frog facing right, outlined like the friends (g green, G shade, l belly, w eye white, k ink); on a hop her legs trail behind
+// beside a puddle's front edge
+function frogSpot(i) {
+  const [cx, dy, , , [l0, l1]] = PUDDLES[i], q = typeof pudK === "function" ? pudK() : 1, right = Math.random() < 0.5;
+  return { tx: Math.round(cx + (right ? l1 * q + 6 : l0 * q - 6)), ty: horizon + dy + 1, hops: 0 };
+}
+// a little frog facing right, outlined like the friends (g green, G shade, l belly, w eye white, k ink)
 const FROG = ["...kk.kk..", "..kwkkwkk.", ".kgggggggk", "kgggggllgk", "kGGgggllk.", ".kkGkkkk.."];
 const FROG_HOP = ["...kk.kk..", "..kwkkwkk.", ".kgggggggk", "kGgggglllk", "kGGkkkkk..", "kk........"];
-// beside a puddle's front edge
-function frogSpot(i) { const [cx, dy, w] = PUDDLES[i]; return { tx: cx + (Math.random() < 0.5 ? -1 : 1) * (w / 2 + 2), ty: horizon + dy + 1, hops: 0 }; }
-
+// a dragonfly facing right: segmented tail (b/B), thorax t, big eye e, glassy wings w (raised, or spread flat)
+const DFLY_SPREAD = ["....ww.ww..", "bBbBbBbttee", "....ww.ww.."];
+const DFLY_UP = [".....w..w..", "....ww.ww..", "bBbBbBbttee"];
+const DFLY_COL = { summer: { b: "#9fd6cf", B: "#7dbcb9", t: "#76aeb4", e: "#5e93a0" }, autumn: { b: "#f2b3a2", B: "#e09684", t: "#cf8a7c", e: "#b9746c" } };
+// critters take the light of the meadow: the warm pastel, the sky's colour, the evening, a grey day
+function bugc(c, h) {
+  let x = softc(hex(c), 1.4);
+  x = mixc(x, skyAt(h)[1], 0.1);
+  if (typeof WX !== "undefined" && WX.cover > 0.05) x = mixc(x, hex("#a8adb8"), WX.cover * 0.25);
+  x = mixc(x, hex("#ff9e72"), warmAt(h) * 0.16);
+  return mixc(x, hex("#1b2648"), darkAt(h) * 0.64);
+}
+function paintMap(g, rows, x, y, r, pal, cx, alpha) {
+  rows.forEach((row, j) => [...row].forEach((ch, i) => {
+    if (ch === "." || !pal[ch]) return;
+    g.fillStyle = alpha && alpha[ch] ? css(pal[ch], alpha[ch]) : css(pal[ch]); g.fillRect(x + (i - cx) * r, y + j, 1, 1);
+  }));
+}
 function drawButterfly(g, b, h, now) {
   const x = Math.round(b.x), y = Math.round(b.y), resting = b.sit && b.t < b.sit;
-  const ph = resting ? Math.floor(now / 700 + b.p) % 3 : Math.floor(now / 90 + b.p) % 3;   // wings: open, half, shut (slowly while resting)
-  const c = css(lit(b.c, h)), tip = css(mixc(lit(b.c, h), hex("#3a2a40"), 0.35));
-  g.fillStyle = css(lit(OUT, h)); g.fillRect(x, y - 1, 1, 3);
-  g.fillStyle = c;
-  if (ph === 0) { g.fillRect(x - 3, y - 2, 3, 2); g.fillRect(x + 1, y - 2, 3, 2); g.fillRect(x - 2, y, 2, 1); g.fillRect(x + 1, y, 2, 1);
-    g.fillStyle = tip; g.fillRect(x - 3, y - 2, 1, 1); g.fillRect(x + 3, y - 2, 1, 1); }
-  else if (ph === 1) { g.fillRect(x - 2, y - 2, 2, 2); g.fillRect(x + 1, y - 2, 2, 2); g.fillRect(x - 1, y, 1, 1); g.fillRect(x + 1, y, 1, 1); }
-  else { g.fillRect(x - 1, y - 3, 1, 3); g.fillRect(x + 1, y - 3, 1, 3); }
+  // wings: open, half, shut, half (slowly while resting, mostly open)
+  const ph = resting ? [0, 0, 1, 2, 1, 0][Math.floor(now / 500 + b.p) % 6] : [0, 1, 2, 1][Math.floor(now / 80 + b.p) % 4];
+  const k = b.k, pal = { a: bugc(k.a, h), b: bugc(k.b, h), c: bugc(k.c, h), k: bugc("#7a6656", h) };
+  pal.e = mixc(mixc(pal.a, pal.b, 0.3), bugc("#7a6656", h), 0.28);
+  if (ph === 1) paintMap(g, halfOf(BFLY_OPEN[k.m]), x, y - 3, 1, pal, 3);
+  else paintMap(g, ph === 0 ? BFLY_OPEN[k.m] : BFLY_SHUT, x, y - 3, ph === 2 && (b.dir || 1) < 0 ? -1 : 1, pal, 4);
 }
 function drawCritters(g, now, h, front) {
   for (const b of BFLY) if (!!b.front === front) drawButterfly(g, b, h, now);
   if (front) return;
   for (const e of BEES) {
     const x = Math.round(e.x), y = Math.round(e.y), up = Math.floor(now / 60) % 2;
-    g.fillStyle = css(lit("#ffd23a", h)); g.fillRect(x, y, 2, 2); g.fillStyle = css(lit(OUT, h)); g.fillRect(x + 1, y, 1, 2);
-    g.fillStyle = "rgba(255,255,255,.75)"; g.fillRect(x, y - 1 - up, 1, 1);
+    g.fillStyle = css(bugc("#ffd86a", h)); g.fillRect(x, y, 3, 2); g.fillStyle = css(bugc("#7a6450", h)); g.fillRect(x + 1, y, 1, 2);
+    g.fillStyle = "rgba(255,255,255,.7)"; g.fillRect(x + 1, y - 1 - up, 1, 1);
   }
   if (dfly) {
-    const d = dfly, x = Math.round(d.x), y = Math.round(d.y), r = d.dir || 1, fl = d.st === "perch" ? 0 : Math.floor(now / 40) % 2;
-    g.fillStyle = css(lit(d.c, h)); g.fillRect(x - 3 * r - (r < 0 ? 0 : 0), y, 1, 1);
-    for (let k = -3; k <= 2; k++) g.fillRect(x + k * r, y, 1, 1);
-    g.fillStyle = css(lit(OUT, h)); g.fillRect(x + 3 * r, y, 1, 1);
-    g.fillStyle = "rgba(235,245,255,.7)"; g.fillRect(x - 1 + (r < 0 ? -2 : 0), y - 1 - fl, 3, 1); g.fillRect(x - 1 + (r < 0 ? -2 : 0), y + 1 + fl, 3, 1);
+    const d = dfly, x = Math.round(d.x), y = Math.round(d.y), r = d.dir || 1, C = DFLY_COL[d.kind] || DFLY_COL.summer;
+    const pal = { b: bugc(C.b, h), B: bugc(C.B, h), t: bugc(C.t, h), e: bugc(C.e, h), w: bugc("#f4fbff", h) };
+    const flat = d.st === "perch" || Math.floor(now / 45) % 2 === 0;
+    paintMap(g, flat ? DFLY_SPREAD : DFLY_UP, x, y - (flat ? 1 : 2), r, pal, 9, { w: 0.6 });
   }
   if (frog && frog.cx !== undefined) {
-    const f = frog, x = Math.round(f.cx), y = Math.round(f.cy), r = f.dir || 1, air = f.st === "hop" && f.t > 60 && f.t < 380;
+    const f = frog, x = Math.round(f.cx), y = Math.round(f.cy), r = f.dir || 1, air = f.st === "hop" && f.t > 180 && f.t < 440;
     const puff = f.st === "sit" ? Math.max(0, Math.sin(now / 260)) : 0;          // her throat swells and goes down
-    const P = { g: lit("#8fd16a", h), G: lit("#5fae4e", h), l: lit("#e4f5c0", h), w: lit("#ffffff", h), k: lit(OUT, h) };
+    const P = { g: bugc("#a6d98a", h), G: bugc("#7fbf72", h), l: bugc("#eaf6cf", h), w: bugc("#ffffff", h), k: bugc(OUT, h) };
     const rows = air ? FROG_HOP : FROG;
-    rows.forEach((row, j) => [...row].forEach((ch, i) => {
-      if (ch === ".") return; g.fillStyle = css(P[ch]); g.fillRect(x + (i - 5) * r, y - rows.length + j, 1, 1);
-    }));
+    paintMap(g, rows, x, y - rows.length, r, P, 5);
     if (puff > 0.3) { g.fillStyle = css(P.l); g.fillRect(x + 4 * r, y - 3, 1, puff > 0.75 ? 2 : 1); }
   }
 }
