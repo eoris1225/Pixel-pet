@@ -1131,12 +1131,20 @@ function paintCave(g, col, hy) {
   g.fillStyle = col(rock, 0.3);
   for (let dx = -3; dx <= 3; dx++) g.fillRect(CAVE.x + dx, top(dx) - 1, 1, 1);
   g.fillRect(CAVE.x - 4, hy, 1, 2); g.fillRect(CAVE.x + 4, hy + 1, 1, 2);
-  // bushes of the wood either side
+  // bushes of the wood either side (snow on them in winter)
   for (const [bx, r] of [[-8, 2.6], [-6, 1.6], [8, 2.2]]) {
     const cx = CAVE.x + bx, cy = hy - 1;
     g.fillStyle = col(P.wood[2], 0.25); disc(g, cx, cy, Math.round(r));
     g.fillStyle = col(P.wood[1], 0.25); disc(g, cx - 0.6, cy - 0.6, Math.max(1, Math.round(r) - 1));
     g.fillStyle = col(P.wood[0], 0.25); g.fillRect(Math.round(cx - r * 0.6), Math.round(cy - r * 0.7), Math.max(1, Math.round(r * 0.8)), 1);
+    if (se === "winter") {                                          // snow lying on its top: thick in the middle, thin at its sides
+      const R = Math.round(r), X = Math.round(cx), Y = Math.round(cy);
+      for (let dx = -R; dx <= R; dx++) {
+        const ty = Y - Math.round(Math.sqrt(R * R - dx * dx)), th = Math.abs(dx) < R - 1 ? 2 : 1;
+        g.fillStyle = col(hex("#ffffff"), 0.2); g.fillRect(X + dx, ty, 1, th);
+        if (th > 1) { g.fillStyle = col(hex("#c9d4e2"), 0.2); g.fillRect(X + dx, ty + th, 1, 1); }   // its shaded underside
+      }
+    }
   }
   if (se === "winter") { g.fillStyle = col(hex("#ffffff"), 0.2); for (let dx = -7; dx <= 7; dx++) { const t = Math.round(5.5 * Math.cos(dx / 10 * Math.PI / 2) ** 1.4); if (Math.abs(dx) > 3) g.fillRect(CAVE.x + dx, hy - t, 1, 1); } g.fillRect(CAVE.x - 2, top(0) - 2, 5, 1); }
   CAVE.y = hy;
