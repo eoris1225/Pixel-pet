@@ -152,11 +152,11 @@ function weatherSay(kind) {
 }
 
 /* ---------- drawing ---------- */
-// over the sky and its clouds (which scene.js greys and gathers as it clouds over): overcast greys and darkens it
+// over the sky, behind its clouds (which scene.js greys and gathers as it clouds over): overcast greys and darkens it
 // (darker in a storm); a rainbow after rain
 function weatherSky(g, now, h) {
   const d = darkAt(h);
-  if (WX.cover > 0.02) {
+  if (WX.cover > 0.08) {
     const c = mixc(mixc(hex("#9aa3b4"), hex("#5c6479"), WX.storm * 0.8 + WX.rain * 0.2), hex("#2a3048"), d);
     g.fillStyle = css(c, WX.cover * (0.3 + WX.storm * 0.2)); g.fillRect(0, 0, W, horizon + 24);
   }

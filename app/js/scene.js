@@ -1,7 +1,8 @@
-/* The world behind the pet: a sky that follows the user's local clock (dawn, day, golden hour, sunset, dusk, night),
-   sun and a moon in its real phase, stars, drifting clouds (now and then one with a face), birds, a sparrow that
-   visits the sign, butterflies, fireflies, swaying grass and flowers, and the wooden sign clock.
-   Preview any time of day with ?hour=18.5 and fast-forward with ?speed=600 in the URL. */
+/* The world behind the pet: a sky that follows the user's local clock (dawn, day, golden hour, sunset, dusk, night)
+   and the season (its colours, and its clouds', taken from the reference pixel-art packs), sun and a moon in its real
+   phase, stars, drifting clouds of many kinds and sizes (now and then one with a face), birds, a sparrow that visits
+   the sign, butterflies, fireflies, swaying grass and flowers, and the wooden sign clock.
+   Preview any time of day with ?hour=18.5, a season with ?season=autumn, and fast-forward with ?speed=600. */
 "use strict";
 
 const bg = document.getElementById("bg");
@@ -9,12 +10,11 @@ const sctx = bg.getContext("2d");
 
 /* ---------- time ---------- */
 const QS = new URLSearchParams(location.search);
-const T_FIX = QS.has("hour") ? parseFloat(QS.get("hour")) : null;
+let T_FIX = QS.has("hour") ? parseFloat(QS.get("hour")) : null, T_FIX_AT = Date.now();
 const T_SPEED = QS.has("speed") ? Math.max(1, parseFloat(QS.get("speed"))) : 1;
 const T_START = Date.now();
 function worldHour() {
-  const run = (Date.now() - T_START) * T_SPEED / 3600000;
-  if (T_FIX !== null) return ((T_FIX + run) % 24 + 24) % 24;
+  if (T_FIX !== null) return ((T_FIX + (Date.now() - T_FIX_AT) * T_SPEED / 3600000) % 24 + 24) % 24;
   const d = new Date(T_START + (Date.now() - T_START) * T_SPEED);
   return d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600;
 }
@@ -25,28 +25,90 @@ const mixc = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a
 const css = (c, a = 1) => a >= 1 ? `rgb(${c[0] | 0},${c[1] | 0},${c[2] | 0})` : `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-// the sky in five bands, from straight up down to the horizon, through the day: deep night navy, violet before dawn,
-// pink and gold at sunrise, clear blue through the day (deepest at noon), gold in the late afternoon, a purple,
-// magenta and orange sunset, indigo dusk
-const SKY = [
-  [0,    "#0b1030", "#121a44", "#1a2456", "#233064", "#2e3b6e"],
-  [4.3,  "#0e1236", "#191d4c", "#28295e", "#3a336c", "#4b3e74"],
-  [5.3,  "#1f2558", "#363a78", "#5e5390", "#a26e9c", "#e2939a"],
-  [6.1,  "#36579e", "#5b77b8", "#9a94c0", "#eab0a8", "#ffcf9e"],
-  [7.2,  "#4a86d4", "#69a2e2", "#8ebcec", "#b8d6f2", "#e2eef5"],
-  [11.5, "#2f7fdc", "#4c98e8", "#72b3f0", "#9fcdf6", "#d2e9fb"],
-  [15.5, "#3e86d6", "#5c9de2", "#82b5ea", "#acccf0", "#dfe7ef"],
-  [17.3, "#4f74c0", "#7590d0", "#a8a9d4", "#e6bcaa", "#ffd198"],
-  [18.4, "#353a86", "#5c55a0", "#a76a9e", "#ea8478", "#ffae64"],
-  [19.2, "#20275f", "#352f76", "#5c4386", "#8f5582", "#c3687a"],
-  [20.2, "#121848", "#1b225a", "#262d68", "#323872", "#3e437a"],
-  [24,   "#0b1030", "#121a44", "#1a2456", "#233064", "#2e3b6e"],
-].map(([h, ...c]) => [h, ...c.map(hex)]);
-function sky5(h) {
-  let i = 0; while (i < SKY.length - 2 && SKY[i + 1][0] <= h) i++;
-  const a = SKY[i], b = SKY[i + 1], t = smooth(0, 1, (h - a[0]) / (b[0] - a[0]));
-  return [1, 2, 3, 4, 5].map(k => mixc(a[k], b[k], t));
+// The sky in five bands (straight up down to the horizon) and the clouds in five tones (lit tops down to the deepest
+// shade), through the day in each season. Every colour is taken as it is from the reference pixel-art packs in
+// assets/refs (named at the end of each row): sky bands read off a clear column of the picture, cloud tones its most
+// used cloud colours from light to dark. Clouds shade towards the sky's own colour, as in those pictures.
+const SKY_NIGHT_SP = ["0d1328 121830 171f43 19265d 192561", "1c61a6 0f4a97 092e7f 19265d 171f43"];   // Ocean 6
+const SKY_NIGHT_WI = ["061027 0e1c3e 132b51 143c71 245b9a", "1c61a6 0f4a97 092e7f 19265d 171f43"];   // Winternight sky, Ocean 6 clouds
+const SKY_PREDAWN  = ["1d4282 214a8b 265495 33609b 4b6a9b", "928ecf 6373c4 5470bc 3e679b 294f8f"];   // Ocean sky and sun, ocean clouds
+const SKY_DAWN     = ["3e679b 6e739d bc83b0 e290a2 f8a7a4", "fdd3b6 f8abb7 d09bc6 928ecf 6373c4"];   // Ocean sky and sun, ocean clouds
+const SKY_TABLE = {
+  spring: [
+    [0, ...SKY_NIGHT_SP], [4.3, ...SKY_PREDAWN], [5.3, ...SKY_DAWN],
+    [6.1,  "556f9d 857c9b c88ca1 f89ca4 fab7b2", "fdd3b6 f8abb7 d09bc6 928ecf 6373c4"],   // Ocean sky and sun, ocean clouds
+    [7.2,  "65bae3 65bae3 65bae3 a6d8ee bce1f1", "e8f2f4 d4edf4 bce1f1 a6d8ee 8db2c2"],   // nature 2
+    [11.5, "64a4ec 67a6ed 6faced 77b4ed 80bdf3", "e9f2f7 d1e4ee bdd9e7 9fd1ec 8dc7f5"],   // Ocean 3
+    [15.5, "08a6d5 08a6d5 08a6d5 79ccdc bde0e6", "f7f8fa e3eff3 bde0e6 79ccdc 3e8ea9"],   // nature 1
+    [17.3, "90b7c6 90b7c6 9abbc4 9abbc4 aac4c1", "ebf1cf d6dec8 c3cdc2 b4c2c2 aac4c1"],   // nature 4
+    [18.4, "406aa4 556ea4 65729e af7079 ebb084", "ebb084 e28b70 d9776a af7079 725d7c"],   // Ocean 5
+    [19.2, "3f6ca3 4a6da3 5a70a1 6c739f 926986", "af7079 926986 725d7c 655879 514f74"],   // Ocean 5, its shaded clouds
+    [20.4, ...SKY_NIGHT_SP], [24, ...SKY_NIGHT_SP],
+  ],
+  summer: [
+    [0, ...SKY_NIGHT_WI], [4.3, ...SKY_PREDAWN], [5.3, ...SKY_DAWN],
+    [6.1,  "556f9d 857c9b c88ca1 f89ca4 fab7b2", "f5f5d3 ffe39a fec786 f18d73 bd6c73"],   // Ocean sky and sun, Ocean 2
+    [7.2,  "3a73d4 4e82d3 6091d8 7faee3 99c4ed", "f9fefc e3eff6 c9ddf1 88b7e5 6b94d2"],   // assetpack skies, summer 4
+    [11.5, "3e97b3 42aaca 5dbdd6 76cbdf a3dee7", "d8f8f3 a3dee7 99d9e5 76cbdf 5dbdd6"],   // summer 2
+    [15.5, "496ebd 4d77c2 5283c1 85aed9 b9d0f0", "dbe1eb cad9ed aac0e1 9dbbe3 83a8d7"],   // Ocean 4
+    [17.3, "376e95 4986aa 7da2b1 9cabb7 c4a996", "e1ccab dcbaa0 d7b295 9f999c 8b96a3"],   // summer 8
+    [18.4, "7597a4 8aa7b2 978c9c f18d73 fec786", "ffe39a fec06d fc9c72 e47472 b55b75"],   // Ocean 2
+    [19.2, "4f6fa2 5e70a0 6c739f 926986 bd6c73", "bd6c73 b55b75 825665 634d64 514f74"],   // Ocean 5 sky, Ocean 2 shades
+    [20.4, ...SKY_NIGHT_WI], [24, ...SKY_NIGHT_WI],
+  ],
+  autumn: [
+    [0, "0d1328 121830 171f43 19265d 192561", "446b96 374d65 303e4b 2a3642 232d37"],      // Ocean 6 sky, winter 8 clouds
+    [4.3, ...SKY_PREDAWN], [5.3, ...SKY_DAWN],
+    [6.1,  "556f9d 857c9b c88ca1 f89ca4 fab7b2", "fbf7f8 f9e0eb d09bc6 928ecf 6373c4"],   // Ocean sky and sun, autumn 1
+    [7.2,  "90b7c6 9abbc4 b6d7d9 deefff fcf1f6", "fbf7f8 fcf1f6 f9e0eb c3b0ce a19098"],   // nature 4, autumn 4, autumn 1
+    [11.5, "76b9e3 76b9e3 76b9e3 b1cae1 dce5ec", "eaf6fc dce5ec b1cae1 6c9dc4 56729a"],   // nature 3
+    [15.5, "b6d7d9 b6d7d9 b6d7d9 c9d5d3 dae0dc", "f4f4f4 d8d8d8 bfbfbf 9abbc4 8db2c2"],   // autumn 4
+    [17.3, "a3bedb a3bedb ababb5 d8b3a3 f1c6a3", "f1c6a3 e4bca3 d9b2a3 9ea5b5 7e91ac"],   // Ocean 8
+    [18.4, "8e9db2 a3bedb ababb5 d8b3a3 f1c6a3", "f1c6a3 d9b2a3 8e9db2 6d85a7 495c88"],   // Ocean 8
+    [19.2, "3e517b 495c88 536897 5d75a1 d8b3a3", "d8b3a3 7e91ac 6d85a7 536897 3e517b"],   // Ocean 8, its lower clouds
+    [20.4, "0d1328 121830 171f43 19265d 192561", "446b96 374d65 303e4b 2a3642 232d37"],
+    [24,   "0d1328 121830 171f43 19265d 192561", "446b96 374d65 303e4b 2a3642 232d37"],
+  ],
+  winter: [
+    [0, "061027 0e1c3e 132b51 143c71 245b9a", "5587b0 446b96 376fa0 374d65 303e4b"],      // Winternight sky, winter 8 clouds
+    [4.3,  "0e1c3e 132b51 143c71 194784 245b9a", "6373c4 5470bc 3e679b 294f8f 1d4282"],   // Winternight sky, ocean clouds
+    [5.3, ...SKY_DAWN],
+    [6.1,  "5d7dc3 7a93cb 88ace8 a7b7e8 c3b0ce", "c3b0ce 9ebbec 7a93cb 686890 555584"],   // winter nature 4
+    [7.2,  "75a4d8 7cabd9 8ab6db 92b9da c2e5ff", "fdf5e2 d4ecff c2e5ff 99d0f9 88c4f1"],   // winter 2, winter nature 2
+    [11.5, "799ee2 81a7e7 84aae9 98ace1 afaed8", "ffffff c9d1dc becfdf a3bfd6 84aed2"],   // winter 3, winter nature 1
+    [15.5, "88c4f1 99d0f9 a4d8ff a4d8ff c2e5ff", "d4ecff cde9ff c2e5ff 99d0f9 88c4f1"],   // winter nature 2
+    [17.3, "4073a2 4073a2 4d7599 4d7599 df9278", "fcc87f fcb47a ffa07a df9278 415792"],   // winter 6
+    [18.4, "47477b 555584 686890 7a93cb c3b0ce", "c3b0ce 7a93cb 686890 555584 47477b"],   // winter nature 4
+    [19.2, "0e1d42 13224d 16355d 194784 245b9a", "686890 555584 47477b 3a4b76 374d65"],   // Winternight sky, winter nature 4
+    [20.4, "061027 0e1c3e 132b51 143c71 245b9a", "5587b0 446b96 376fa0 374d65 303e4b"],
+    [24,   "061027 0e1c3e 132b51 143c71 245b9a", "5587b0 446b96 376fa0 374d65 303e4b"],
+  ],
+};
+for (const k in SKY_TABLE) SKY_TABLE[k] = SKY_TABLE[k].map(([h, s, c]) => [h, s.split(" ").map(x => hex("#" + x)), c.split(" ").map(x => hex("#" + x))]);
+// how much of each season it is today: each holds its own months and eases into the next over two weeks either side
+// of the 1st of March, June, September and December. Preview one with ?season=spring (summer, autumn, winter)
+let skySeason = SKY_TABLE[QS.get("season")] ? QS.get("season") : null;
+function seasonMix() {
+  if (skySeason) return [[skySeason, 1]];
+  const d = typeof gameDate === "function" ? gameDate() : new Date(), doy = (d - new Date(d.getFullYear(), 0, 1)) / 86400000;
+  const B = [[59, "winter", "spring"], [151, "spring", "summer"], [243, "summer", "autumn"], [334, "autumn", "winter"]];
+  for (const [b, from, to] of B) {
+    const dd = ((doy - b + 548) % 365) - 183;            // days past this boundary, wrapped round the year
+    if (Math.abs(dd) < 14) { const t = smooth(-14, 14, dd); return [[from, 1 - t], [to, t]]; }
+  }
+  return [[doy < 59 || doy >= 334 ? "winter" : doy < 151 ? "spring" : doy < 243 ? "summer" : "autumn", 1]];
 }
+// the five sky bands [0] and five cloud tones [1] at this hour, mixed across the seasons of the day
+function skyRow(h) {
+  const out = [[0, 1, 2, 3, 4].map(() => [0, 0, 0]), [0, 1, 2, 3, 4].map(() => [0, 0, 0])];
+  for (const [name, wgt] of seasonMix()) {
+    const T = SKY_TABLE[name]; let i = 0; while (i < T.length - 2 && T[i + 1][0] <= h) i++;
+    const a = T[i], b = T[i + 1], t = smooth(0, 1, (h - a[0]) / (b[0] - a[0]));
+    for (let j = 0; j < 2; j++) for (let k = 0; k < 5; k++) { const c = mixc(a[j + 1][k], b[j + 1][k], t); for (let q = 0; q < 3; q++) out[j][k][q] += c[q] * wgt; }
+  }
+  return out;
+}
+const sky5 = h => skyRow(h)[0];
 function skyAt(h) { const c = sky5(h); return [c[0], c[2], c[4]]; }   // top, middle, horizon
 // how dark (night) and how warm (sunrise / sunset light) it is
 const darkAt = h => 1 - smooth(4.6, 7.0, h) + smooth(18.6, 20.6, h);
@@ -64,100 +126,154 @@ const SIGN_X = 26;
 
 
 /* ---------- clouds ---------- */
-// Clouds as in pixel art: no outline, puffs each lit from the sun's side (top left), darker down to a flat shadowed
-// base, in five shades taken from the sky at this hour (white and blue-grey by day, gold and violet at sunset, dim
-// blue at night; greyer as the weather closes in). Every cloud is a new shape. Three layers drift at their own
-// speeds: big banks of cumulus low over the hills, middle clouds, and thin streaks of stratus.
-function cloudShape(w0, h0, kind) {
-  const R = Math.random, lv = [];
-  if (kind === "streak") {
-    // a wisp of stratus: a few flat runs stacked like steps, the middle one longest, tapering at the ends
-    const rows = [[0.25, 0.75, 0], [0.05, 0.95, 1], [0.15, 0.7, 2]];
-    if (R() < 0.5) rows.push([0.4, 0.85, 3]);
-    const w = Math.round(w0), h = rows.length, out = new Uint8Array(w * h).fill(255);
-    rows.forEach(([a, b, k], y) => { const x0 = Math.round((a + (R() - 0.5) * 0.1) * w), x1 = Math.round((b + (R() - 0.5) * 0.1) * w); for (let x = Math.max(0, x0); x < Math.min(w, x1); x++) out[y * w + x] = k; });
-    return { w, h, lv: out };
+// Clouds as in the reference pixel art: no outline and nothing see-through, built of rounded lobes. Each lobe is lit
+// on the side facing the sun (or the moon) and shades round to its underside, and the lobes lower down sit in front of
+// the ones above, so the lit top of each lobe shows against the shade under the one behind it (the cauliflower look).
+// The whole cloud also gets darker towards its base, which is made of smaller, flatter lobes (uneven, never cut
+// straight), sometimes trailing thin wisps. Five kinds: towering cumulus, small puffs, long lumpy stratocumulus
+// sheets, and flat streaks of cirrus in stepped strips. Sizes run from a few pixels to half the sky.
+const clampv = (v, a, b) => Math.max(a, Math.min(b, v));
+function cloudShape(kind, w0, h0) {
+  const R = Math.random, lobes = [], fixed = [];        // lobes: [x, y (up from the base), r, x-stretch, wobble, wobble]
+  const lobe = (x, y, r, sx = 1) => lobes.push([x, y, r, sx, R() * 6, R() * 6]);
+  if (kind === "cirrus") {
+    // a few flat strips stacked like steps, each shifted along a little, lighter on top
+    const rows = 2 + (R() * 3 | 0); let x0 = R() * w0 * 0.2, x1 = w0 - R() * w0 * 0.2;
+    for (let j = 0; j < rows; j++) {
+      const a = Math.round(x0), b = Math.round(x1);
+      for (let x = a; x < b; x++) fixed.push([x, rows - 1 - j, j === 0 ? 1 : j === rows - 1 ? 3 : 2]);
+      const sh = (R() - 0.3) * w0 * 0.25; x0 = clampv(x0 + sh + R() * w0 * 0.1, 0, w0 - 4); x1 = clampv(x1 + sh - R() * w0 * 0.1, x0 + 4, w0);
+    }
+  } else if (kind === "strato") {
+    // a long sheet of small flattened lobes, its top and its underside both lumpy, now and then broken in two
+    const gap = R() < 0.4 ? [w0 * (0.3 + R() * 0.4), 3 + R() * 8] : null, r0 = clampv(h0 * 0.45, 2.6, 5);
+    for (let row = 0; row < 2; row++) for (let x = r0; x < w0 - r0; x += r0 * (1.1 + R() * 0.9)) {
+      if (gap && Math.abs(x - gap[0]) < gap[1]) continue;
+      const end = Math.min(x, w0 - x) / (w0 * 0.5), ht = (h0 - r0 * 1.6) * Math.sqrt(end) * (0.5 + R() * 0.6);
+      lobe(x, row ? r0 * 0.7 + R() : r0 + ht * R(), r0 * (0.7 + R() * 0.6) * (row ? 0.85 : 1), 1.5 + R() * 0.9);
+    }
+    lobes.sort((p, q) => q[1] - p[1]);
+  } else {
+    // a cumulus (or a little puff): a few towers of different heights over a broad low base, filled with lobes in
+    // rows from the top down, big lobes high up and smaller ones lower
+    const nT = kind === "puff" ? 1 + (R() < 0.35) : 1 + (R() * 3 | 0), T = [];
+    for (let i = 0; i < nT; i++) T.push([(i + 0.5 + (R() - 0.5) * 0.7) / nT, (0.32 + R() * 0.35) / Math.sqrt(nT) + 0.08, 0.45 + R() * 0.5, (R() - 0.5) * 0.25]);
+    T[R() * nT | 0][2] = 1;
+    const base = 0.16 + R() * 0.24;
+    const top = u => Math.max(base * Math.pow(Math.max(0, Math.sin(Math.PI * clampv(u, 0, 1))), 0.35),
+      ...T.map(([c, w, hh, lean]) => { const v = (u - c - lean * (1 - u)) / w; return Math.abs(v) < 1 ? hh * Math.pow(Math.cos(v * Math.PI / 2), 0.7) : 0; }));
+    const rMax = clampv(h0 * (kind === "puff" ? 0.5 : 0.34), 2.5, 14), rMin = clampv(rMax * 0.5, 2, 7);
+    for (let yy = h0 - rMax * 0.7; yy > rMin * 0.9;) {
+      const r = rMin + (rMax - rMin) * clampv(yy / h0, 0, 1);
+      for (let x = R() * r; x <= w0;) {
+        if (top(x / w0) * h0 >= yy + r * 0.25) { lobe(x + (R() - 0.5) * r * 0.4, yy + (R() - 0.5) * r * 0.5, r * (0.65 + R() * 0.7)); x += r * (0.9 + R() * 0.7); }
+        else x += 1;
+      }
+      yy -= r * (1.0 + R() * 0.4);
+    }
+    // the underside: small flattened lobes along the base, a little up and down
+    for (let x = rMin; x < w0 - rMin; x += rMin * (1.0 + R() * 0.8)) {
+      if (top(x / w0) * h0 < rMin * 1.2) continue;
+      lobe(x, rMin * (0.55 + (R() - 0.5) * 0.9), rMin * (0.75 + R() * 0.5), 1.25 + R() * 0.5);
+    }
+    // now and then thin wisps trailing under it
+    if (kind === "cu" && R() < 0.55) for (let k = 0, n = 1 + (R() * 2 | 0); k < n; k++) {
+      const len = w0 * (0.2 + R() * 0.45), x0 = R() * (w0 - len), y = -1 - k * 2 - (R() * 2 | 0);
+      for (let x = Math.round(x0); x < x0 + len; x++) fixed.push([x, y, 4]);
+    }
   }
-  // a cumulus as in painted pixel art: flat tones, no shading inside a puff. Its whole bumpy shape in the shadow tone,
-  // then the same puffs a little smaller and nudged towards the sun (up and left) in lighter tones, two or three times,
-  // so the light catches the tops in layered lobes; a darker flat line along its base
-  const circles = [], n = Math.max(3, Math.round(w0 / (kind === "bank" ? 10 : 8)));
-  for (let i = 0; i < n; i++) {
-    const q = (i + 0.5) / n, cx = q * w0 + (R() - 0.5) * 5, tall = Math.sin(q * Math.PI) ** 0.8;
-    const r = Math.max(3, (0.28 + 0.6 * tall) * h0 * (0.7 + R() * 0.4) * 0.6);
-    circles.push([cx, -r * (0.7 + R() * 0.25), r]);
-    if (tall > 0.5 && R() < 0.85) circles.push([cx + (R() - 0.5) * r * 0.8, -r * (1.3 + R() * 0.3), r * (0.45 + R() * 0.25)]);   // a puff on top
-    if (R() < 0.5) circles.push([cx + (R() - 0.5) * r * 1.6, -r * 0.45, r * (0.4 + R() * 0.2)]);                                   // a small one at the side
+  // lay it out on a pixel grid: for each pixel the front-most lobe over it, and which way its surface faces there
+  let x0 = 0, x1 = w0, y0 = 0, y1 = h0;
+  for (const [x, y, r, sx] of lobes) { x0 = Math.min(x0, x - r * sx * 1.2); x1 = Math.max(x1, x + r * sx * 1.2); y0 = Math.min(y0, y - r * 1.2); y1 = Math.max(y1, y + r * 1.2); }
+  for (const [x, y] of fixed) { x0 = Math.min(x0, x); x1 = Math.max(x1, x + 1); y0 = Math.min(y0, y); y1 = Math.max(y1, y + 1); }
+  x0 = Math.floor(x0); y0 = Math.floor(y0);
+  const w = Math.ceil(x1 - x0) + 1, h = Math.ceil(y1 - y0) + 1, n = w * h;
+  const nx = new Float32Array(n), ny = new Float32Array(n), nz = new Float32Array(n), up = new Float32Array(n), cu = new Float32Array(n), tone = new Int8Array(n).fill(-2);
+  for (const [cx, cy, r, sx, p1, p2] of lobes) {            // back to front: each lobe over the ones before it
+    const rx = r * sx * 1.12, ry = r * 1.12;
+    for (let py0 = Math.floor(cy - ry); py0 <= cy + ry; py0++) for (let px0 = Math.floor(cx - rx); px0 <= cx + rx; px0++) {
+      const X = px0 - x0, Y = h - 1 - (py0 - y0); if (X < 0 || X >= w || Y < 0 || Y >= h) continue;
+      const px = px0 + 0.5, py = py0 + 0.5, dx = (px - cx) / (r * sx), dy = (py - cy) / r;      // dy up
+      const ang = Math.atan2(dy, dx), rr = 1 + 0.07 * Math.sin(3 * ang + p1) + 0.035 * Math.sin(5 * ang + p2), d2 = (dx * dx + dy * dy) / (rr * rr);
+      if (d2 > 1) continue;
+      const k = Y * w + X; nx[k] = dx / rr; ny[k] = dy / rr; nz[k] = Math.sqrt(1 - d2);
+      up[k] = clampv((py - y0) / Math.max(1, y1 - y0), 0, 1); cu[k] = clampv((cy - y0) / Math.max(1, y1 - y0), 0, 1); tone[k] = -1;
+    }
   }
-  // the puffs are lumpy, not round: a little wider than tall, their edge wobbling in and out
-  circles.forEach(c => c.push(R() * 6, R() * 6));
-  const reach = ([cx, cy, r, p1, p2], x, y, k) => {
-    const dx = (x - cx) / 1.18, dy = y - cy, a = Math.atan2(dy, dx), rr = r * k * (1 + 0.13 * Math.sin(3 * a + p1) + 0.08 * Math.sin(5 * a + p2));
-    return dx * dx + dy * dy <= rr * rr;
-  };
-  let x0 = 1e9, x1 = -1e9, y0 = 1e9;
-  for (const [cx, cy, r] of circles) { x0 = Math.min(x0, cx - r * 1.4); x1 = Math.max(x1, cx + r * 1.4); y0 = Math.min(y0, cy - r * 1.25); }
-  const w = Math.ceil(x1 - x0) + 2, h = Math.ceil(-y0) + 1, ox = x0 - 1, oy = y0;
-  const inAny = (x, y, k, dx, dy) => circles.some(c => reach(c, x + 0.5 + ox - dx, y + 0.5 + oy - dy, k));
-  const out = new Uint8Array(w * h).fill(255);
-  // [size, shift x, shift y, tone]: the light from above and a little left, so the lit tops are broad and the shade
-  // gathers along the underside
-  const layers = [[1, 0, 0, 3], [0.9, -0.8, -2.2, 2], [0.72, -1.6, -4, 1], [0.48, -2.2, -5.6, 0]];
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    if (!inAny(x, y, 1, 0, 0) || y + oy > 0) continue;
-    let k = 3;
-    for (const [sz, dx, dy, t] of layers.slice(1)) if (inAny(x, y, sz, dx, dy)) k = t;
-    if (y === h - 1 || (y === h - 2 && R() < 0.3)) k = 4;           // the base in shadow
-    out[y * w + x] = k;
-  }
-  return { w, h, lv: out };
+  for (const [x, y, t] of fixed) { const X = x - x0, Y = h - 1 - (y - y0); if (X >= 0 && X < w && Y >= 0 && Y < h && tone[Y * w + X] === -2) tone[Y * w + X] = t; }
+  return { w, h, base: h - 1 + y0, nx, ny, nz, up, cu, tone };
 }
-// the five shades for this hour and weather: lit tops to shadowed bases
-const CLOUD_KEYS = [   // [hour, lit, shadow]   (tones between them: lit tops, shadowed base)
-  [0, "#7e86bc", "#222858"], [4.6, "#8a86bc", "#2a2a5e"], [5.5, "#ffc2c0", "#6a5c9c"], [6.4, "#fff0d8", "#9a9ccc"],
-  [7.6, "#ffffff", "#a7bddc"], [15.8, "#ffffff", "#a9bcd6"], [17.4, "#fff4dc", "#b2a6c8"], [18.4, "#ffc79c", "#73609a"],
-  [19.2, "#e6a0aa", "#45407a"], [20.2, "#8c90c6", "#272c5e"], [24, "#7e86bc", "#222858"],
-].map(([h, a, b]) => [h, hex(a), hex(b)]);
+// where the light comes from: the sun's side by day (low and from the side at sunrise and sunset, from above at noon),
+// the moon's at night; in steps, so the clouds are only repainted now and then
+function cloudLight(h) {
+  let p;
+  if (h >= 5.3 && h <= 19.6) p = (h - 6) / 13;
+  else p = 1 - ((h >= 18 ? h - 18 : h + 6) - 0.4) / 12.4;      // the moon crosses from right to left
+  p = clampv(p, -0.05, 1.05);
+  const alt = Math.sin(Math.PI * clampv(p, 0, 1));
+  const lx = Math.round(clampv((p - 0.5) * 1.4, -0.65, 0.65) * 5) / 5, ly = Math.round((0.45 + 0.55 * alt) * 10) / 10, lz = 0.55;
+  const m = Math.hypot(lx, ly, lz);
+  return [lx / m, ly / m, lz / m];
+}
+// the five tones for this hour and weather: lit tops to deepest shade
 function cloudPal(h) {
-  let i = 0; while (i < CLOUD_KEYS.length - 2 && CLOUD_KEYS[i + 1][0] <= h) i++;
-  const A = CLOUD_KEYS[i], B = CLOUD_KEYS[i + 1], t = smooth(0, 1, (h - A[0]) / (B[0] - A[0]));
-  let lit = mixc(A[1], B[1], t), sh = mixc(A[2], B[2], t);
+  let pal = skyRow(h)[1];
   const wx = typeof WX !== "undefined" ? WX : null, d = darkAt(h);
   if (wx && wx.cover > 0.05) {                                    // overcast: greyer, and darker under storm clouds
-    const g = Math.min(1, wx.cover * 0.9);
-    lit = mixc(lit, mixc(hex("#e2e5ea"), hex("#5a6078"), d), g * (0.55 + wx.storm * 0.3));
-    sh = mixc(sh, mixc(hex(wx.storm > 0.5 ? "#5d6476" : "#8a92a4"), hex("#262a44"), d), g * (0.6 + wx.storm * 0.3));
+    const g = Math.min(1, wx.cover * 0.9), lit = mixc(hex("#e2e5ea"), hex("#5a6078"), d), sh = mixc(hex(wx.storm > 0.5 ? "#5d6476" : "#8a92a4"), hex("#262a44"), d);
+    pal = pal.map((c, k) => mixc(c, mixc(lit, sh, k / 4), g * (0.55 + k * 0.03 + wx.storm * 0.3)));
   }
-  return [0, 0.22, 0.46, 0.72, 1].map(q => mixc(lit, sh, q));
+  return pal;
 }
-function paintCloud(c, pal) {
-  const { w, h, lv } = c.shape;
+function paintCloud(c, pal, L) {
+  const { w, h, nx, ny, nz, up, cu, tone } = c.shape;
   if (!c.cv) { c.cv = document.createElement("canvas"); c.cv.width = w; c.cv.height = h; }
   const g = c.cv.getContext("2d"), img = g.createImageData(w, h);
-  for (let i = 0; i < w * h; i++) { const k = lv[i]; if (k === 255) continue; const col = pal[k]; img.data[i * 4] = col[0]; img.data[i * 4 + 1] = col[1]; img.data[i * 4 + 2] = col[2]; img.data[i * 4 + 3] = 255; }
+  for (let i = 0; i < w * h; i++) {
+    let k = tone[i]; if (k === -2) continue;
+    if (k === -1) {
+      // each lobe in one flat tone by how high it sits in the cloud, a lighter cap where it faces the light and a
+      // darker rim where it turns away
+      const lam = nx[i] * L[0] + ny[i] * L[1] + nz[i] * L[2], u = 0.7 * cu[i] + 0.3 * up[i];
+      k = (u > 0.6 ? 1 : u > 0.36 ? 2 : u > 0.14 ? 3 : 4) - (lam > 0.76 ? 1 : 0) + (lam < 0.16 ? 1 : 0);
+      k = k < 0 ? 0 : k > 4 ? 4 : k;
+    }
+    const col = pal[k]; img.data[i * 4] = col[0]; img.data[i * 4 + 1] = col[1]; img.data[i * 4 + 2] = col[2]; img.data[i * 4 + 3] = 255;
+  }
   g.putImageData(img, 0, 0);
 }
-const CLOUD_LAYERS = {
-  bank:   { w: [70, 130], h: [28, 48], v: [0.5, 1.1] },
-  mid:    { w: [30, 72],  h: [14, 28], v: [1.8, 3.4] },
-  streak: { w: [26, 80],  h: [3, 5],   v: [3, 5.5] },
-};
+// how big each kind comes, where it floats (its base, in the sky above the horizon) and how it drifts: the higher
+// it is, the nearer, so the bigger and the faster
+const logr = (a, b) => a * Math.pow(b / a, Math.random());
 function newCloud(kind, x) {
-  const L = CLOUD_LAYERS[kind], R = (a) => a[0] + Math.random() * (a[1] - a[0]);
-  const w = Math.round(R(L.w)), h = Math.round(R(L.h));
-  const y = kind === "bank" ? horizon - 12 - h + Math.random() * 8 : kind === "mid" ? 26 + Math.random() * Math.max(30, horizon - 110) : 16 + Math.random() * Math.max(30, horizon - 70);
-  return { kind, x: x === undefined ? -w - Math.random() * 40 : x, y, v: R(L.v), shape: cloudShape(w, h, kind), cv: null, key: "" };
+  const R = Math.random;
+  let w, h, base;
+  if (kind === "cu") { w = 32 * Math.pow(150 / 32, Math.pow(R(), 1.5)); h = w * (0.35 + R() * 0.45); base = w > 80 ? horizon - 2 - R() * 22 : horizon - 10 - R() * (horizon * 0.45); }
+  else if (kind === "puff") { w = logr(7, 26); h = w * (0.35 + R() * 0.3); base = 22 + R() * (horizon - 50); }
+  else if (kind === "strato") { w = logr(40, 140); h = 4 + R() * 8; base = 24 + R() * (horizon - 70); }
+  else { w = logr(16, 90); h = 4; base = 8 + R() * (horizon * 0.55); }
+  h = Math.min(h, horizon * 0.5);
+  const shape = cloudShape(kind, Math.round(w), Math.round(h)), near = 1 - clampv(base / horizon, 0, 1);
+  return { kind, base, x: x === undefined ? -shape.w - R() * 40 : x, y: Math.round(base - shape.base), v: (0.5 + 2.6 * near) * (0.8 + R() * 0.4) * (kind === "cirrus" ? 1.3 : 1), shape, cv: null, key: "" };
 }
 const clouds = [];
-// how many of each there are: a little different every couple of hours, and more as the weather clouds over
+// how many of each: the sky has a mood for every two hours (fair-weather puffs, towering cumulus, layered sheets, or
+// high streaks), the same for everyone on that day and hour, and more and bigger clouds as the weather closes in
+const CLOUD_MOODS = [
+  { cu: 1, puff: 5, strato: 0, cirrus: 2 }, { cu: 3, puff: 2, strato: 0, cirrus: 1 },
+  { cu: 1, puff: 2, strato: 3, cirrus: 1 }, { cu: 0, puff: 2, strato: 1, cirrus: 4 }, { cu: 2, puff: 3, strato: 1, cirrus: 1 },
+];
 function cloudWant() {
-  const cover = typeof WX !== "undefined" ? WX.cover : 0, b = Math.floor(worldHour() / 2), base = 0.5 + 0.5 * Math.sin(b * 2.3 + 1);
-  return { bank: Math.round(1 + base * 2 + cover * 2), mid: Math.round(1 + base * 2 + cover * 5), streak: Math.round(1 + (1 - cover) * 2 + warmAt(worldHour()) * 3) };
+  const cover = typeof WX !== "undefined" ? WX.cover : 0, d = typeof gameDate === "function" ? gameDate() : new Date();
+  let s = (d.getFullYear() * 400 + d.getMonth() * 32 + d.getDate()) * 31 + Math.floor(worldHour() / 2) * 977;
+  s = (s ^ (s >>> 7)) * 2654435761 >>> 0; s = (s ^ (s >>> 13)) * 1597334677 >>> 0;
+  const m = CLOUD_MOODS[s % CLOUD_MOODS.length];
+  return { cu: Math.round(m.cu + cover * 3), puff: Math.round(m.puff + cover * 2), strato: Math.round(m.strato + cover * 3), cirrus: Math.round(m.cirrus * (1 - cover)) };
 }
 let cloudsReady = false;
 function seedClouds() {
   const want = cloudWant();
-  for (const k in want) for (let i = 0; i < want[k]; i++) clouds.push(newCloud(k, Math.random() * (W + 60) - 60));
+  for (const k in want) for (let i = 0; i < want[k]; i++) { const c = newCloud(k); c.x = Math.random() * (W + c.shape.w) - c.shape.w; clouds.push(c); }
   cloudsReady = true;
 }
 // the cloud with a face that floats by now and then (and says hello)
@@ -190,15 +306,8 @@ function renderCloud(circles, fill, shade, rim, face) {
   }
   return c;
 }
-let cloudImgs = [], faceImg = null, cloudKey = "";
-function cloudColors(h) {
-  const d = darkAt(h), wm = warmAt(h);
-  const day = { f: hex("#ffffff"), s: hex("#dbe8f6"), r: hex("#c5d8ee") };
-  const warm = { f: hex("#fff0e6"), s: hex("#f6bfb3"), r: hex("#eaa49c") };
-  const night = { f: hex("#646ca4"), s: hex("#4f568e"), r: hex("#454b82") };
-  const pick = k => mixc(mixc(day[k], warm[k], wm * 0.85), night[k], d * 0.92);
-  return [pick("f"), pick("s"), pick("r")];
-}
+let faceImg = null, cloudKey = "";
+function cloudColors(h) { const p = cloudPal(h); return [p[0], p[2], p[3]]; }
 let faceCloud = null, nextFace = performance.now() + 25000;
 
 /* ---------- critters ---------- */
@@ -230,6 +339,11 @@ function sceneResize() {
   FLOWERS.forEach(f => f.yy = horizon + 10 + f.y * (FEET - horizon + 8));
   TUFTS.sort((a, b) => a.yy - b.yy);
 }
+
+// for the test page: set the hour (null: back to the clock) or the season (null: by the date), or start a new sky of clouds
+function setWorldHour(h) { T_FIX = h; T_FIX_AT = Date.now(); cacheKey = ""; }
+function setSkySeason(name) { skySeason = SKY_TABLE[name] ? name : null; cacheKey = ""; }
+function newSky() { clouds.length = 0; seedClouds(); }
 
 function lit(c, h, haze = 0, skyH = null) {
   let x = hex(c);
@@ -455,7 +569,7 @@ function sceneRender(now, signInfo) {
   if (key !== cacheKey) { cacheKey = key; paintSky(h); paintLand(h); }
   const ck = Math.round(h * 12) + "";
   if (ck !== cloudKey) { cloudKey = ck; const [f, s, r] = cloudColors(h); faceImg = renderCloud(FACE_SHAPE, f, s, r, true); }
-  const pal = cloudPal(h), pk = pal.map(c => c.map(v => v | 0).join(",")).join("|");
+  const pal = cloudPal(Math.round(h * 60) / 60).map(c => c.map(v => Math.round(v))), pk = pal.map(c => c.join(",")).join("|");
   const g = sctx;
   g.imageSmoothingEnabled = false;
   g.drawImage(skyCv, 0, 0);
@@ -472,11 +586,14 @@ function sceneRender(now, signInfo) {
     const a = 1 - star.t / 900;
     for (let i = 0; i < 12; i++) { g.fillStyle = `rgba(255,255,240,${(a * (1 - i / 12)).toFixed(2)})`; g.fillRect(Math.round(star.x - star.vx / 90 * i * 0.5), Math.round(star.y - star.vy / 90 * i * 0.5), 1, 1); }
   }
-  // the banks low over the hills, then birds, then the middle clouds and the streaks
-  const drawC = c => { if (c.key !== pk) { c.key = pk; paintCloud(c, pal); } g.globalAlpha = c.kind === "streak" ? 0.85 : 1; g.drawImage(c.cv, Math.round(c.x), Math.round(c.y)); g.globalAlpha = 1; };
-  clouds.filter(c => c.kind === "bank").forEach(drawC);
-  drawSun(h, g);                                       // (over the low banks; the middle clouds and streaks can drift across it)
+  // the sun and the moon behind everything, then the clouds from the far ones low over the hills to the near ones high
+  // up, then birds
+  drawSun(h, g);
   drawMoon(h, g);
+  if (typeof weatherSky === "function") weatherSky(g, now, h);   // an overcast sky, a rainbow (behind the clouds, which grey themselves)
+  const L = cloudLight(h), lk = pk + "|" + L.join(",");
+  clouds.sort((a, b) => b.base - a.base);
+  for (const c of clouds) { if (c.key !== lk) { c.key = lk; paintCloud(c, pal, L); } g.drawImage(c.cv, Math.round(c.x), Math.round(c.y)); }
   if (flock) {
     const col = css(mixc(hex("#5b6280"), hex("#3a2a40"), warmAt(h)));
     flock.birds.forEach(b => {
@@ -484,10 +601,7 @@ function sceneRender(now, signInfo) {
       drawGlyph(g, BIRD[fl], bx, by, col);
     });
   }
-  clouds.filter(c => c.kind === "mid").forEach(drawC);
-  clouds.filter(c => c.kind === "streak").forEach(drawC);
   if (faceCloud && faceImg) g.drawImage(faceImg, Math.round(faceCloud.x), Math.round(faceCloud.y + Math.sin(now / 900) * 1.5));
-  if (typeof weatherSky === "function") weatherSky(g, now, h);   // overcast, grey clouds, a rainbow
   g.drawImage(landCv, 0, 0);
   if (typeof weatherLand === "function") weatherLand(g, now, h);   // wet grass, snow
   // grass tufts and flowers sway in the wind

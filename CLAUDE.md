@@ -13,6 +13,8 @@
 - 사용자는 **아티팩트 링크로 테스트**해요. 바꿀 때마다 아래 순서를 지켜요.
   1. 커밋하고 브랜치에 푸시해요. 커밋 메시지는 영어로 쓰고, 세션이 정해 주는 Co-Authored-By 등 footer를 붙여요.
   2. 바뀐 파일을 게임 페이지와 테스트 페이지(`test.html`) 아티팩트에 다시 올려요. 같은 URL로 업데이트해요.
+     - 여러 파일 아티팩트예요. 페이지(`index.html` 또는 `test.html`)에 `css/`, `js/`, `fonts/`를 `files`로 같이 올려요.
+     - 주소는 아래 "아티팩트 주소"에 적어 둬요. 새로 만들면 여기 주소를 바꿔요.
   3. 바뀐 부분 **스크린샷을 보내요**. 확대 이미지나 여러 프레임을 모은 시트가 좋아요.
 - **검증하고 나서 보고해요.** 헤드리스 Chromium(Playwright)으로 실제 화면을 찍어서 확인해요.
   - 움직임은 여러 프레임을 시트로 모아 봐요.
@@ -77,10 +79,11 @@
 | `app/js/pet.js` | 행동과 상태 머신, 모션 선택(`petPose`), 그리기(`drawSprite`: 오프스크린에서 합성) |
 | `app/js/item-auto.js` | 얼굴, 눈, 볼 찾기(`faceOf`, `findEyes`, `armOff`), 자동 아이템(눈물, 곰인형, 파자마, 앞머리). 스튜디오와 같이 써요 |
 | `app/js/items.js` | 아이템 그림과 배치, 무기 그리기(`drawWeapon`), `drawItems` |
-| `app/js/scene.js` / `app.js` / `data.js` | 배경, 앱 로직과 UI, 대사·레벨·아이템 데이터 |
+| `app/js/scene.js` | 배경. 하늘·구름 색은 `SKY_TABLE`(계절 × 시간, 레퍼 색 그대로)이고, 구름은 덩어리(lobe)를 쌓아 그려요(`cloudShape`, `paintCloud`). `?season=autumn`으로 미리보기 |
+| `app.js` / `data.js` | 앱 로직과 UI, 대사·레벨·아이템 데이터 |
 | `assets/refs/` | 배경·구름 레퍼런스 픽셀아트 팩(zip). 하늘 띠 색, 구름 명암, 원근 색 참고용이에요. 게임에 그대로 넣지 않아요 |
 | `app/js/weather.js` | 날씨(맑음·흐림·비·천둥번개·눈·안개). 기본은 계절·시간으로 게임이 정하고, 설정에서 실제 날씨(위치 + Open-Meteo)로 바꿀 수 있어요. `?weather=rain`으로 미리보기 |
-| `app/test.html`, `app/js/test.js` | 테스트 페이지. Lv10, 아이템 착용 패널, 모든 동작 버튼이 있어요 |
+| `app/test.html`, `app/js/test.js` | 테스트 페이지. Lv10, 아이템 착용 패널, 모든 동작 버튼, 날씨·계절·시간 바꾸기, 구름 새로 띄우기가 있어요 |
 | `app/studio/` | 프레임 픽셀 에디터와 아이템 위치 보정(`item-fix.js`) |
 
 pet.js에 있는 바닥 물건 상태 머신이에요.
