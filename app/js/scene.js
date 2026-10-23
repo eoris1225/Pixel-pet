@@ -1417,6 +1417,7 @@ function sceneUpdate(now, dt) {
 
   if (!star && now > nextStar && dark > 0.7) star = { x: 20 + rnd() * 140, y: 8 + rnd() * 50, vx: -70 - rnd() * 40, vy: 30 + rnd() * 15, t: 0 };
   if (star) { star.t += dt; star.x += star.vx * s; star.y += star.vy * s; if (star.t > 900) { star = null; nextStar = now + 12000 + rnd() * 26000; } }
+  skyEventsUpdate(now, s, dark, foul);
 
   const hd = petHead();
   flies.forEach((f, i) => {
@@ -1622,6 +1623,128 @@ function drawCritters(g, now, h, front) {
 }
 // what flies in front of her, over her layer (called after she is drawn)
 function sceneFront(g, now) { drawCritters(g, now, worldHour(), true); }
+
+/* ---------- things that happen in the sky ---------- */
+// meteor showers on their real nights (and the night after, as the night runs past midnight), the northern lights on a
+// few winter nights, now and then an aeroplane far up drawing a contrail by day, and dandelion seeds on the spring wind.
+// SKYEV.meteor / SKYEV.aurora force them on (the test page)
+const SKYEV = { meteor: false, aurora: false };
+const METEOR_NIGHTS = [[1, 3], [1, 4], [4, 22], [4, 23], [5, 6], [8, 11], [8, 12], [8, 13], [10, 21], [10, 22], [11, 17], [12, 13], [12, 14]];
+const AURORA_NIGHTS = [[12, 21], [12, 22], [12, 24], [12, 25], [1, 1], [1, 14], [1, 15], [2, 3], [2, 14]];
+function nightDate() { const d = typeof gameDate === "function" ? gameDate() : new Date(); return new Date(d.getTime() - 6 * 3600000); }   // (the night belongs to the evening it began)
+const onNight = list => { const d = nightDate(); return list.some(([m, dd]) => d.getMonth() + 1 === m && d.getDate() === dd); };
+const meteorNight = () => SKYEV.meteor || onNight(METEOR_NIGHTS);
+const auroraNight = () => SKYEV.aurora || onNight(AURORA_NIGHTS);
+const METEORS = [], CONTRAIL = [], FLUFF = [];
+let nextMeteor = 0, plane = null, nextPlane = performance.now() + 60000 + Math.random() * 120000, nextFluff = 0, auroraVis = 0, skyFlash = 0;
+function skyEventsUpdate(now, s, dark, foul) {
+  const cover = typeof WX !== "undefined" ? WX.cover || 0 : 0, se = mainSeason();
+  // a meteor shower: meteors every second or so from one point high in the sky, flying out from it; now and then a
+  // fireball (longer, a green head, the sky lights a moment)
+  if (meteorNight() && dark > 0.7 && cover < 0.5 && now > nextMeteor) {
+    const rx = W * 0.72, ry = 14, a = Math.PI * (0.55 + Math.random() * 0.9), d0 = 6 + Math.random() * 40, fire = Math.random() < 0.08;
+    const sp = (fire ? 140 : 170) + Math.random() * 70;
+    METEORS.push({ x: rx + Math.cos(a) * d0, y: ry + Math.sin(a) * d0 * 0.7 + 4, vx: Math.cos(a) * sp, vy: Math.abs(Math.sin(a)) * sp * 0.8 + 25, t: 0, life: fire ? 1200 : 450 + Math.random() * 450, len: fire ? 30 : 14 + Math.random() * 12, b: 0.8 + Math.random() * 0.2, fire });
+    if (fire) skyFlash = 1;
+    nextMeteor = now + 250 + Math.random() * 1300;
+  }
+  for (let i = METEORS.length - 1; i >= 0; i--) { const m = METEORS[i]; m.t += s * 1000; m.x += m.vx * s; m.y += m.vy * s; if (m.t > m.life || m.y > horizon) METEORS.splice(i, 1); }
+  skyFlash = Math.max(0, skyFlash - s * 4);
+  // the northern lights fade in and out
+  auroraVis += ((auroraNight() && dark > 0.75 ? 1 - cover * 0.9 : 0) - auroraVis) * Math.min(1, s * 0.5);
+  // an aeroplane by day, very far up, its contrail spreading and fading behind it
+  if (!plane && now > nextPlane && dark < 0.35 && cover < 0.5 && !foul) {
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    plane = { dir, x: dir > 0 ? -6 : W + 6, y: 26 + Math.random() * 60, vy: (Math.random() - 0.5) * 1.6, v: 7 + Math.random() * 4, lastPuff: 0 };
+  }
+  if (plane) {
+    plane.x += plane.dir * plane.v * s; plane.y += plane.vy * s;
+    if (now - plane.lastPuff > 200) { plane.lastPuff = now; CONTRAIL.push({ x: plane.x - plane.dir * 2, y: plane.y + 0.5, t: now }); }
+    if (plane.x < -10 || plane.x > W + 10) { plane = null; nextPlane = now + 150000 + Math.random() * 200000; }
+  }
+  for (let i = CONTRAIL.length - 1; i >= 0; i--) { const p = CONTRAIL[i]; p.y += 0.6 * s; p.x += wind * 0.8 * s; if (now - p.t > 26000) CONTRAIL.splice(i, 1); }
+  // dandelion seeds drifting on the spring wind, a few at a time
+  if (se === "spring" && dark < 0.4 && !foul && FLUFF.length < 4 && now > nextFluff) {
+    FLUFF.push({ x: -4 + Math.random() * 40, y: horizon + 10 + Math.random() * (FEET - horizon - 10), vx: 0, vy: -3, p: Math.random() * 6 });
+    nextFluff = now + 6000 + Math.random() * 14000;
+  }
+  for (let i = FLUFF.length - 1; i >= 0; i--) {
+    const f = FLUFF[i], t = now / 1000;
+    f.vx += ((5 + wind * 7) - f.vx) * Math.min(1, s * 0.8); f.vy += ((-2.5 + Math.sin(t * 1.3 + f.p) * 3) - f.vy) * Math.min(1, s * 1.2);
+    f.x += f.vx * s; f.y += f.vy * s;
+    if (f.x > W + 6 || f.y < horizon - 60) FLUFF.splice(i, 1);
+  }
+}
+// the northern lights as in nature 6: curtains of teal light hanging from a wavy lower edge that is brightest, fading
+// up into violet, in stepped bands, with brighter rays in them that come and go and a slow ripple running along
+const AUR = document.createElement("canvas"); let aurAt = 0;
+function drawAurora(g, now) {
+  if (auroraVis < 0.02) return;
+  if (now - aurAt > 80) {
+    aurAt = now;
+    AUR.width = W; AUR.height = Math.max(1, horizon);
+    const ag = AUR.getContext("2d"), img = ag.createImageData(W, AUR.height), d = img.data, t = now / 1000;
+    const BOT = [170, 255, 215], MID = [70, 230, 175], TOP = [120, 100, 230];
+    // two great curtains: a gently waving lower edge, brightest there, rising in rays (each column its own height and
+    // strength, a few bright rays that flicker), fading through teal into violet near the top
+    for (const [base, amp, ph, hgt, k] of [[horizon * 0.5, 7, 0, 70, 1], [horizon * 0.3, 5, 2.4, 50, 0.7]]) {
+      for (let x = 0; x < W; x++) {
+        const by = Math.round(base + amp * Math.sin(x * 0.028 + t * 0.22 + ph) + 2.5 * Math.sin(x * 0.09 - t * 0.35 + ph * 2));
+        const n = ((x * 2654435761) >>> 0) / 4294967296, n2 = (((x + 7) * 2246822519) >>> 0) / 4294967296;
+        const ripple = 0.6 + 0.4 * Math.sin(x * 0.07 - t * 0.9 + ph);
+        const ray = n < 0.12 ? 0.5 * (0.5 + 0.5 * Math.sin(t * 3 + n2 * 20)) : 0;          // bright rays that flicker
+        const L = Math.round(hgt * (0.55 + 0.45 * n2) * (0.85 + 0.15 * Math.sin(x * 0.04 + t * 0.3 + ph)) * (ray ? 1.2 : 1));
+        const col = k * (ripple * (0.7 + 0.3 * n) + ray);
+        for (let y = 0; y < L; y++) {
+          const Y = by - y; if (Y < 0 || Y >= AUR.height) continue;
+          const u = y / L, step = Math.floor(u * 6) / 6;                       // stepped bands up the curtain
+          const c = step < 0.17 ? BOT : step < 0.6 ? mixc(BOT, MID, step / 0.6) : mixc(MID, TOP, (step - 0.6) / 0.4);
+          const a = col * (u < 0.08 ? 0.8 : 0.6 * (1 - u) ** 1.1);
+          const i = (Y * W + x) * 4, A = Math.min(1, a) * 255;
+          if (A > d[i + 3]) { d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = Math.round(A / 24) * 24; }
+        }
+      }
+    }
+    ag.putImageData(img, 0, 0);
+  }
+  g.save(); g.globalAlpha = auroraVis * 0.9; g.drawImage(AUR, 0, 0); g.restore();
+}
+function drawMeteors(g) {
+  if (skyFlash > 0.02) { g.fillStyle = css([200, 230, 255], skyFlash * 0.06); g.fillRect(0, 0, W, horizon); }
+  for (const m of METEORS) {
+    const fade = Math.min(1, (m.life - m.t) / 200, m.t / 60), sp = Math.hypot(m.vx, m.vy), ux = m.vx / sp, uy = m.vy / sp;
+    const grow = Math.min(1, m.t / 160);                                  // the streak draws out behind its head
+    g.fillStyle = css([255, 255, 245], m.b * fade); g.fillRect(Math.round(m.x), Math.round(m.y), 1, 1); g.fillRect(Math.round(m.x - Math.sign(ux)), Math.round(m.y), 1, 1);
+    for (let i = 1; i < m.len * grow; i++) {
+      const a = m.b * fade * (1 - i / m.len) ** 1.1; if (a < 0.05) break;
+      g.fillStyle = m.fire && i < 2 ? css([190, 255, 210], a) : css([255, 250, 235], a);
+      g.fillRect(Math.round(m.x - ux * i), Math.round(m.y - uy * i), 1, 1);
+    }
+    if (m.fire) { g.fillStyle = css([200, 255, 220], 0.5 * fade); g.fillRect(Math.round(m.x) - 1, Math.round(m.y), 3, 1); g.fillRect(Math.round(m.x), Math.round(m.y) - 1, 1, 3); }
+  }
+}
+function drawPlane(g, now, h) {
+  const trail = lit("#ffffff", h);
+  for (const p of CONTRAIL) {
+    const age = (now - p.t) / 1000, a = 0.55 * (1 - age / 26) * (age < 0.4 ? age / 0.4 : 1); if (a < 0.03) continue;
+    g.fillStyle = css(trail, a);
+    if (age < 5) g.fillRect(Math.round(p.x), Math.round(p.y), 2, 1); else g.fillRect(Math.round(p.x), Math.round(p.y) - (age > 12 ? 1 : 0), 2, age > 12 ? 3 : 2);
+  }
+  if (plane) {
+    const x = Math.round(plane.x), y = Math.round(plane.y);
+    g.fillStyle = css(lit("#8a90a8", h)); g.fillRect(x - 1, y, 3, 1);
+    if (Math.floor(now / 600) % 2) { g.fillStyle = css([255, 255, 255], 0.9); g.fillRect(x + plane.dir, y, 1, 1); }   // the sun glinting on it
+  }
+}
+function drawFluff(g, h) {
+  const c = lit("#ffffff", h);
+  for (const f of FLUFF) {
+    const x = Math.round(f.x), y = Math.round(f.y);
+    g.fillStyle = css(c, 1); g.fillRect(x, y - 1, 1, 1); g.fillRect(x - 1, y - 2, 3, 1);
+    g.fillStyle = css(c, 0.55); g.fillRect(x - 2, y - 3, 1, 1); g.fillRect(x + 2, y - 3, 1, 1); g.fillRect(x, y - 3, 1, 1); g.fillRect(x - 2, y - 1, 1, 1); g.fillRect(x + 2, y - 1, 1, 1);
+    g.fillStyle = css(lit("#c9b98a", h), 0.8); g.fillRect(x, y + 1, 1, 1);   // the seed under its little parachute
+  }
+}
 
 /* ---------- drawing ---------- */
 // the sun and the moon as in pixel art: a flat disc with a lighter core and a darker rim, inside stepped rings of glow.
@@ -1915,10 +2038,13 @@ function sceneRender(now, signInfo) {
     const a = 1 - star.t / 900;
     for (let i = 0; i < 12; i++) { g.fillStyle = `rgba(255,255,240,${(a * (1 - i / 12)).toFixed(2)})`; g.fillRect(Math.round(star.x - star.vx / 90 * i * 0.5), Math.round(star.y - star.vy / 90 * i * 0.5), 1, 1); }
   }
-  // the sun and the moon behind everything, then the clouds from the far ones low over the hills to the near ones high
-  // up, then birds
+  drawMeteors(g);
+  // the northern lights, the sun and the moon behind everything, then the clouds from the far ones low over the hills
+  // to the near ones high up, then birds
+  drawAurora(g, now);
   drawSun(h, g);
   drawMoon(h, g);
+  drawPlane(g, now, h);
   if (typeof weatherSky === "function") weatherSky(g, now, h);   // an overcast sky, a rainbow (behind the clouds, which grey themselves)
   const L = cloudLight(h), lk = pk + "|" + L.join(",");
   clouds.sort((a, b) => b.base - a.base);
@@ -1970,6 +2096,7 @@ function sceneRender(now, signInfo) {
   lastSign = { h, info: signInfo };
   drawSparrow(g, now);
   drawCritters(g, now, h, false);
+  drawFluff(g, h);
   if (dark > 0.5 && se !== "winter") for (const f of flies) {                 // no fireflies in winter
     const a = Math.max(0, Math.sin(now / 600 + f.p * 4)) * (dark - 0.5) * 2;
     if (a < 0.1) continue;
