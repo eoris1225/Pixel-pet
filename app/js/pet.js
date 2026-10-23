@@ -769,9 +769,11 @@ function updateLicence(now, dt) {
   if (!licenceOn()) { lprop.state = "on"; lprop.lastAct = pet.act; pet.chase = false; return; }
   const s = Math.min(0.05, dt / 1000), began = pet.act !== lprop.lastAct;
   lprop.lastAct = pet.act;
-  if (lprop.state === "on" && began && pet.act === "fall" && FEET - pet.hy >= 14) {      // let go up high: off it comes
-    const fh = foreheadAt();
-    Object.assign(lprop, { state: "fly", x: fh.x, y: fh.y, z: pet.z, t0: now, vx: (pet.vx || 0) * 0.6 + lrnd(-90, 90), vy: -lrnd(110, 210),
+  // let go up high, or shaken hard back and forth a few times while held: off it comes
+  const shook = lprop.state === "on" && pet.act === "held" && HM.shakes >= 5;
+  if (lprop.state === "on" && (shook || began && pet.act === "fall" && FEET - pet.hy >= 14)) {
+    const fh = foreheadAt(); HM.shakes = 0;
+    Object.assign(lprop, { state: "fly", x: fh.x, y: fh.y, z: pet.z, t0: now, vx: shook ? HM.vx * 0.7 + lrnd(-40, 40) : (pet.vx || 0) * 0.6 + lrnd(-90, 90), vy: -lrnd(110, 210),
       ang: lrnd(-0.9, 0.9), w: lrnd(-4, 4), wind: 0, gust: 0, gustT: now + lrnd(200, 600), tryAt: 0 });
   }
   if (lprop.state === "fly") {
@@ -959,6 +961,21 @@ function pickWalk() {
 }
 
 /* ---------- update ---------- */
+// how she is being moved about (for the things she wears and holds to swing, jiggle and bend): her speed on the screen
+// and how sharply it changes, smoothed a little. Shaken hard back and forth while held, the shakes are counted
+const HM = { x: null, y: 0, vx: 0, vy: 0, ax: 0, ay: 0, shakes: 0, dir: 0, lastShake: 0 };
+function trackMotion(now, dt) {
+  const s = Math.max(0.008, dt / 1000), X = pet.x, Y = (pet.act === "held" || pet.act === "fall" ? pet.hy : FEET) - pet.z;
+  if (HM.x === null || dt > 200) Object.assign(HM, { x: X, y: Y, vx: 0, vy: 0, ax: 0, ay: 0 });
+  const vx = (X - HM.x) / s, vy = (Y - HM.y) / s, k = Math.min(1, s / 0.03);
+  const nvx = HM.vx + (vx - HM.vx) * k, nvy = HM.vy + (vy - HM.vy) * k;
+  HM.ax = (nvx - HM.vx) / s; HM.ay = (nvy - HM.vy) / s; HM.vx = nvx; HM.vy = nvy; HM.x = X; HM.y = Y;
+  if (pet.act !== "held" || now - HM.lastShake > 700) HM.shakes = 0;
+  if (pet.act === "held" && Math.abs(HM.vx) > 160) {        // a hard swing one way, then the other: one shake
+    const d = Math.sign(HM.vx);
+    if (d !== HM.dir) { HM.dir = d; HM.shakes++; HM.lastShake = now; }
+  }
+}
 function petUpdate(now, dt) {
   updateParts(dt);
   const dur = { skyland:SKYLAND_LEN, gloom:GLOOM_LEN, dash:DASH_LEN, wave:WAVE_LEN,
@@ -1007,6 +1024,7 @@ function petUpdate(now, dt) {
   if (!G.sleeping && now > pet.blinkUntil + 2500 && Math.random() < dt / 1500) pet.blinkUntil = now + 140;
   if (!G.sleeping && pet.act === "idle" && now > pet.nextEar) { pet.earT = now; pet.nextEar = now + 3000 + Math.random() * 5000; }
 
+  trackMotion(now, dt);
   updateTeddy(now, dt);
   updateWeaponProp(now);
   updateCameraProp(now);

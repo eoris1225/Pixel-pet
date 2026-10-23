@@ -542,6 +542,23 @@ ITEM_AUTO.camera = (grid, pet) => {
   out.noMirror = true; out.box = { cx, cy };
   return out;
 };
+// something loose on her (her camera on its strap, her pochette, the bear in her arms, the licence on her forehead, a
+// weapon in her paws) jerked about as she is carried and shaken: it lags behind her and springs back, a little spring
+// per thing driven by how sharply she is moved (HM, pet.js). Once per drawing of her
+const JIG = {};
+function jiggle(key, K, C, max) {
+  const now = performance.now(), j = JIG[key] || (JIG[key] = { x: 0, y: 0, vx: 0, vy: 0, t: now, pose: null });
+  if (typeof HM === "undefined" || typeof pet === "undefined") return j;
+  if (j.pose === pet._pose) return j;
+  if (now - j.t > 300) Object.assign(j, { x: 0, y: 0, vx: 0, vy: 0 });
+  else for (let left = Math.min(0.05, (now - j.t) / 1000); left > 0; left -= 0.004) {
+    const h = Math.min(0.004, left);
+    j.vx += (-K * j.x - C * j.vx - HM.ax) * h; j.vy += (-K * j.y - C * j.vy - HM.ay) * h;
+    j.x = Math.max(-max, Math.min(max, j.x + j.vx * h)); j.y = Math.max(-max, Math.min(max, j.y + j.vy * h));
+  }
+  j.t = now; j.pose = pet._pose;
+  return j;
+}
 // where 하와's camera hangs on the screen, kept up to date while she wears it (pet.js takes it off from there for her guitar)
 const CAMS = { neck: null };
 // lying down, her camera has fallen on the grass in front of her, face down: seen from above, its light top edge, its
@@ -922,7 +939,7 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}, stage = "all") {
       st.Y = Y;
       for (let left = Math.min(0.05, (now - st.t) / 1000); left > 0; left -= 0.004) {
         const h = Math.min(0.004, left);
-        st.dv += (-900 * st.d - 8 * st.dv - 6 * vb) * h; st.d += st.dv * h;
+        st.dv += (-900 * st.d - 8 * st.dv - 6 * vb - (pet.act === "held" ? HM.ay * 0.9 + Math.abs(HM.ax) * 0.25 : 0)) * h; st.d += st.dv * h;
       }
     }
     st.t = now;
@@ -975,7 +992,8 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}, stage = "all") {
     for (const [x, y, c] of off) { if (c === "clear") g.clearRect(x, y + shift, 1, 1); else { g.fillStyle = OUT; g.fillRect(x, y + shift, 1, 1); } }
     if (stage === "arms") return;
   }
-  const pj = equip.pajama && WEAPON_PJ[petId], sway = weaponSway();
+  const jw = typeof pet !== "undefined" && pose === pet._pose ? jiggle("weapon", 120, 6, 6) : null;   // jerked about, it tips
+  const pj = equip.pajama && WEAPON_PJ[petId], sway = weaponSway() + (jw ? Math.max(-0.4, Math.min(0.4, jw.y * 0.06 * (g.getTransform().a < 0 ? -1 : 1))) : 0);
   // facing away it is behind her at the height of her arms above her feet, whatever the frame's size
   let ox = o ? o.dx : Math.round(w / 2 - 14), oy = (o ? o.dy : soles(grid) - soles(SPRITES[petId]) - (petId === "nori" ? 4 : 0)) + shift;
   if (o && !base && typeof pet !== "undefined") {             // a traced motion: ease from frame to frame
@@ -1037,7 +1055,9 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       const keep = base && g.getTransform().a < 0;
       if (keep) { g.save(); g.translate(grid[0].length, 0); g.scale(-1, 1); }
       if (o && layer === "back") {                         // it hangs on her loosely: it follows her a moment late and sways as she moves
-        const s = guitarSway(GUITAR_BACK.x + o.dx, GUITAR_BACK.foot - guitarDrop(GUITAR_BACK.deg) + o.dy + shift, GUITAR_BACK.deg);
+        const jg = typeof pet !== "undefined" && pose === pet._pose ? jiggle("guitar", 150, 6, 4) : { x: 0, y: 0 }, jx = g.getTransform().a < 0 ? -jg.x : jg.x;   // jerked about, it swings on her back
+        const s0 = guitarSway(GUITAR_BACK.x + o.dx, GUITAR_BACK.foot - guitarDrop(GUITAR_BACK.deg) + o.dy + shift, GUITAR_BACK.deg);
+        const s = { x: s0.x + Math.round(jx), y: s0.y + Math.round(jg.y * 0.5), deg: Math.round(s0.deg + jx * 4) };
         drawGuitar(g, s.x, Math.min(s.y, soles(grid) + shift - guitarDrop(s.deg)), s.deg);
       }
       if (o && layer === "front") {                       // its strap across her chest, from her right shoulder to her left hip
@@ -1105,9 +1125,17 @@ function drawItems(g, petId, equip, layer, dy, pose, img) {
       // turning to walk the other way mirrors her picture, but not what she wears on one side: the pochette stays at
       // the same hip of hers, so on a mirrored base pose it is mirrored back
       const keepSide = (a.auto === "carry" && base || px.noMirror === true) && g.getTransform().a < 0, fw = (grid[0] || "").length - 1;
-      for (const [xs, y, c] of px) {
+      // jerked about: what hangs (camera, pochette) swings from where it hangs, more the lower down; the bear and the
+      // licence just jiggle
+      const JP = { camera: [170, 7, 3], carry: [140, 6, 3], teddy: [420, 12, 1.2], pass: [520, 9, 1.2] }[a.auto];
+      const jg = JP && !lie && typeof pet !== "undefined" && pose === pet._pose ? jiggle(a.auto, ...JP) : null, jsx = g.getTransform().a < 0 ? -1 : 1;
+      let jy0 = 0, jy1 = 1;
+      if (jg) { jy0 = a.auto === "camera" && px.box ? px.box.cy - 7 : px.reduce((m, p) => Math.min(m, p[1]), 1e9); jy1 = a.auto === "camera" && px.box ? px.box.cy : px.reduce((m, p) => Math.max(m, p[1]), -1e9); }
+      const jw = y => a.auto === "camera" || a.auto === "carry" ? Math.max(0, Math.min(1, (y - jy0) / Math.max(1, jy1 - jy0))) : 1;
+      for (const [xs, y0, c] of px) {
+        const jk = jg && c !== "clear" ? jw(y0) : 0, y = y0 + (jk ? Math.round(jg.y * jk) : 0), jx = jk ? Math.round(jg.x * jk * jsx) : 0;
         const wr = wob && p0(c) ? y - ptop : 9, wk = wr <= 2 ? 1 : wr === 3 ? 0.5 : 0;   // the custard's top swings, its foot less
-        const x0 = (keepSide ? fw - xs : xs) + (wk ? Math.round(wob.x * wob.flip * wk) : 0) + (swap ? swap.x : 0), x = x0 + (each && y < tip ? ear : 0);
+        const x0 = (keepSide ? fw - xs : xs) + jx + (wk ? Math.round(wob.x * wob.flip * wk) : 0) + (swap ? swap.x : 0), x = x0 + (each && y < tip ? ear : 0);
         // a stretch doubles the row at dup: the onesie covers both copies
         if (each && y === dup && shift > 0 && c !== "clear" && on(x, y)) { g.fillStyle = c === "body" ? body : c === "outline" ? OUT : c; g.fillRect(x, y, 1, 1); }
         const yy = y + (each ? (y >= dup ? shift : 0) : whole) + (lift && c !== CAMERA_PAL.s && c !== CAMERA_PAL.t ? lift : 0) + (wk === 1 && wr <= 1 ? wob.y : 0) + (wob && p0(c) && wr <= 3 ? wob.pop : 0) + (swap ? swap.y : 0);
