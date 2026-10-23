@@ -155,14 +155,18 @@ const numBadge = n => `<span class="nb f-num s" style="--face:${NUM_COLORS[(n - 
 for (const id of ["tab-stats", "tab-todo", "tab-settings"]) { const c = $("#" + id + " canvas"); c.dataset.fixed = 1; paintIcon(c, id); }
 paintIcons(document);
 paintIcon($("#hud-burn"), "flame");
-// the UI palette (style.css): the soft cream one, or a candidate to compare (?ui=b, c, old)
+// the UI palette (style.css), one for each friend: 치카 lavender evening (c), 하와 airy sky (b), 욱 warm cream (a).
+// ?ui=a/b/c/old (or the test page) holds one palette for every friend
+const PET_UI = { mochi: "c", sora: "b", nori: "a" };
+let uiPick = new URLSearchParams(location.search).get("ui");
+const applyUi = () => setUiLook(uiPick || PET_UI[appEl.dataset.pet] || "a");
 function setUiLook(k) {
   if (k && k !== "a") document.documentElement.dataset.ui = k; else delete document.documentElement.dataset.ui;
   const c = document.createElement("canvas"); c.width = 6; c.height = 6; const g = c.getContext("2d");   // paper with a faint pixel dot pattern for the screens
   g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--dot").trim() || "#f7e9c9"; g.fillRect(0, 0, 1, 1); g.fillRect(3, 3, 1, 1);
   appEl.style.setProperty("--dots", `url(${c.toDataURL()})`);
 }
-setUiLook(new URLSearchParams(location.search).get("ui"));
+applyUi();
 // pixel patterns for the heads and windows: light diagonal stripes, a scalloped hem, a dithered dim
 { const pat = (w, h, px, col) => { const c = document.createElement("canvas"); c.width = w; c.height = h; const g = c.getContext("2d"); g.fillStyle = col;
     px.forEach(([x, y]) => g.fillRect(x, y, 1, 1)); return `url(${c.toDataURL()})`; };
@@ -373,7 +377,7 @@ $("#sel-ok").onclick = () => {
 };
 function setPet(id) {
   S.pet = id; charState(id); save();
-  appEl.dataset.pet = id;
+  appEl.dataset.pet = id; applyUi();
   petReset(id);
   drawHudFace();
 }
