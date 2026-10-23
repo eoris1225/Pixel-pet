@@ -234,14 +234,15 @@ function blurGrid(src, w, h, r) {
 // tone [x, y, tone]: its outline (with small round bumps added along it), which way its surface faces at every pixel
 // (from the outline blurred at two sizes, so the whole mass and its big swellings are rounded, not each lobe), how high
 // each pixel sits in it, and the spots the scallops grow from
-function blobLayout(lobes, fixed, R, dotSize = 1) {
+function blobLayout(lobes, fixed, R, dotSize = 1, floor = false) {
   let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
   for (const [x, y, r, sx = 1] of lobes) { x0 = Math.min(x0, x - r * sx); x1 = Math.max(x1, x + r * sx); y0 = Math.min(y0, y - r); y1 = Math.max(y1, y + r); }
   for (const [x, y] of fixed) { x0 = Math.min(x0, x); x1 = Math.max(x1, x + 1); y0 = Math.min(y0, y); y1 = Math.max(y1, y + 1); }
   const pad = 4; x0 = Math.floor(x0) - pad; y0 = Math.floor(y0) - pad;
   const w = Math.ceil(x1) + pad - x0 + 1, h = Math.ceil(y1) + pad - y0 + 1, n = w * h, m = new Float32Array(n);
+  const lastY = floor ? h + y0 - 1 : h - 1;     // (floor: nothing below the base, y = 0)
   const discG = (cx, cy, rx, ry) => {             // in grid pixels (y down)
-    for (let Y = Math.max(0, Math.floor(cy - ry)); Y <= Math.min(h - 1, cy + ry); Y++) for (let X = Math.max(0, Math.floor(cx - rx)); X <= Math.min(w - 1, cx + rx); X++) {
+    for (let Y = Math.max(0, Math.floor(cy - ry)); Y <= Math.min(lastY, cy + ry); Y++) for (let X = Math.max(0, Math.floor(cx - rx)); X <= Math.min(w - 1, cx + rx); X++) {
       const dx = (X + 0.5 - cx) / rx, dy = (Y + 0.5 - cy) / ry; if (dx * dx + dy * dy <= 1) m[Y * w + X] = 1;
     }
   };
@@ -252,7 +253,7 @@ function blobLayout(lobes, fixed, R, dotSize = 1) {
     const cx = x - x0, cy = h - (y - y0); discG(cx, cy, r * sx, r);
     if (big) for (let Y = Math.max(0, Math.floor(cy - r)); Y <= Math.min(h - 1, cy + r); Y++) for (let X = Math.max(0, Math.floor(cx - r * sx)); X <= Math.min(w - 1, cx + r * sx); X++) {
       const dx = (X + 0.5 - cx) / (r * sx), dy = (Y + 0.5 - cy) / r, d2 = dx * dx + dy * dy;
-      if (d2 <= 1) zc[Y * w + X] = Math.max(zc[Y * w + X], 0.7 * r * Math.sqrt(1 - d2));
+      if (d2 <= 1) zc[Y * w + X] = Math.max(zc[Y * w + X], 0.7 * r * (big === true ? 1 : big) * Math.sqrt(1 - d2));   // (big: true, or how high)
     }
   }
   let top = h, bot = 0;
@@ -340,37 +341,44 @@ function cloudShape(kind, w0, h0, R = Math.random) {
     ribbon(fixed, 0, 0, w0, h0, R, 0.9);
     if (R() < 0.5) { const ww = w0 * (0.35 + R() * 0.35); ribbon(fixed, (R() < 0.5 ? -0.15 : 0.6) * w0 + R() * w0 * 0.2, h0 * (0.4 + R() * 0.4), ww, h0 * (0.4 + R() * 0.3), R, 0.75); }
   } else {
-    // a cumulus (or a little puff), grown like a cauliflower: a flat base, a few big round domes of different
-    // heights on it, smaller domes round the top of each, and smaller ones again on those; the underside a row of
-    // small flattened swellings, a little up and down
-    const nB = kind === "puff" ? 1 + (R() < 0.5) : 2 + (R() * 3 | 0), domes = [];
-    lobe(w0 / 2, h0 * 0.2, h0 * 0.2, w0 / (h0 * 0.4) * 0.92, true);
-    for (let i = 0; i < nB; i++) {
-      const tall = i === (kind === "tree" ? nB >> 1 : nB * R() | 0) ? 1 : kind === "tree" ? 0.62 + R() * 0.2 : 0.35 + R() * 0.5, r = Math.max(clampv(h0 * (0.28 + R() * 0.14), 2, 40) * (0.75 + tall * 0.25), w0 / nB * (0.55 + R() * 0.15));
-      const x = w0 * (i + 0.5 + (R() - 0.5) * 0.7) / nB, y = Math.max(r * (0.95 + R() * 0.2), h0 * tall - r);
-      lobe(x, y, r, 1, true); domes.push([x, y, r, 1]);
-    }
-    for (let lv = 0; lv < 2; lv++) {
-      const next = [];
-      for (const [cx, cy, r] of domes) {
-        const rs = r * (0.38 + R() * 0.16); if (rs < 1.6) continue;
-        for (let k = 0, nk = 2 + (R() * 3 | 0); k < nk; k++) {
-          const ang = Math.PI * (0.12 + 0.76 * (k + 0.5 + (R() - 0.5) * 0.6) / nk), d = r * (0.78 + R() * 0.12);
-          const x = cx + Math.cos(ang) * d, y = cy + Math.sin(ang) * d * 0.95;
-          lobe(x, y, rs * (0.8 + R() * 0.4), 1, lv === 0); next.push([x, y, rs, 1]);
-        }
+    // a cumulus (or a little puff) as in the reference skies: a heap on a flat base, highest in one tower and falling
+    // away in rounded steps to either side, over a low band the whole width; every top edge a run of small round
+    // bumps (smaller ones on the bigger), the inside all filled, nothing below the base
+    const puff = kind === "puff", main = { c: kind === "tree" ? 0.5 : puff ? 0.4 + R() * 0.2 : 0.32 + R() * 0.36, a: 1, hw: puff ? 0.3 + R() * 0.12 : 0.22 + R() * 0.1 };
+    const towers = [main];
+    for (const side of [-1, 1]) {                                  // shoulders stepping down each side, more on the longer one
+      let { c, a, hw } = main;
+      const room = side < 0 ? main.c : 1 - main.c, n = puff ? (R() < 0.6 ? 1 : 0) : 1 + (room > 0.5 ? 1 : 0) + (R() < 0.4 ? 1 : 0);
+      for (let i = 0; i < n; i++) {
+        const nhw = puff ? 0.14 + R() * 0.1 : 0.09 + R() * 0.1;
+        a *= puff ? 0.55 + R() * 0.2 : 0.5 + R() * 0.22; c += side * (hw * 0.8 + nhw * 0.55); hw = nhw;
+        if (c - hw < -0.02 || c + hw > 1.02) break;
+        towers.push({ c, a, hw });
       }
-      domes.length = 0; domes.push(...next);
     }
-    const rb = clampv(h0 * 0.12, 1.5, 6);
-    for (let x = rb * 2; x < w0 - rb * 2; x += rb * (1.4 + R() * 1.2)) lobe(x, rb * (0.6 + (R() - 0.5) * 0.9), rb * (0.8 + R() * 0.5), 1.4 + R() * 0.6);
-    // now and then thin wisps trailing under it
-    if (kind === "cu" && R() < 0.55) for (let k = 0, n = 1 + (R() * 2 | 0); k < n; k++) {
-      const len = w0 * (0.2 + R() * 0.45), x0 = R() * (w0 - len), y = -1 - k * 2 - (R() * 2 | 0);
-      for (let x = Math.round(x0); x < x0 + len; x++) fixed.push([x, y, 4, 0.6]);
+    const hb = h0 * (puff ? 0.4 : 0.2 + R() * 0.1);                // the low band along the bottom
+    towers.push({ c: 0.5, a: hb / h0, hw: 0.5, band: true });
+    for (const t of towers) {
+      const cx = t.c * w0, ry = Math.max(1.5, t.a * h0 * (t.band ? 1 : 0.9)), rx = Math.max(1.5, t.hw * w0);
+      lobe(cx, 0, ry, rx / ry);                                      // its body (cut off at the base)
+      const rc = clampv((t.band ? hb * 0.8 : t.a * h0 * 0.32), 3, 16);   // and big round puffs inside it, overlapping, each catching the light
+      for (let y = rc * 0.8; y < ry - rc * 0.4; y += rc * (0.85 + R() * 0.2)) {
+        const half = rx * Math.sqrt(Math.max(0, 1 - (y / ry) ** 2)) - rc * 0.6;
+        for (let x = cx - half + R() * rc * 0.4; x <= cx + half + 0.01; x += rc * (0.95 + R() * 0.3)) lobe(x, y + (R() - 0.5) * rc * 0.3, rc * (0.85 + R() * 0.3), 1, 0.4);
+      }
+      const rb = clampv((t.band ? hb * 0.55 : t.a * h0 * 0.17), 1.6, 8);
+      const arc = Math.PI * (rx + ry) / 2, n = Math.max(2, Math.round(arc / (rb * (1.15 + R() * 0.3))));
+      for (let k = 0; k <= n; k++) {                                 // the bumps along its top edge
+        const th = Math.PI * (0.04 + 0.92 * (k + (R() - 0.5) * 0.5) / n), r = rb * (0.75 + R() * 0.5);
+        const px = cx + Math.cos(th) * rx, py = Math.sin(th) * ry, nx = Math.cos(th) / rx, ny = Math.sin(th) / ry, nl = Math.hypot(nx, ny);
+        const x = px - nx / nl * r * 0.45, y = py - ny / nl * r * 0.45;
+        if (y < r * 0.3) continue;
+        lobe(x, y, r, 1, r >= 2.5);
+        if (r >= 3 && R() < 0.6) { const a2 = Math.PI * (0.2 + R() * 0.6), r2 = r * (0.35 + R() * 0.15); lobe(x + Math.cos(a2) * r * 0.85, y + Math.sin(a2) * r * 0.85, r2); }
+      }
     }
   }
-  return blobLayout(lobes, fixed, R);
+  return blobLayout(lobes, fixed, R, 1, kind !== "cirrus" && kind !== "strato");
 }
 // where the light comes from: the sun's side by day (low and from the side at sunrise and sunset, from above at noon),
 // the moon's at night; in steps, so the clouds are only repainted now and then
