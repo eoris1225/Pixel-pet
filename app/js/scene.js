@@ -69,46 +69,51 @@ const SIGN_X = 26;
 // blue at night; greyer as the weather closes in). Every cloud is a new shape. Three layers drift at their own
 // speeds: big banks of cumulus low over the hills, middle clouds, and thin streaks of stratus.
 function cloudShape(w0, h0, kind) {
-  const R = Math.random, blobs = [];                             // [cx, cy, rx, ry]: round puffs, or long flat wisps
-  if (kind === "streak") {                                       // a long thin wisp, tapering at both ends, maybe two
-    blobs.push([w0 / 2, 0, w0 / 2, h0 / 2]);
-    if (R() < 0.6) blobs.push([w0 * (0.3 + R() * 0.5), (R() < 0.5 ? -1 : 1) * h0 * 0.6, w0 * (0.2 + R() * 0.15), h0 * 0.4]);
-  } else {
-    const n = Math.max(3, Math.round(w0 / (kind === "bank" ? 11 : 9)));
-    for (let i = 0; i < n; i++) {                                 // a row of puffs on a flat base, the middle ones taller
-      const q = (i + 0.5) / n, cx = q * w0 + (R() - 0.5) * 4, tall = Math.sin(q * Math.PI) ** 0.7;
-      const r = Math.max(3, (0.3 + 0.55 * tall) * h0 * (0.75 + R() * 0.35) * 0.62);
-      blobs.push([cx, -r * (0.75 + R() * 0.2), r, r]);
-      if (tall > 0.6 && R() < 0.8) blobs.push([cx + (R() - 0.5) * r, -r * 1.55, r * (0.5 + R() * 0.25), r * (0.5 + R() * 0.25)]);   // a puff on top
-    }
+  const R = Math.random, lv = [];
+  if (kind === "streak") {
+    // a wisp of stratus: a few flat runs stacked like steps, the middle one longest, tapering at the ends
+    const rows = [[0.25, 0.75, 0], [0.05, 0.95, 1], [0.15, 0.7, 2]];
+    if (R() < 0.5) rows.push([0.4, 0.85, 3]);
+    const w = Math.round(w0), h = rows.length, out = new Uint8Array(w * h).fill(255);
+    rows.forEach(([a, b, k], y) => { const x0 = Math.round((a + (R() - 0.5) * 0.1) * w), x1 = Math.round((b + (R() - 0.5) * 0.1) * w); for (let x = Math.max(0, x0); x < Math.min(w, x1); x++) out[y * w + x] = k; });
+    return { w, h, lv: out };
   }
-  // the whole of it in the picture: bounds of every blob (puffs stop at the flat base, y = 0)
-  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
-  for (const [cx, cy, rx, ry] of blobs) { x0 = Math.min(x0, cx - rx); x1 = Math.max(x1, cx + rx); y0 = Math.min(y0, cy - ry); y1 = Math.max(y1, cy + ry); }
-  if (kind !== "streak") y1 = 0;
-  const w = Math.ceil(x1 - x0) + 2, h = Math.ceil(y1 - y0) + 1, ox = x0 - 1, oy = y0;
-  const inB = (x, y, [cx, cy, rx, ry]) => ((x + 0.5 + ox - cx) / rx) ** 2 + ((y + 0.5 + oy - cy) / ry) ** 2 <= 1;
-  const lv = new Uint8Array(w * h).fill(255);
-  let top = h;
-  for (let y = 0; y < h && top === h; y++) for (let x = 0; x < w; x++) if (blobs.some(b => inB(x, y, b))) { top = y; break; }
+  // a cumulus as in painted pixel art: flat tones, no shading inside a puff. Its whole bumpy shape in the shadow tone,
+  // then the same puffs a little smaller and nudged towards the sun (up and left) in lighter tones, two or three times,
+  // so the light catches the tops in layered lobes; a darker flat line along its base
+  const circles = [], n = Math.max(3, Math.round(w0 / (kind === "bank" ? 10 : 8)));
+  for (let i = 0; i < n; i++) {
+    const q = (i + 0.5) / n, cx = q * w0 + (R() - 0.5) * 5, tall = Math.sin(q * Math.PI) ** 0.8;
+    const r = Math.max(3, (0.28 + 0.6 * tall) * h0 * (0.7 + R() * 0.4) * 0.6);
+    circles.push([cx, -r * (0.7 + R() * 0.25), r]);
+    if (tall > 0.5 && R() < 0.85) circles.push([cx + (R() - 0.5) * r * 0.8, -r * (1.3 + R() * 0.3), r * (0.45 + R() * 0.25)]);   // a puff on top
+    if (R() < 0.5) circles.push([cx + (R() - 0.5) * r * 1.6, -r * 0.45, r * (0.4 + R() * 0.2)]);                                   // a small one at the side
+  }
+  // the puffs are lumpy, not round: a little wider than tall, their edge wobbling in and out
+  circles.forEach(c => c.push(R() * 6, R() * 6));
+  const reach = ([cx, cy, r, p1, p2], x, y, k) => {
+    const dx = (x - cx) / 1.18, dy = y - cy, a = Math.atan2(dy, dx), rr = r * k * (1 + 0.13 * Math.sin(3 * a + p1) + 0.08 * Math.sin(5 * a + p2));
+    return dx * dx + dy * dy <= rr * rr;
+  };
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9;
+  for (const [cx, cy, r] of circles) { x0 = Math.min(x0, cx - r * 1.4); x1 = Math.max(x1, cx + r * 1.4); y0 = Math.min(y0, cy - r * 1.25); }
+  const w = Math.ceil(x1 - x0) + 2, h = Math.ceil(-y0) + 1, ox = x0 - 1, oy = y0;
+  const inAny = (x, y, k, dx, dy) => circles.some(c => reach(c, x + 0.5 + ox - dx, y + 0.5 + oy - dy, k));
+  const out = new Uint8Array(w * h).fill(255);
+  // [size, shift x, shift y, tone]: the light from above and a little left, so the lit tops are broad and the shade
+  // gathers along the underside
+  const layers = [[1, 0, 0, 3], [0.9, -0.8, -2.2, 2], [0.72, -1.6, -4, 1], [0.48, -2.2, -5.6, 0]];
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    let li = -9;
-    for (const bl of blobs) {
-      if (!inB(x, y, bl)) continue;
-      const dx = (x + 0.5 + ox - bl[0]) / bl[2], dy = (y + 0.5 + oy - bl[1]) / bl[3];
-      li = Math.max(li, -dx * 0.5 - dy * 0.86);                   // lit from the top left
-    }
-    if (li < -2) continue;
-    const down = (y - top) / Math.max(1, h - top);
-    let v = li * 0.65 - down * (kind === "streak" ? 0.3 : 0.95) + 0.3 + (BAYER[(y & 3) * 4 + (x & 3)] - 0.5) * 0.12;
-    let k = v > 0.5 ? 0 : v > 0.18 ? 1 : v > -0.12 ? 2 : v > -0.42 ? 3 : 4;
-    if (kind !== "streak" && y >= h - 2) k = Math.max(k, y === h - 1 ? 4 : 3);   // the flat shadowed base
-    lv[y * w + x] = k;
+    if (!inAny(x, y, 1, 0, 0) || y + oy > 0) continue;
+    let k = 3;
+    for (const [sz, dx, dy, t] of layers.slice(1)) if (inAny(x, y, sz, dx, dy)) k = t;
+    if (y === h - 1 || (y === h - 2 && R() < 0.3)) k = 4;           // the base in shadow
+    out[y * w + x] = k;
   }
-  return { w, h, lv };
+  return { w, h, lv: out };
 }
 // the five shades for this hour and weather: lit tops to shadowed bases
-const CLOUD_KEYS = [   // [hour, lit, shadow]
+const CLOUD_KEYS = [   // [hour, lit, shadow]   (tones between them: lit tops, shadowed base)
   [0, "#7e86bc", "#222858"], [4.6, "#8a86bc", "#2a2a5e"], [5.5, "#ffc2c0", "#6a5c9c"], [6.4, "#fff0d8", "#9a9ccc"],
   [7.6, "#ffffff", "#a7bddc"], [15.8, "#ffffff", "#a9bcd6"], [17.4, "#fff4dc", "#b2a6c8"], [18.4, "#ffc79c", "#73609a"],
   [19.2, "#e6a0aa", "#45407a"], [20.2, "#8c90c6", "#272c5e"], [24, "#7e86bc", "#222858"],
@@ -352,35 +357,53 @@ function sceneUpdate(now, dt) {
 }
 
 /* ---------- drawing ---------- */
+// the sun and the moon as in pixel art: a flat disc with a lighter core and a darker rim, inside stepped rings of glow.
+// Their size changes a little from day to day: the sun a touch bigger in winter (when the earth is nearest it), the
+// moon bigger near perigee (its "supermoon"), and both bigger low on the horizon
+const dayNum = () => (typeof gameDate === "function" ? gameDate() : new Date()).getTime() / 86400000;
+function rings(g, x, y, r, col, a) { for (let k = 3; k >= 1; k--) { g.fillStyle = css(col, a * (4 - k) / 3); disc(g, x, y, r + k * 3 + 1); } }
 function drawSun(h, g) {
   if (h < 5.3 || h > 19.6) return;
   const p = (h - 6) / 13, x = 12 + (W - 24) * Math.max(-0.05, Math.min(1.05, p));
-  const y = horizon - 6 - Math.sin(Math.PI * Math.max(0, Math.min(1, p))) * (horizon - 50);
-  const low = 1 - Math.sin(Math.PI * Math.max(0, Math.min(1, p)));
-  const core = mixc(hex("#fff6c8"), hex("#ffb06a"), low), rim = mixc(hex("#ffe58a"), hex("#ff8f5a"), low);
-  for (let r = 22, a = 0.05 + low * 0.06; r >= 10; r -= 4) { g.fillStyle = css(core, a); disc(g, x, y, r); }
-  g.fillStyle = css(rim); disc(g, x, y, 7);
-  g.fillStyle = css(core); disc(g, x, y, 6);
-  g.fillStyle = "rgba(255,255,255,0.55)"; g.fillRect(Math.round(x) - 3, Math.round(y) - 3, 2, 1);
+  const alt = Math.sin(Math.PI * Math.max(0, Math.min(1, p))), y = horizon - 6 - alt * (horizon - 50), low = 1 - alt;
+  const doy = (dayNum() % 365.25) / 365.25, r = Math.round(6 + 0.8 * Math.cos(2 * Math.PI * doy) + low * 1.6);
+  const core = mixc(hex("#fffbe6"), hex("#ffc27a"), low), mid = mixc(hex("#fff0b0"), hex("#ffa25c"), low), rim = mixc(hex("#ffd977"), hex("#ff7e4e"), low);
+  rings(g, x, y, r, mixc(hex("#fff3c4"), hex("#ffb27a"), low), 0.09 + low * 0.08);
+  g.fillStyle = css(rim); disc(g, x, y, r);
+  g.fillStyle = css(mid); disc(g, x - 0.5, y - 0.5, r - 1);
+  g.fillStyle = css(core); disc(g, x - 1, y - 1, Math.max(1, r - 3));
 }
 function disc(g, cx, cy, r) {
   cx = Math.round(cx); cy = Math.round(cy);
   for (let dy = -r; dy <= r; dy++) { const hw = Math.round(Math.sqrt(r * r - dy * dy)); g.fillRect(cx - hw, cy + dy, hw * 2 + 1, 1); }
 }
 function moonPhase() { return (((Date.now() / 86400000 - 10962.76) % 29.530588853) + 29.530588853) % 29.530588853 / 29.530588853; }
+// the moon is up every night (in its real phase): the lit part pale gold with grey seas and a bright rim towards the
+// light, the dark part dim blue (it still shows against the sky, earthshine), in a soft glow that grows as it fills
+const MOON_SEAS = [[-0.35, -0.25, 0.28], [0.15, -0.4, 0.2], [0.25, 0.2, 0.3], [-0.2, 0.35, 0.18], [0.45, -0.05, 0.12]];
 function drawMoon(h, g) {
   const t = h >= 18 ? h - 18 : h + 6;                 // 18:00 -> 0, 06:00 -> 12
-  if (t < 0.6 || t > 12.6) return;
-  const p = (t - 0.6) / 12, x = W - 16 - (W - 32) * p, y = horizon - 8 - Math.sin(Math.PI * p) * (horizon - 46);
-  const ph = moonPhase(), r = 6, k = Math.cos(2 * Math.PI * ph);
-  g.fillStyle = "rgba(255,244,214,0.07)"; disc(g, x, y, 14); disc(g, x, y, 10);
+  if (t < 0.4 || t > 12.8) return;
+  const p = (t - 0.4) / 12.4, x = Math.round(W - 18 - (W - 36) * p), alt = Math.sin(Math.PI * p), y = Math.round(horizon - 10 - alt * (horizon - 56));
+  const ph = moonPhase(), k = Math.cos(2 * Math.PI * ph), full = (1 - k) / 2;
+  const peri = Math.cos(2 * Math.PI * ((dayNum() - 10962.3) / 27.5545)), r = Math.round(7 + 1.2 * peri + (1 - alt) * 1.2);
+  const vis = smooth(0.15, 0.55, darkAt(h)); if (vis <= 0.02) return;   // pale and then gone as day comes on
+  g.save(); g.globalAlpha = vis;
+  rings(g, x, y, r, hex("#fff2cf"), 0.04 + full * 0.08);
   for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
     if (dx * dx + dy * dy > r * r + 0.5) continue;
     const sq = Math.sqrt(Math.max(0, 1 - (dy / r) ** 2)), xn = (dx + 0.5) / r;
     const on = ph < 0.5 ? xn > sq * k : xn < -sq * k;
-    g.fillStyle = on ? ((dx === -2 && dy === 1) || (dx === 2 && dy === -2) ? "#efe2bd" : "#fff4d6") : "rgba(140,150,200,0.28)";
-    g.fillRect(Math.round(x) + dx, Math.round(y) + dy, 1, 1);
+    let c;
+    if (!on) c = "#3a4378";
+    else {
+      const sea = MOON_SEAS.some(([sx, sy, sr]) => (dx / r - sx) ** 2 + (dy / r - sy) ** 2 < sr * sr);
+      const rimLit = dx * dx + dy * dy > (r - 1.2) ** 2 && (ph < 0.5 ? dx > 0 : dx < 0);
+      c = rimLit ? "#fffaf0" : sea ? "#ddd2b0" : "#f6ecd0";
+    }
+    g.fillStyle = c; g.fillRect(x + dx, y + dy, 1, 1);
   }
+  g.restore();
 }
 const BIRD = [["X...X", ".X.X.", "..X.."], ["..X..", ".X.X.", "X...X"]];
 function drawGlyph(g, rows, x, y, col) { g.fillStyle = col; rows.forEach((r, j) => { for (let i = 0; i < r.length; i++) if (r[i] === "X") g.fillRect(Math.round(x) + i, Math.round(y) + j, 1, 1); }); }
@@ -449,11 +472,11 @@ function sceneRender(now, signInfo) {
     const a = 1 - star.t / 900;
     for (let i = 0; i < 12; i++) { g.fillStyle = `rgba(255,255,240,${(a * (1 - i / 12)).toFixed(2)})`; g.fillRect(Math.round(star.x - star.vx / 90 * i * 0.5), Math.round(star.y - star.vy / 90 * i * 0.5), 1, 1); }
   }
-  drawSun(h, g);
-  drawMoon(h, g);
   // the banks low over the hills, then birds, then the middle clouds and the streaks
   const drawC = c => { if (c.key !== pk) { c.key = pk; paintCloud(c, pal); } g.globalAlpha = c.kind === "streak" ? 0.85 : 1; g.drawImage(c.cv, Math.round(c.x), Math.round(c.y)); g.globalAlpha = 1; };
   clouds.filter(c => c.kind === "bank").forEach(drawC);
+  drawSun(h, g);                                       // (over the low banks; the middle clouds and streaks can drift across it)
+  drawMoon(h, g);
   if (flock) {
     const col = css(mixc(hex("#5b6280"), hex("#3a2a40"), warmAt(h)));
     flock.birds.forEach(b => {
