@@ -1176,8 +1176,9 @@ function drawSprite(g, id, pose, cx, feet, dir, equip, shadow = true) {
   }
   g.imageSmoothingEnabled = false;
   const items = equip && typeof drawItems === "function";
+  const sun = shadow && g === ctx && typeof sunCast === "function" ? sunCast() : null;   // and her shadow from the sun (on the meadow), her shape and all she holds
   const dy = img.height - INFO[id].h;               // squash / stretch adds or drops a row low on the body (items below it shift)
-  if (!items) {
+  if (!items && !sun) {
     g.save(); g.translate(dir < 0 ? x + dw : x, y); g.scale((dir < 0 ? -1 : 1) * dw / img.width, dh / img.height);
     g.drawImage(img, 0, 0); g.restore();
   } else {
@@ -1188,9 +1189,13 @@ function drawSprite(g, id, pose, cx, feet, dir, equip, shadow = true) {
     o.translate(dir < 0 ? M + dw : M, M); o.scale((dir < 0 ? -1 : 1) * dw / img.width, dh / img.height);
     o.worldY = g.getTransform().f + y - M;          // (where it sits on the screen: for things that move with her height)
     o.worldX = g.getTransform().e + x - M;          // (and across it: for things that swing as she moves)
-    drawItems(o, id, equip, "back", dy, pose, img);
+    if (items) drawItems(o, id, equip, "back", dy, pose, img);
     o.drawImage(img, 0, 0);
-    drawItems(o, id, equip, "front", dy, pose, img);
+    if (items) drawItems(o, id, equip, "front", dy, pose, img);
+    if (sun) {
+      g.fillStyle = `rgba(${shadowRGB(worldHour()).join(",")},${(0.55 * sun.a).toFixed(3)})`;
+      for (const [X, Y] of castPixels(o.getImageData(0, 0, dw + 2 * M, dh + 2 * M).data, dw + 2 * M, dh + 2 * M, x - M, y - M, feet - 1, sun)) g.fillRect(X, Y, 1, 1);
+    }
     g.drawImage(c, 0, 0, c.width, c.height, x - M, y - M, c.width, c.height);
   }
   return { x, y, w: dw, h: dh };

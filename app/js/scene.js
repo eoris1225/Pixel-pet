@@ -31,7 +31,7 @@ const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a
 // their own, as ink on them is too heavy), and the colours softened
 // towards her warm paper ("soft": a little less saturated, a little creamier). Candidates to pick from: ?look=b
 const LOOKS = { a: { line: "", soft: 0 }, b: { line: "self", soft: 0 }, c: { line: "ink", soft: 0 }, d: { line: "", soft: 1 }, e: { line: "ink", soft: 1 } };
-let LOOK = LOOKS[QS.get("look")] || LOOKS.a; LOOK.key = LOOKS[QS.get("look")] ? QS.get("look") : "a";
+let LOOK = LOOKS[QS.get("look")] || LOOKS.b; LOOK.key = LOOKS[QS.get("look")] ? QS.get("look") : "b";   // the user picked B
 function softc(c) {
   if (!LOOK.soft) return c;
   const l = (c[0] * 0.3 + c[1] * 0.59 + c[2] * 0.11), k = LOOK.soft;
@@ -47,6 +47,33 @@ function outlineData(d, w, h, col, minA = 128) {
   for (const i of add) { d[i] = col[0]; d[i + 1] = col[1]; d[i + 2] = col[2]; d[i + 3] = 255; }
 }
 const INK = [58, 42, 26];
+
+// shadows thrown by the sun, away from it: a point h pixels up falls k*h sideways and sy*h down the screen (the sun is
+// in the sky behind the scene, so shadows come towards us, longer as it sinks). None at night, fading in and out
+// round sunrise and sunset, weaker under cloud
+function sunCast(h = worldHour()) {
+  if (h < 5.6 || h > 19.3) return null;
+  const p = (h - 6) / 13, alt = Math.sin(Math.PI * clampv(p, 0, 1)), dir = clampv((p - 0.5) * 2, -1, 1);
+  const cover = typeof WX !== "undefined" ? WX.cover || 0 : 0;
+  const a = smooth(5.6, 6.6, h) * (1 - smooth(18.3, 19.3, h)) * (1 - 0.85 * cover);
+  if (a < 0.03) return null;
+  return { k: -dir * (0.12 + 1.0 * (1 - alt)), sy: 0.1 + 0.22 * (1 - alt), a };
+}
+// the ground pixels a shape's shadow covers: alpha (RGBA) data of w x h whose top-left is at ox, oy; groundRow is the
+// ground under it. Each row is run on to where the next row up falls, so long shadows have no gaps
+function castPixels(d, w, h, ox, oy, groundRow, S) {
+  const seen = new Set(), out = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (d[(y * w + x) * 4 + 3] < 128) continue;
+    const up = groundRow - (oy + y); if (up < 0) continue;
+    const Y = groundRow + Math.round(up * S.sy), a = Math.round(up * S.k), b = Math.round((up + 1) * S.k);
+    for (let X = ox + x + Math.min(a, b); X <= ox + x + Math.max(a, b); X++) {
+      const key = Y * 4096 + X; if (seen.has(key)) continue; seen.add(key); out.push([X, Y]);
+    }
+  }
+  return out;
+}
+const shadowRGB = h => (landP ? litc(mixc(landP.dark[0], [24, 30, 56], 0.35), h) : [50, 60, 60]).map(Math.round);
 
 // The sky in five bands (straight up down to the horizon) and the clouds in five tones (lit tops down to the deepest
 // shade), through the day in each season. Every colour is taken as it is from the reference pixel-art packs in
@@ -442,7 +469,7 @@ function sceneResize() {
 function setWorldHour(h) { T_FIX = h; T_FIX_AT = Date.now(); cacheKey = ""; }
 function setSkySeason(name) { skySeason = SKY_TABLE[name] ? name : null; cacheKey = ""; }
 function newSky() { clouds.length = 0; seedClouds(); }
-function setLook(k) { LOOK = LOOKS[k] || LOOKS.a; LOOK.key = k; cacheKey = ""; for (const c of clouds) { c.cv = null; c.key = ""; } }
+function setLook(k) { LOOK = LOOKS[k] || LOOKS.b; LOOK.key = k; cacheKey = ""; for (const c of clouds) { c.cv = null; c.key = ""; } }
 
 function lit(c, h, haze = 0, skyH = null) {
   let x = hex(c);
@@ -833,6 +860,15 @@ function paintTrees(h, P, skyLow) {
     if (at !== "hill") {                                              // its shadow on the grass
       const sh = litc(P.dark[0], h), hw = Math.round(t.m.w * 0.32);
       for (let dy = 0; dy < 3; dy++) for (let dx = -hw + dy * 3; dx < hw - dy * 3; dx++) { const i = ((base + dy - 1) * W + x + dx) * 4; img.data.set([...sh, 255], i); }
+      const S = sunCast(h);                                           // and the sun's, long when it is low
+      if (S) {
+        const ad = new Uint8ClampedArray(t.m.w * t.m.h * 4); for (let i = 0; i < t.m.w * t.m.h; i++) ad[i * 4 + 3] = t.m.t[i] >= 0 ? 255 : 0;
+        for (const [X, Y] of castPixels(ad, t.m.w, t.m.h, x - t.ox, base - (t.m.h - 1), base, S)) {
+          if (X < 0 || X >= W || Y < 0 || Y >= H) continue;
+          const i = (Y * W + X) * 4; if (img.data[i + 3] === 255) continue;
+          img.data.set([...shadowRGB(h), Math.round(140 * S.a)], i);
+        }
+      }
       if (kind === "broad" && se === "autumn") for (const [u, v, c] of FALLEN) {
         const fx = Math.round(x + (u - 0.5) * 50), fy = Math.round(base - 1 + v * 7), col = litc(P.fleck[c < 0.6 ? 0 : 1], h);
         for (const dx of [0, 1]) img.data.set([...col, 255], (fy * W + fx + dx) * 4);
@@ -848,7 +884,7 @@ function paintTrees(h, P, skyLow) {
       const c = pal[v], j = ((Math.floor(i / m.w) + line) * w2 + i % m.w + line) * 4;
       ti.data[j] = c[0]; ti.data[j + 1] = c[1]; ti.data[j + 2] = c[2]; ti.data[j + 3] = 255;
     }
-    if (line) outlineData(ti.data, w2, h2, (LOOK.line === "ink" ? mixc(litc(INK, h), pal[n - 1], 0.35) : mixc(pal[n - 1], litc([20, 26, 40], h), 0.4)).map(Math.round));
+    if (line) outlineData(ti.data, w2, h2, (LOOK.line === "ink" ? mixc(litc(INK, h), pal[n - 1], 0.35) : mixc(pal[n - 1], litc([20, 26, 40], h), 0.12)).map(Math.round));
     cv.getContext("2d").putImageData(ti, 0, 0);
     TREE_CVS.push({ cv, x: x - ox - line, y: base - (m.h - 1) - line, stem: kind === "broad" ? 22 : 3, amp: kind === "broad" ? 2.2 : at === "hill" ? 0.8 : 1.3, ph: x * 0.37 });
   }
@@ -1076,7 +1112,7 @@ let lastSign = null;                                    // what the sign showed 
 function drawSign(g, now, h, info, over = false) {
   const bx = SIGN_X - 14, base = FEET - 4, by = base - 27, bw = 29, bh = 15;
   const glow = darkAt(h);
-  if (!over) groundShadow(g, SIGN_X + 1, base + 1, 14, 0.8);
+  if (!over) { groundShadow(g, SIGN_X + 1, base + 1, 14, 0.8); signShadow(g, h, bx, by, bw, bh, base); }
   if (glow > 0.3 && !over) { for (let r = 26, a = 0.035 * glow; r >= 12; r -= 5) { g.fillStyle = `rgba(255,214,140,${a})`; disc(g, SIGN_X, by + 7, r); } }
   const shade = c => css(mixc(hex(c), hex("#1b2648"), glow * 0.35));
   g.fillStyle = OUT; g.fillRect(SIGN_X - 2, by + bh, 4, base - by - bh + 1);
@@ -1092,6 +1128,23 @@ function drawSign(g, now, h, info, over = false) {
   // a few blades of grass around the post
   g.fillStyle = css(landP ? litc(landP.dark[0], h) : lit("#5fae6b", h));
   [[-4, 3], [-3, 2], [3, 2], [4, 3]].forEach(([dx, hh]) => g.fillRect(SIGN_X + dx, base - hh + 1, 1, hh));
+}
+
+// the sign's shadow from the sun: its board and post, cast on the grass
+let signSh = { key: "", px: [] };
+function signShadow(g, h, bx, by, bw, bh, base) {
+  const S = sunCast(h); if (!S) return;
+  const key = [S.k.toFixed(2), S.sy.toFixed(2), bx, by, base].join();
+  if (signSh.key !== key) {
+    const w = bw, hh = base - by + 1, d = new Uint8ClampedArray(w * hh * 4);
+    for (let y = 0; y < hh; y++) for (let x = 0; x < w; x++) {
+      const X = bx + x, Y = by + y, board = Y < by + bh && (x > 0 && x < w - 1 || (y > 0 && y < bh - 1)), post = Y >= by + bh && Math.abs(X - SIGN_X) <= 1;
+      if (board || post) d[(y * w + x) * 4 + 3] = 255;
+    }
+    signSh = { key, px: castPixels(d, w, hh, bx, by, base, S) };
+  }
+  g.fillStyle = css(shadowRGB(h), 0.55 * S.a);
+  for (const [X, Y] of signSh.px) g.fillRect(X, Y, 1, 1);
 }
 
 function drawSparrow(g, now) {
