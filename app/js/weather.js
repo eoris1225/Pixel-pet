@@ -29,7 +29,7 @@ const WX_SEASON = {   // [clear, cloudy, rain, storm, snow, fog]
   winter: [0.35, 0.28, 0.02, 0, 0.27, 0.08], spring: [0.45, 0.28, 0.18, 0.03, 0, 0.06],
   summer: [0.36, 0.22, 0.24, 0.15, 0, 0.03], autumn: [0.5, 0.28, 0.14, 0.02, 0, 0.06],
 };
-function gameDate() { return typeof T_START !== "undefined" ? new Date(T_START + (Date.now() - T_START) * T_SPEED) : new Date(); }
+function gameDate() { return typeof gameMs === "function" ? new Date(gameMs()) : new Date(); }
 function gameWeather() {
   const d = gameDate(), m = d.getMonth() + 1, block = Math.floor(worldHour() / 2);
   const season = m === 12 || m <= 2 ? "winter" : m <= 5 ? "spring" : m <= 8 ? "summer" : "autumn";

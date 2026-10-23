@@ -61,6 +61,7 @@
       <h3>날씨</h3><div class="row"><button data-wx="" class="${WX.force ? "" : "on"}">자동</button>${WX_KINDS.map(k => `<button data-wx="${k}" class="${WX.force === k ? "on" : ""}">${WX_NAME[k]}</button>`).join("")}</div>
       <h3>계절 (하늘 색)</h3><div class="row"><button data-se="" class="${skySeason ? "" : "on"}">자동</button>${SEASONS.map(([k, n]) => `<button data-se="${k}" class="${skySeason === k ? "on" : ""}">${n}</button>`).join("")}</div>
       <h3>시간</h3><div class="row"><button data-hr="" class="${T_FIX === null ? "on" : ""}">지금</button>${HOURS.map(([h, n]) => `<button data-hr="${h}" class="${T_FIX === h ? "on" : ""}">${n}</button>`).join("")}</div>
+      <h3>시간 속도</h3><div class="row">${[[1, "보통"], [60, "60배 (1분/초)"], [300, "300배"], [1200, "1200배 (하루 72초)"]].map(([k, n]) => `<button data-speed="${k}" class="${T_SPEED === k ? "on" : ""}">${n}</button>`).join("")}</div>
       <div class="row" style="margin-top:6px"><button data-bow="1">비 그친 뒤 (무지개·웅덩이)</button></div>
       <div class="row" style="margin-top:6px"><button data-sky="1">구름 새로 띄우기</button><button data-visit="1">모양 구름 띄우기</button><button data-bolt="1">번개 치기</button><button data-eyes="1">동굴 눈 (밤)</button></div>
       <h3>UI 색감</h3><div class="row">${[["", "캐릭터별"], ["a", "크림"], ["b", "하늘"], ["c", "라벤더"], ["old", "예전"]].map(([k, n]) => `<button data-ui="${k}" class="${(uiPick || "") === k ? "on" : ""}">${n}</button>`).join("")}</div>
@@ -81,6 +82,7 @@
     panel.querySelectorAll("[data-m]").forEach(b => b.onclick = () => list[+b.dataset.m][1]());
     panel.querySelectorAll("[data-wx]").forEach(b => b.onclick = () => { WX.force = b.dataset.wx || null; render(); });
     panel.querySelectorAll("[data-se]").forEach(b => b.onclick = () => { setSkySeason(b.dataset.se || null); render(); });
+    panel.querySelectorAll("[data-speed]").forEach(b => b.onclick = () => { setTimeSpeed(+b.dataset.speed); render(); });
     panel.querySelectorAll("[data-hr]").forEach(b => b.onclick = () => { setWorldHour(b.dataset.hr === "" ? null : +b.dataset.hr); render(); });
     panel.querySelector("[data-sky]").onclick = () => newSky();
     panel.querySelector("[data-bow]").onclick = () => { WX.force = "clear"; WX.rain = 0; WX.cover = 0.1; WX.wet = 0.8; WX.pud = 0.9; newPuddles(); WX.bowT = performance.now(); render(); };

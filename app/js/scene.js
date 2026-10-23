@@ -12,12 +12,20 @@ const sctx = bg.getContext("2d");
 /* ---------- time ---------- */
 const QS = new URLSearchParams(location.search);
 let T_FIX = QS.has("hour") ? parseFloat(QS.get("hour")) : null, T_FIX_AT = Date.now();
-const T_SPEED = QS.has("speed") ? Math.max(1, parseFloat(QS.get("speed"))) : 1;
-const T_START = Date.now();
+// time can run faster for a look at the day going by (?speed=60, or the test page's buttons): game time is a base
+// moment plus the time since, times the speed
+let T_SPEED = QS.has("speed") ? Math.max(1, parseFloat(QS.get("speed"))) : 1;
+let T_BASE = Date.now(), T_BASE_AT = Date.now();
+const gameMs = () => T_BASE + (Date.now() - T_BASE_AT) * T_SPEED;
 function worldHour() {
   if (T_FIX !== null) return ((T_FIX + (Date.now() - T_FIX_AT) * T_SPEED / 3600000) % 24 + 24) % 24;
-  const d = new Date(T_START + (Date.now() - T_START) * T_SPEED);
+  const d = new Date(gameMs());
   return d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600;
+}
+// change the speed without a jump: the hour (and the date) carry on from where they are
+function setTimeSpeed(k) {
+  if (T_FIX !== null) { T_FIX = worldHour(); T_FIX_AT = Date.now(); }
+  T_BASE = gameMs(); T_BASE_AT = Date.now(); T_SPEED = Math.max(1, k);
 }
 
 /* ---------- colour helpers ---------- */
@@ -731,7 +739,7 @@ function sceneResize() {
 }
 
 // for the test page: set the hour (null: back to the clock) or the season (null: by the date), or start a new sky of clouds
-function setWorldHour(h) { T_FIX = h; T_FIX_AT = Date.now(); cacheKey = ""; }
+function setWorldHour(h) { T_FIX = h; T_FIX_AT = Date.now(); if (h === null) { T_BASE = Date.now(); T_BASE_AT = Date.now(); } cacheKey = ""; }
 function setSkySeason(name) { skySeason = SKY_TABLE[name] ? name : null; cacheKey = ""; }
 function newSky() { clouds.length = 0; seedClouds(); }
 function setLook(k) { LOOK = LOOKS[k] || LOOKS.f; LOOK.key = k; cacheKey = ""; for (const c of clouds) { c.cv = null; c.key = ""; } }
