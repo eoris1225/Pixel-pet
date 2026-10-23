@@ -1629,10 +1629,11 @@ function sceneFront(g, now) { drawCritters(g, now, worldHour(), true); }
 // moon bigger near perigee (its "supermoon"), and both bigger low on the horizon
 const dayNum = () => (typeof gameDate === "function" ? gameDate() : new Date()).getTime() / 86400000;
 function rings(g, x, y, r, col, a) { for (let k = 3; k >= 1; k--) { g.fillStyle = css(col, a * (4 - k) / 3); disc(g, x, y, r + k * 3 + 1); } }
-// where the sun is: it rises between the firs on the hill and sets before the big tree, so it is seen both times
+// where the sun is: a wide arc over the sky, rising past the big fir at the left and setting at the edge of the big
+// tree, so it is seen going up and coming down; high over the middle at noon
 function sunPos(h) {
   const p = (h - 6) / 13, alt = Math.sin(Math.PI * clampv(p, -0.06, 1.06));   // (below 0: still behind the hills)
-  return { x: 64 + 42 * clampv(p, -0.05, 1.05), y: horizon - 12 - alt * (horizon - 56), alt, low: 1 - Math.max(0, alt) };
+  return { x: 26 + 92 * clampv(p, -0.05, 1.05), y: horizon - 12 - alt * (horizon - 52), alt, low: 1 - Math.max(0, alt) };
 }
 function drawSun(h, g) {
   if (h < 5.3 || h > 19.6) return;
@@ -1646,16 +1647,84 @@ function drawSun(h, g) {
       for (let dy = -ry; dy <= ry; dy++) { const hw = Math.round(rx * Math.sqrt(1 - (dy / ry) ** 2)); g.fillRect(Math.round(x) - hw, horizon - 4 + dy, hw * 2 + 1, 1); }
     }
   }
-  const doy = (dayNum() % 365.25) / 365.25, r = Math.round(6 + 0.8 * Math.cos(2 * Math.PI * doy) + low * 2.4);
-  // (Ocean's sun: a flat cream disc, a touch warmer at its edge, hardly any glow; gold-peach low down)
-  const core = mixc(hex("#fffef0"), hex("#fffbd0"), low), mid = mixc(hex("#fff7cc"), hex("#ffe7a8"), low), rim = mixc(hex("#ffeaa0"), hex("#ffc58a"), low);
-  rings(g, x, y, r, mixc(hex("#fff8dc"), hex("#ffd2a0"), low), 0.06 + low * 0.06);
-  g.fillStyle = css(rim); roundDisc(g, x, y, r);
-  g.fillStyle = css(mid); roundDisc(g, x - 0.5, y - 0.5, r - 1);
-  g.fillStyle = css(core); roundDisc(g, x - 1, y - 1, Math.max(1, r - 3));
+  const doy = (dayNum() % 365.25) / 365.25, r = Math.round(5 + 0.8 * Math.cos(2 * Math.PI * doy) + low * 3);
+  // a sun, not a yolk: a near-white core that glows out through soft stepped halos, with short rays that breathe; it
+  // turns gold and then peach and grows as it gets low, and its rays fade (a low sun is looked at through thick air)
+  const now = performance.now(), X = Math.round(x), Y = Math.round(y);
+  const halo = mixc(hex("#fff6d0"), hex("#ffc89a"), low), edge = mixc(hex("#fff0b0"), hex("#ffb27e"), low);
+  const body = mixc(hex("#fffbe4"), hex("#ffe0a8"), low), core = mixc(hex("#ffffff"), hex("#fff3d2"), low);
+  for (const [k, a] of [[13, 0.07], [9, 0.12], [6, 0.2], [3, 0.32]]) { g.fillStyle = css(halo, a * (1 - low * 0.3)); roundDisc(g, X, Y, r + k); }
+  const ra = (1 - low) * 0.55;
+  if (ra > 0.05) {                                            // eight rays, the straight ones longer, gently breathing
+    for (let k = 0; k < 8; k++) {
+      const a = k * Math.PI / 4, long = k % 2 === 0, br = 0.5 + 0.5 * Math.sin(now / 900 + k * 1.7);
+      const L = (long ? 6 : 4) + Math.round(br * 2), dx = Math.round(Math.cos(a)), dy = Math.round(Math.sin(a));
+      for (let t = r + 3; t < r + 3 + L; t++) { g.fillStyle = css(halo, ra * (1 - (t - r - 3) / L) * (0.6 + 0.4 * br)); g.fillRect(X + dx * t, Y + dy * t, 1, 1); }
+    }
+  }
+  g.fillStyle = css(edge); roundDisc(g, X, Y, r);
+  g.fillStyle = css(body); roundDisc(g, X, Y, r - 1);
+  g.fillStyle = css(core); roundDisc(g, X, Y, Math.max(1, r - 2 - Math.round(low)));
   if (low > 0.55) {                                       // low: thin streaks of the sky drawn across its lower half
-    const band = css(skyAt(h)[2], Math.min(1, (low - 0.55) * 3)), X = Math.round(x), Y = Math.round(y);
+    const band = css(skyAt(h)[2], Math.min(1, (low - 0.55) * 3));
     [[2, 0.9], [4, 1.1], [6, 0.8]].forEach(([dy, w]) => { if (dy < r) { const hw = Math.round(Math.sqrt(r * r - dy * dy) * w); g.fillStyle = band; g.fillRect(X - hw - 1, Y + dy, hw * 2 + 3, 1); } });
+  }
+}
+// the sun and the moon and the clouds: a cloud passing near the sun gets a bright lit rim on the side towards it (a
+// silver lining, gold when the sun is low; cool and fainter round the moon); a cloud right over the sun glows where the
+// sun is behind it, and from under it fan out faint beams of light. The rim and the cover are worked out from each
+// cloud's own pixels (kept until the cloud is repainted)
+function cloudMask(cv) {
+  if (cv._mask) return cv._mask;
+  const w = cv.width, hh = cv.height, d = cv.getContext("2d").getImageData(0, 0, w, hh).data, a = new Uint8Array(w * hh), edge = [];
+  for (let i = 0; i < w * hh; i++) a[i] = d[i * 4 + 3];
+  for (let y = 0; y < hh; y++) for (let x = 0; x < w; x++) {
+    if (a[y * w + x] < 60) continue;
+    if (x === 0 || y === 0 || x === w - 1 || y === hh - 1 || a[y * w + x - 1] < 60 || a[y * w + x + 1] < 60 || a[(y - 1) * w + x] < 60 || a[(y + 1) * w + x] < 60) edge.push(x, y);
+  }
+  return (cv._mask = { w, h: hh, a, edge });
+}
+function skyLights(g, h, now) {
+  const L = [], cover = typeof WX !== "undefined" ? WX.cover || 0 : 0;
+  const sp = h > 5.5 && h < 19.4 ? sunPos(h) : null;
+  if (sp && sp.alt > -0.05) L.push({ x: sp.x, y: sp.y, R: 30, c: mixc(hex("#fffbe8"), hex("#ffd9a8"), sp.low), a: 0.85 * (1 - cover * 0.7), sun: true, low: sp.low });
+  const mp = moonPos(h);
+  if (mp && mp.vis > 0.3) L.push({ x: mp.x, y: mp.y, R: 20, c: hex("#dff3ff"), a: 0.5 * mp.vis * (1 - cover * 0.7), sun: false });
+  if (!L.length) return;
+  const list = clouds.map(c => c.cv && [c.cv, Math.round(c.x) - (c.pad || 0), Math.round(c.y) - (c.pad || 0)]).filter(Boolean);
+  if (faceCloud && faceCloud.img) list.push([faceCloud.img, Math.round(faceCloud.x), Math.round(faceCloud.y + Math.sin(now / 900) * 1.5)]);
+  for (const S of L) {
+    let covered = null;
+    for (const [cv, ox, oy] of list) {
+      if (S.x < ox - S.R || S.x > ox + cv.width + S.R || S.y < oy - S.R || S.y > oy + cv.height + S.R) continue;
+      const M = cloudMask(cv), sx = Math.round(S.x) - ox, sy = Math.round(S.y) - oy;
+      if (sx >= 0 && sy >= 0 && sx < M.w && sy < M.h && M.a[sy * M.w + sx] > 120) covered = [ox, oy, M];
+      for (let k = 0; k < M.edge.length; k += 2) {                 // the lit rim
+        const X = ox + M.edge[k], Y = oy + M.edge[k + 1], d = Math.hypot(X - S.x, Y - S.y);
+        if (d >= S.R) continue;
+        const a = S.a * (1 - d / S.R) ** 1.4; if (a < 0.06) continue;
+        g.fillStyle = css(S.c, Math.round(a * 8) / 8); g.fillRect(X, Y, 1, 1);
+      }
+    }
+    if (!covered) continue;
+    const [ox, oy, M] = covered, X = Math.round(S.x), Y = Math.round(S.y);
+    for (const [r, a] of [[11, 0.12], [7, 0.18], [4, 0.26]]) {          // glowing through the cloud (on its own pixels)
+      g.fillStyle = css(S.c, a * S.a);
+      for (let dy = -r; dy <= r; dy++) { const hw = Math.floor(Math.sqrt(r * r - dy * dy)); for (let dx = -hw; dx <= hw; dx++) { const cx = X + dx - ox, cy = Y + dy - oy; if (cx >= 0 && cy >= 0 && cx < M.w && cy < M.h && M.a[cy * M.w + cx] > 60) g.fillRect(X + dx, Y + dy, 1, 1); } }
+    }
+    if (S.sun && S.low < 0.85) {                                       // beams fanning down from under the cloud
+      let bottom = Y; while (bottom - oy < M.h && M.a[(bottom - oy) * M.w + (X - ox)] > 60) bottom++;
+      const beamA = 0.07 * S.a * (1 - S.low * 0.6);
+      [-0.42, -0.2, 0.02, 0.24, 0.45].forEach((ang, k) => {
+        const len = 70 + (k % 2) * 24, wv = 0.5 + 0.5 * Math.sin(now / 1500 + k * 2.1);
+        g.fillStyle = css(S.c, beamA * (0.6 + 0.4 * wv));
+        for (let t = 0; t < len; t++) {
+          const bx = Math.round(X + Math.sin(ang) * (bottom - Y + t)), by = bottom + t, bw = 2 + Math.floor(t / 22);
+          if (by > horizon) break;
+          g.fillRect(bx - (bw >> 1), by, bw, 1);
+        }
+      });
+    }
   }
 }
 // a disc without the single-pixel nubs at its top, bottom and sides (the sun's)
@@ -1672,10 +1741,15 @@ function moonPhase() { return (((Date.now() / 86400000 - 10962.76) % 29.53058885
 // white rim towards the light and a cooler edge away from it, the dark part dim blue (earthshine), in a cool glow that
 // grows as it fills
 const MOON_SEAS = [[-0.35, -0.25, 0.28], [0.15, -0.4, 0.2], [0.25, 0.2, 0.3], [-0.2, 0.35, 0.18], [0.45, -0.05, 0.12]];
-function drawMoon(h, g) {
+function moonPos(h) {
   const t = h >= 18 ? h - 18 : h + 6;                 // 18:00 -> 0, 06:00 -> 12
-  if (t < 0.4 || t > 12.8) return;
-  const p = (t - 0.4) / 12.4, x = Math.round(W - 18 - (W - 36) * p), alt = Math.sin(Math.PI * p), y = Math.round(horizon - 10 - alt * (horizon - 56));
+  if (t < 0.4 || t > 12.8) return null;
+  const p = (t - 0.4) / 12.4, alt = Math.sin(Math.PI * p);
+  return { x: Math.round(W - 18 - (W - 36) * p), y: Math.round(horizon - 10 - alt * (horizon - 56)), alt, vis: smooth(0.15, 0.55, darkAt(h)) };
+}
+function drawMoon(h, g) {
+  const mp = moonPos(h); if (!mp) return;
+  const { x, y, alt } = mp;
   const ph = moonPhase(), k = Math.cos(2 * Math.PI * ph), full = (1 - k) / 2;
   const peri = Math.cos(2 * Math.PI * ((dayNum() - 10962.3) / 27.5545)), r = Math.round(7 + 1.2 * peri + (1 - alt) * 1.2);
   const vis = smooth(0.15, 0.55, darkAt(h)); if (vis <= 0.02) return;   // pale and then gone as day comes on
@@ -1849,7 +1923,7 @@ function sceneRender(now, signInfo) {
   const L = cloudLight(h), lk = pk + "|" + L.join(",");
   clouds.sort((a, b) => b.base - a.base);
   for (const c of clouds) {
-    if (c.key !== lk) { c.key = lk; paintCloud(c, pal, L); c.cv._glow = null; }
+    if (c.key !== lk) { c.key = lk; paintCloud(c, pal, L); c.cv._glow = null; c.cv._mask = null; }
     const x = Math.round(c.x) - (c.pad || 0), y = Math.round(c.y) - (c.pad || 0);
     g.drawImage(c.cv, x, y); cloudFlash(g, c.cv, x, y);
   }
@@ -1861,6 +1935,7 @@ function sceneRender(now, signInfo) {
     });
   }
   if (faceCloud && faceCloud.img) { const im = faceCloud.img, x = Math.round(faceCloud.x), y = Math.round(faceCloud.y + Math.sin(now / 900) * 1.5); g.drawImage(im, x, y); cloudFlash(g, im, x, y); }
+  skyLights(g, h, now);
   g.drawImage(landCv, 0, 0);
   drawCaveEyes(g, now, h);
   if (typeof weatherLand === "function") weatherLand(g, now, h);   // wet grass, snow
