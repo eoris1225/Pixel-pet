@@ -475,10 +475,18 @@ const VISITOR_SHAPES = {
 };
 // what it says as it goes by (mostly its name)
 const VISITOR_LINES = ["지나가유~", "지나가유~", "지나가유~", "쉬엄쉬엄 해유~", "천천히 가유~", "열심히 하네유~", "구경 잘 하고 가유~"];
-// a shape and where its face goes (in the cloud's own pixels)
-function visitorShape(kind) {
-  if (kind === "cloud") return { shape: FACE_BLOB, face: [FACE_BLOB.w / 2 | 0, Math.round(FACE_BLOB.base * 0.62), 1] };
-  const R = Math.random, j = r => r * (0.85 + R() * 0.3), [, make, [fi, fdx, fdy, big]] = VISITOR_SHAPES[kind];
+// which of each shape's numbered candidates may come by (the user picks them from a sheet of candidates): a list of
+// numbers for a shape, [] to leave the shape out; a shape not listed comes in any form
+const VISITOR_PICK = {};
+// a shape (candidate number n: the same every time; none: any) and where its face goes (in the cloud's own pixels)
+function visitorShape(kind, n) {
+  let R = Math.random;
+  if (n) { let q = (n * 7919 + 104729) % 2147483647; R = () => (q = (q * 48271) % 2147483647) / 2147483647; for (let i = 0; i < 5; i++) R(); }
+  if (kind === "cloud") {
+    const shape = n ? cloudShape("tree", 50, 26, R) : FACE_BLOB;
+    return { shape, face: [shape.w / 2 | 0, Math.round(shape.base * 0.62), 1] };
+  }
+  const j = r => r * (0.85 + R() * 0.3), [, make, [fi, fdx, fdy, big]] = VISITOR_SHAPES[kind];
   const lobes = make(j).map(([x, y, r, sx = 1, big = false]) => [x + (R() - 0.5) * 1.6, y + (R() - 0.5) * 1.6, r, sx, big]);
   for (let i = 0, n = 2 + (R() * 3 | 0); i < n; i++) {           // a few stray puffs on its edge
     const [x, y, r] = lobes[R() * lobes.length | 0], a = R() * Math.PI;
@@ -508,10 +516,13 @@ function renderVisitor(v, h, pal) {
 }
 let faceCloud = null, nextFace = performance.now() + 25000, lastVisitor = "";
 // the next one by (never the same shape twice running)
-function sendVisitor(kind) {
-  if (!kind) { const ks = Object.keys(VISITOR_SHAPES).filter(k => k !== lastVisitor); kind = ks[Math.random() * ks.length | 0]; }
+function sendVisitor(kind, n) {
+  const ok = k => !VISITOR_PICK[k] || VISITOR_PICK[k].length;
+  if (!kind) { const ks = Object.keys(VISITOR_SHAPES).filter(k => k !== lastVisitor && ok(k)); kind = ks[Math.random() * ks.length | 0]; }
   lastVisitor = kind;
-  const v = visitorShape(kind), line = VISITOR_LINES[Math.random() * VISITOR_LINES.length | 0];
+  const picks = VISITOR_PICK[kind];
+  if (!n && picks && picks.length) n = picks[Math.random() * picks.length | 0];
+  const v = visitorShape(kind, n), line = VISITOR_LINES[Math.random() * VISITOR_LINES.length | 0];
   faceCloud = { kind, ...v, line, x: -v.shape.w - 4, y: 30 + Math.random() * 30, v: 4.5 + Math.random() * 1.5, t0: performance.now(), key: "", img: null };
 }
 
