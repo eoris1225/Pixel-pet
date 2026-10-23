@@ -155,9 +155,14 @@ const numBadge = n => `<span class="nb f-num s" style="--face:${NUM_COLORS[(n - 
 for (const id of ["tab-stats", "tab-todo", "tab-settings"]) { const c = $("#" + id + " canvas"); c.dataset.fixed = 1; paintIcon(c, id); }
 paintIcons(document);
 paintIcon($("#hud-burn"), "flame");
-// paper with a faint pixel dot pattern for the screens
-{ const c = document.createElement("canvas"); c.width = 6; c.height = 6; const g = c.getContext("2d"); g.fillStyle = "#f7e9c9"; g.fillRect(0, 0, 1, 1); g.fillRect(3, 3, 1, 1);
-  appEl.style.setProperty("--dots", `url(${c.toDataURL()})`); }
+// the UI palette (style.css): the soft cream one, or a candidate to compare (?ui=b, c, old)
+function setUiLook(k) {
+  if (k && k !== "a") document.documentElement.dataset.ui = k; else delete document.documentElement.dataset.ui;
+  const c = document.createElement("canvas"); c.width = 6; c.height = 6; const g = c.getContext("2d");   // paper with a faint pixel dot pattern for the screens
+  g.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--dot").trim() || "#f7e9c9"; g.fillRect(0, 0, 1, 1); g.fillRect(3, 3, 1, 1);
+  appEl.style.setProperty("--dots", `url(${c.toDataURL()})`);
+}
+setUiLook(new URLSearchParams(location.search).get("ui"));
 // pixel patterns for the heads and windows: light diagonal stripes, a scalloped hem, a dithered dim
 { const pat = (w, h, px, col) => { const c = document.createElement("canvas"); c.width = w; c.height = h; const g = c.getContext("2d"); g.fillStyle = col;
     px.forEach(([x, y]) => g.fillRect(x, y, 1, 1)); return `url(${c.toDataURL()})`; };
