@@ -1707,7 +1707,8 @@ function drawSign(g, now, h, info, over = false) {
 function signFoot(g, now, h, base) {
   if (!landP) return;
   const se = mainSeason(), snowy = typeof WX !== "undefined" && WX.depth > 0.25;
-  const dark = css(litc(landP.dark[0], h)), mid = css(litc(landP.grass[0], h)), hi = css(litc(landP.grass[1], h));
+  // (the meadow's own tuft colours: their blades and their tips)
+  const dark = css(litc(mixc(landP.dark[0], landP.grass[4], 0.5), h)), mid = css(litc(landP.dark[0], h)), hi = css(litc(landP.grass[1], h));
   const sw = t => Math.round(Math.sin(now / 900 + t) * (typeof wind !== "undefined" ? wind : 1) * 0.7);
   if (se === "autumn") {
     [["#e39a5c", -6, 0], ["#c9694a", -4, 1], ["#e8b76a", 3, 0], ["#b65a45", 5, 1], ["#d98552", 1, 1]].forEach(([c, dx, dy]) => {
@@ -1724,11 +1725,12 @@ function signFoot(g, now, h, base) {
     if (se === "spring") { g.fillStyle = css(lit("#ffd1dc", h)); g.fillRect(SIGN_X - 7 + sw(4), base - 3, 1, 1); g.fillStyle = css(lit("#ffe38a", h)); g.fillRect(SIGN_X - 7 + sw(4), base - 2, 1, 1); }
   }
   // blades in front of the post (over its foot), the grass layer it stands in
-  // (light greens on the brown post so they read, a dark root row under them, their tips nodding with the wind)
+  // (the tufts' own greens, a root row of the ground under them, their tips nodding with the wind)
   g.fillStyle = dark; g.fillRect(SIGN_X - 3, base, 7, 1);
-  [[-3, 3, mid], [-2, 5, hi], [-1, 3, mid], [0, 4, hi], [1, 5, mid], [2, 3, hi], [3, 2, mid]].forEach(([dx, hh, c], k) => {
+  [[-3, 3], [-2, 5], [-1, 3], [0, 4], [1, 5], [2, 3], [3, 2]].forEach(([dx, hh], k) => {   // tuft blades, a lighter tip on each like the tufts'
     const o = sw(k + 5) > 0 ? (dx < 0 ? -1 : 1) : 0;
-    g.fillStyle = c; g.fillRect(SIGN_X + dx, base - hh + 2, 1, hh - 1); g.fillRect(SIGN_X + dx + o, base - hh + 1, 1, 1);
+    g.fillStyle = mid; g.fillRect(SIGN_X + dx, base - hh + 2, 1, hh - 1);
+    g.fillStyle = hi; g.fillRect(SIGN_X + dx + o, base - hh + 1, 1, 1);
   });
 }
 
