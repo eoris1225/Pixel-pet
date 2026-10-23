@@ -611,21 +611,24 @@ function tracedTree(rows) {
   rows.forEach((r, Y) => { for (let X = 0; X < w; X++) if (r[X] !== ".") m.t[Y * w + X] = +r[X]; });
   return { m, ox: rows[h - 1].indexOf("8") + 2 };
 }
-// in winter, the same tree bare. All of its own trunk stays, with the three limbs it forks into where its leaves begin;
+// in winter, the same tree bare. Its own trunk stays, and the lit bough off it, up to where its leaves begin;
 // from there it branches the way this tall broadleaf does: the trunk runs on up to the top a little crooked, putting
 // out branches steeply upward at uneven gaps and angles, longer low down, and they and the limb on the left fork in two
 // (now and then three) at uneven angles and lengths, thinner each time, within the outline its leaves had. Snow lies only along the tops of
 // the boughs that lean over, not the upright ones (0 snow, 1 its shade, 6 and 8 bark)
-function bareTree(rows, R) {
+function bareTree(rows, R, o = {}) {
+  const gap = o.gap || 4, lean = o.lean || 0.45, crook = o.crook || 0.35, forks = o.forks || 2, sideLen = o.len || 0.5;
   const w = rows[0].length, h = rows.length, m = toneMap(w, h);
-  rows.forEach((r, Y) => { for (let X = 0; X < w; X++) if (r[X] === "6" || r[X] === "8") m.t[Y * w + X] = +r[X]; });
+  // its trunk and the lit bough off it, as traced, up to where they go in among the leaves (row 78)
+  rows.forEach((r, Y) => { if (Y >= 78) for (let X = 0; X < w; X++) if (r[X] === "6" || r[X] === "8") m.t[Y * w + X] = +r[X]; });
   const span = rows.map(r => { const a = r.search(/[0-5]/); return a < 0 ? null : [a, Math.max(...[..."012345"].map(c => r.lastIndexOf(c)))]; });
   const top = span.findIndex(v => v);
-  const inside = (X, Y) => { if (Y < top - 1) return false; for (let d = 0; d < 4; d++) { const sp = span[Y + d] || span[Y - d]; if (sp) return X >= sp[0] - 1 && X <= sp[1] + 1; } return true; };
+  const bot = span.length - 1 - [...span].reverse().findIndex(v => v);   // (low down where the boughs set out, anywhere goes)
+  const inside = (X, Y) => { if (Y < top - 1) return false; if (Y >= bot - 4) return true; for (let d = 0; d < 4; d++) { const sp = span[Y + d] || span[Y - d]; if (sp) return X >= sp[0] - 1 && X <= sp[1] + 1; } return true; };
   const grow = (x, y, ang, len, thick, depth) => {
     let lastX = -1, lastY = -1;
     for (let k = 0; k < len; k++) {
-      if (k % 3 === 0) ang += (R() - 0.5) * 0.35;                         // a little crooked
+      if (k % 3 === 0) ang += (R() - 0.5) * crook;                        // a little crooked
       ang *= 0.97;                                                         // and drawn slowly upright
       x += Math.sin(ang); y -= Math.cos(ang);
       const X = Math.round(x), Y = Math.round(y);
@@ -649,22 +652,22 @@ function bareTree(rows, R) {
   };
   // the trunk on up to the top, a little crooked, putting out branches as it goes: at uneven gaps, mostly to
   // alternate sides but not always, steeply up, longer low down where the leaves were wide, each forking once or twice
-  let x = 22, y = 75, ang = 0.03, side = 1, next = 4 + (R() * 4 | 0);
+  // (as thick as it is where it goes in among the leaves, narrowing gradually to a single pixel near the top)
+  let x = 22, y = 78, ang = 0.03, side = 1, next = 3 + (R() * 3 | 0);
   for (let k = 0; y > top + 2; k++) {
     if (k % 4 === 0) ang = clampv(ang + (R() - 0.5) * 0.18, -0.12, 0.12);
     x += Math.sin(ang); y -= Math.cos(ang);
-    const X = Math.round(x), Y = Math.round(y); m.set(X, Y, 8); if (Y > 50) m.set(X + 1, Y, 8);
+    const X = Math.round(x), Y = Math.round(y), up = (78 - Y) / (78 - top), thick = up < 0.3 ? 3 : up < 0.65 ? 2 : 1;
+    for (let j = 0; j < thick; j++) m.set(X - (thick > 2 ? 1 : 0) + j, Y, 8);
     if (--next <= 0 && Y > top + 8) {
       side = R() < 0.7 ? -side : side;
-      const sp = span[Y] || span[Y + 1] || [X - 8, X + 8], room = side > 0 ? sp[1] - X : X - sp[0], a = side * (0.35 + R() * 0.4);
-      grow(X, Y, a, Math.max(3, room / Math.sin(Math.abs(a)) * (0.45 + R() * 0.3)), Y > 45 ? 2 : 1, R() < 0.6 ? 2 : 1);
-      next = 4 + (R() * 6 | 0);
+      const low = (Y - top) / (78 - top), sp = span[Y] || span[Y + 1] || [X - 8, X + 8], room = side > 0 ? sp[1] - X : X - sp[0];
+      const a = side * (0.3 + low * lean + R() * 0.25);                   // lower ones lean out further, upper ones steeper
+      grow(X, Y, a, Math.max(3, room / Math.sin(Math.abs(a)) * (sideLen + R() * 0.3)), Y > 50 ? 2 : 1, low > 0.45 ? forks : R() < 0.4 ? forks - 1 : 0);
+      next = gap + (R() * 5 | 0);
     }
   }
-  grow(13, 74, -0.45, 12, 2, 3);                                           // the limb up to the left
-  grow(18, 75, -0.12, 7, 1, 1);                                            // the one in the middle, short
-  // its own lit bough up to the left goes on lit for a little way where it carries on
-  for (let Y = 70; Y <= 77; Y++) for (let X = 9; X <= 17; X++) if (m.get(X, Y) === 8 && m.get(X, Y - 1) < 0 && m.get(X + 1, Y) === 8) m.set(X, Y, 6);
+  grow(16.5, 78.5, -0.62, 10, 2, 3);                                       // its lit bough to the left, carrying on the way it went
   // keep only what joins on to the trunk: anything left loose (a stub, a twig) goes
   const keep = new Uint8Array(w * h), st = [];
   for (let X = 0; X < w; X++) if (m.get(X, h - 1) >= 0) { keep[(h - 1) * w + X] = 1; st.push([X, h - 1]); }
@@ -731,7 +734,7 @@ const TREE_OBJS = [   // [kind, x, how far below the horizon it stands (or "hill
 ];
 for (const o of TREE_OBJS) if (o[0] === "pine") o[3].snow = snowy(o[3], lrng);
 const seeded = q => () => (q = (q * 48271) % 2147483647) / 2147483647;
-const BARE_TREE = bareTree(TREE_N5, seeded(77));
+const BARE_TREE = bareTree(TREE_N5, seeded(173), { gap: 7, lean: 0.7, forks: 1, len: 0.65 });   // the one picked: sparse boughs spreading wide
 const FALLEN = Array.from({ length: 26 }, () => [lrng(), lrng(), lrng()]);   // leaves on the grass round the big tree in autumn
 const BAND_Y = [0, 6, 14, 25, 40];                 // where each band of the meadow starts, below the horizon
 
