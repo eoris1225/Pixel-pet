@@ -817,7 +817,7 @@ function weaponSway() {
 // her little paws on the handle wherever she is gripping it (the fork only), in her own colour or her onesie's
 // a paw raised by her head, waving (욱's jump): the outermost pixel of her on her left, from her ears down to her eyes,
 // when it sticks right out to the frame's edge
-const NORI_JUMP = { t: 0, r: 0 };
+const NORI_JUMP = { t: 0, d: 0 };
 function waveHand(grid) {
   const f = faceOf(grid); if (!f) return null;
   const edge = y => (grid[y] || "").search(/[^B]/);
@@ -859,6 +859,24 @@ function findHands(grid) {
   }
   return out;
 }
+// her paws waved up by her face (욱's jump) taken away, so she can hold her pole in them instead: what sticks out of her
+// round outline there (thinner than her body: an opening of her shape takes it off) is cleared and her outline closed
+// over it. side: -1 only her left (our left), 0 both
+function raisedPawsOff(grid, side) {
+  const f = faceOf(grid), out = []; if (!f) return out;
+  const h = grid.length, w = grid[0].length, on = (x, y) => !!(grid[y] && grid[y][x] && grid[y][x] !== "B"), R = 2;
+  const er = (x, y) => { for (let j = -R; j <= R; j++) for (let i = -R; i <= R; i++) if (!on(x + i, y + j)) return false; return true; };
+  const E = new Set(); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (er(x, y)) E.add(x + "," + y);
+  const open = (x, y) => { for (let j = -R; j <= R; j++) for (let i = -R; i <= R; i++) if (E.has((x + i) + "," + (y + j))) return true; return false; };
+  const y0 = Math.max(0, Math.round(f.cy - 9)), y1 = Math.round(f.cy + 2), gone = new Set();
+  for (let y = y0; y <= y1; y++) for (let x = 0; x < w; x++) {
+    if (Math.abs(x + 0.5 - f.cx) < f.rx + 1 || (side < 0 && x > f.cx)) continue;
+    if (on(x, y) && !open(x, y)) { gone.add(x + "," + y); out.push([x, y, "clear"]); }
+  }
+  for (const k of gone) { const [x, y] = k.split(",").map(Number);
+    for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (on(x + a, y + b) && !gone.has((x + a) + "," + (y + b)) && grid[y + b][x + a] !== "K") out.push([x + a, y + b, "outline"]); }
+  return out;
+}
 function drawWeapon(g, petId, layer, dy, pose, img, equip = {}, stage = "all") {   // stage: "arms" only takes her arm away, "draw" only draws it
   const base = !pose || !pose.img, grid = base ? SPRITES[petId] : img.grid, one = weaponOneHand(petId, equip);   // one: her other paw is busy
   const w = grid[0].length, h = grid.length, arm = ANCHOR[petId].arm, mode = weaponMode(img), mid = WEAPON_MID[petId];
@@ -880,50 +898,37 @@ function drawWeapon(g, petId, layer, dy, pose, img, equip = {}, stage = "all") {
   // walking), so it never jumps from one way of holding it to another
   if (petId === "nori" && typeof pet !== "undefined" && pose === pet._pose && o && pet.act !== "dance") {
     if (stage === "arms") return;
-    // 욱's jump: when she has a paw up by her head, waving, the pole goes up with it in that one paw, held near its end,
-    // reaching up and out and swaying as she waves (and bending, being rubber); otherwise in both paws as usual. Where it
-    // is, its tilt and where she grips it all ease from one to the other, so it never jumps
+    // 욱 holds her rubber pole in her paws whatever she does: in her jump the paws she waves by her head are taken
+    // away and drawn on the pole instead. The pole is a weight on a rubber spring in her paws, worked out on the screen
+    // (her jump's frames are drawn from different origins): dropping, the air holds it back so it lifts a little and its
+    // ends bend up; landing, it carries on down, its ends slam down, and it boings back and forth to rest
     if (layer !== "front") return;
-    const hand = cache.wave !== undefined ? cache.wave : (cache.wave = waveHand(grid));
-    // she never lets go with her left paw (it grips the pole 7 px in from its left end... its own x 7): to wave she lets go
-    // with her right, lifts her left by her head and the pole comes up with it, swung round in that paw, the long end
-    // reaching up and out; the paw leads and the pole swings after it
-    const G7 = 7, flatA = Math.atan2(-6, 44);
-    // Worked out on the screen, not in the frame's own pixels (the jump's frames are drawn from different origins: her
-    // feet off the ground, squashed). Whether the pole is up is one smooth amount r (0 level in both paws, 1 up in her
-    // raised paw): it only changes once her paw has been up (or down) for a moment, and then eases over without any
-    // overshoot, the grip and the tilt together, so it goes up once and comes down once instead of flapping like a wiper
-    const tr = g.getTransform(), fx = tr.a < 0 ? -1 : 1, ox = (g.worldX || 0) + tr.e, oy = (g.worldY || 0) + tr.f;
-    const scr = (x, y) => [ox + fx * x, oy + y + shift];
-    const [LX, LY] = scr(mid + o.dx + Math.cos(flatA) * (G7 - mid), arm + 1.5 + o.dy + Math.sin(flatA) * (G7 - mid));
-    // In her jump it goes with how high she is: up as she springs off, held high at the top, coming down as she
-    // drops and down in both paws just as she lands. Dropped from a height (let go) it swings up while she falls
-    // (whoosh) and comes down as she lands
-    const now = performance.now(), st = NORI_JUMP, UP = -2.1, raw = hand ? 1 : 0;
-    const ji = pet.act === "pet" ? JUMP_IMG.indexOf(img) : -1, air = ji >= 0 ? JUMP_GAP[ji] / 6 : pet.act === "fall" ? 1 : pet.act === "land" ? 0 : null;
-    if (hand) [st.hx, st.hy] = scr(hand[0], hand[1]);
-    if (now - st.t > 300) Object.assign(st, { r: air !== null ? air : raw, vr: 0, want: raw, raw, since: now, fx, hx: st.hx || LX, hy: st.hy || LY });
-    else {                                                   // (turned round as a frame changes: it carries on easing)
-      if (raw !== st.raw) Object.assign(st, { raw, since: now });
-      if (now - st.since >= 60) st.want = st.raw;
-      const want = air !== null ? air : st.want, w = ji >= 0 ? 30 : pet.act === "fall" ? 11 : pet.act === "land" ? 26 : 15;
+    const pk = "pawOff" + one, off = cache[pk] || (cache[pk] = raisedPawsOff(grid, one ? -1 : 0));
+    for (const [x, y, c] of off) { if (c === "clear") g.clearRect(x, y + shift, 1, 1); else { g.fillStyle = OUT; g.fillRect(x, y + shift, 1, 1); } }
+    const G7 = 7, ang = Math.atan2(-6, 44) + weaponSway();
+    const x = mid + o.dx + Math.cos(ang) * (G7 - mid), y = arm + 1.5 + o.dy + Math.sin(ang) * (G7 - mid) + shift;
+    // how fast she is going down (px/s): falling, her real speed; in her jump, the arc of it (up off the ground, over,
+    // down onto it again: from her frames' timing, made a bit bigger so the rubber shows it)
+    const now = performance.now(), st = NORI_JUMP, tj = now - pet.t0;
+    const vb = pet.act === "fall" ? pet.vy : pet.act === "pet" && tj > 280 && tj < 760 ? -150 * (1 - 2 * (tj - 280) / 480) : 0;
+    // the bend d (ends down +, up -) is a spring: a sudden change in her speed (springing off, landing, the bounce)
+    // flings it, the air holds its ends back while she falls, and it boings back and forth to rest
+    if (now - st.t > 300) Object.assign(st, { d: 0, dv: 0, vb });
+    else {
+      st.dv -= (vb - st.vb) * 1.0; st.vb = vb;
       for (let left = Math.min(0.05, (now - st.t) / 1000); left > 0; left -= 0.004) {
         const h = Math.min(0.004, left);
-        st.vr += (w * w * (want - st.r) - 2 * w * st.vr) * h; st.r += st.vr * h;
+        st.dv += (-900 * st.d - 8 * st.dv - 6 * vb) * h; st.d += st.dv * h;
       }
-      st.r = Math.max(0, Math.min(1, st.r));
     }
-    st.t = now; st.fx = fx;
-    const r = st.r, e = r * r * (3 - 2 * r);
-    st.a = flatA + weaponSway() * (1 - e) + (UP - flatA) * e;
-    const x = (LX + (st.hx - LX) * e - ox) * fx, y = LY + (st.hy - LY) * e - oy;
-    const f = rubberStaff(rubberBend(oy + y), null, true), row = ANCHOR.nori.arm + 1.5;
-    g.save(); g.translate(Math.round(x), Math.round(y)); g.rotate(st.a);
+    st.t = now;
+    const d = Math.max(-6, Math.min(8, st.d)), lift = Math.max(-2, Math.min(2, Math.round(d * 0.35)));
+    const f = rubberStaff(Math.max(-4, Math.min(5, Math.round(d * 0.8))), null, true), row = ANCHOR.nori.arm + 1.5;
+    g.save(); g.translate(Math.round(x), Math.round(y) + lift); g.rotate(ang);
     g.drawImage(f.img, f.x - G7, f.y - row);
     g.restore();
-    // her paws: the left one always at its grip; the right one on it too while it is level in front of her
-    const along = d => [x + Math.cos(st.a) * d, y + Math.sin(st.a) * d];
-    drawPaws(g, petId, equip, Math.abs(st.a - flatA) < 0.35 && !one ? [along(0), along(15)] : [along(0)]);
+    const along = k => [x + Math.cos(ang) * k, y + lift + Math.sin(ang) * k];
+    drawPaws(g, petId, equip, one ? [along(0)] : [along(0), along(15)]);
     return;
   }
   if (!base && typeof pet !== "undefined" && pet.act === "dance") {   // dancing: held across her belly, tipped to the beat
