@@ -1,6 +1,6 @@
 /* The world behind the pet: a sky that follows the user's local clock (dawn, day, golden hour, sunset, dusk, night)
    and the season (its colours, and its clouds', taken from the reference pixel-art packs), sun and a moon in its real
-   phase, stars, drifting clouds of many kinds and sizes (now and then one with a face), birds, a sparrow that visits
+   phase, stars, drifting clouds of many kinds and sizes (now and then one with a face), birds, sparrows that visit
    the sign, butterflies, fireflies, hills with a wood, a big tree and little pines, the meadow with swaying grass and
    flowers, and the wooden sign clock.
    Preview any time of day with ?hour=18.5, a season with ?season=autumn, and fast-forward with ?speed=600. */
@@ -713,13 +713,7 @@ function sendVisitor(kind, n) {
 let flock = null, nextFlock = performance.now() + 6000;
 let star = null, nextStar = performance.now() + 9000;
 let flies = Array.from({ length: 12 }, () => ({ x: rnd() * W, y: 0, vx: 0, vy: 0, p: rnd() * 6 }));
-let sparrow = null, nextSparrow = performance.now() + 30000;       // visits the sign
-const SPARROW = [
-  [".KKK..", "KNNNKO", "KNWNNK", ".KNNNK", "..K.K."],               // perched
-  [".KKK..", "KNNNKO", "KNWNNK", ".KNNNK", "..KK.."],               // pecking (head lower is implied by the hop)
-];
-const SPARROW_PAL = { K: OUT, N: "#b88a64", W: "#fff4e6", O: "#f2a33a" };
-const SPARROW_IMG = SPARROW.map(g => gridToCanvas(g.map(r => r.replace(/\./g, "B")), SPARROW_PAL));
+let nextSparrow = performance.now() + 20000;       // sparrows: see "sparrows" below
 
 /* ---------- cached sky + land ---------- */
 const skyCv = document.createElement("canvas"), skyG = skyCv.getContext("2d");
@@ -1432,17 +1426,7 @@ function sceneUpdate(now, dt) {
 
   updateCritters(now, s, dark, foul);
 
-  // a sparrow flies to the sign, hops and pecks for a while, then leaves
-  const sx = SIGN_X + 4, sy = FEET - 36;          // standing on the top edge of the sign board
-  if (!sparrow && now > nextSparrow && dark < 0.4 && !foul) sparrow = { st: "in", x: W + 8, y: 50, t: 0, stay: 6000 + rnd() * 6000 };
-  if (sparrow) {
-    const b = sparrow; b.t += dt;
-    if (b.st === "in") {
-      const dx = sx - b.x, dy = sy - b.y, d = Math.hypot(dx, dy), step = 40 * s;
-      if (d <= step) { b.x = sx; b.y = sy; b.st = "sit"; b.t = 0; } else { b.x += dx / d * step; b.y += dy / d * step; }
-    } else if (b.st === "sit" && b.t > b.stay) { b.st = "out"; b.t = 0; }
-    else if (b.st === "out") { b.x -= 42 * s; b.y -= 24 * s; if (b.x < -10) { sparrow = null; nextSparrow = now + 50000 + rnd() * 70000; } }
-  }
+  updateSparrows(now, s, dark, foul);
 }
 
 /* ---------- little lives on the meadow ---------- */
@@ -1622,7 +1606,7 @@ function drawCritters(g, now, h, front) {
   }
 }
 // what flies in front of her, over her layer (called after she is drawn)
-function sceneFront(g, now) { drawCritters(g, now, worldHour(), true); }
+function sceneFront(g, now) { drawSparrows(g, now, "front"); drawCritters(g, now, worldHour(), true); }
 
 /* ---------- things that happen in the sky ---------- */
 // meteor showers on their real nights (and the night after, as the night runs past midnight), the northern lights on a
@@ -2006,23 +1990,208 @@ function signShadow(g, h, bx, by, bw, bh, base) {
   for (const [X, Y] of signSh.px) g.fillRect(X, Y, 1, 1);
 }
 
-function drawSparrow(g, now) {
-  if (!sparrow) return;
-  const b = sparrow, flying = b.st !== "sit";
-  const hop = !flying && Math.floor(b.t / 700) % 4 === 1 ? -1 : 0, peck = !flying && Math.floor(b.t / 400) % 5 === 2;
-  const im = SPARROW_IMG[peck ? 1 : 0];
-  g.save();                                           // drawn facing right; flipped while she flies leftwards
-  if (flying) { g.translate(Math.round(b.x) + im.width, 0); g.scale(-1, 1); g.drawImage(im, 0, Math.round(b.y)); }
-  else g.drawImage(im, Math.round(b.x), Math.round(b.y) + hop + (peck ? 1 : 0));
-  g.restore();
-  if (flying) { g.fillStyle = "#b88a64"; const up = Math.floor(now / 90) % 2; g.fillRect(Math.round(b.x) + 2, Math.round(b.y) + (up ? -1 : 2), 3, 1); }
+/* ---------- sparrows ---------- */
+// 참새, the tree sparrow of Korean towns and fields, going about as they really do: a chestnut cap, a white cheek with a
+// black spot, a black bib, a streaked brown back with a pale wing bar, a buff-grey belly and a dark stubby bill. They come
+// in ones, twos or threes in the bounding flight of small birds (a burst of wingbeats, then wings shut and a dip), brake
+// with a flutter to land on the sign, the stump or the grass, and there hop with both feet together (never walk), peck in
+// quick runs, look about with jerks of the head (turning right round now and then), flick tail and wings, fluff up and
+// shake, chirp, and bathe in a puddle after rain. They keep their distance from her: if she comes near on the move they
+// flush all together, to a perch out of her way or off and away. In the cold they sit puffed up round
+const SPARROW_F = {                       // facing right; the last row is where the feet are
+  stand: ["......KKK...", ".....KCCCK..", ".....KWWkBB.", "KK..KNWkWkK.", "KTKKNHNNbbK.", ".KTNwHwNbbK.", "..KKNNbbbK..", "....KLKL...."],
+  alert: ["......KKK...", ".....KCCCK..", ".....KWWkBB.", ".....KWkWkK.", "KK..KNNNbbK.", "KTKKHNwHbbK.", ".KTNNwNbbK..", "..KKKbbbK...", "....KLKL...."],
+  peck: ["KK..........", "KTKKKKKK....", ".KTNHNNCKK..", "..KwHwNWCCK.", "..KNNNbWkWkB", "...KbbbKkKBB", "....KLKL...."],
+  puff: [".......KKK..", "......KCCCK.", "......KWWkBB", "KK...KNWkWkK", "KTKKKNHNNbbK", ".KTNwHwNNbbK", "..KNNNNbbbbK", "...KKbbbbbK.", ".....KLKL..."],
+  chirp: ["......KKK.B.", ".....KCCCKB.", ".....KWWk...", "KK..KNWkWBB.", "KTKKNHNNbbK.", ".KTNwHwNbbK.", "..KKNNbbbK..", "....KLKL...."],
+  flick: ["KK....KKK...", "KTK..KCCCK..", ".KTK.KWWkBB.", "..KKKNWkWkK.", "...KNHNNbbK.", "..KNwHwNbbK.", "..KKNNbbbK..", "....KLKL...."],
+  up: ["...KK.......", "...KNK..KKK.", "...KHNKKCCCK", "KK..KNNKWWkBB", "KTKKNNNNWkWK", ".KTKNNNbbbK.", "...KKbbbKK.."],
+  down: ["........KKK.", ".......KCCCK", "KK....KNWWkBB", "KTKKKNNNWkWK", ".KTNHHNNbbK.", "...KNwHKbK..", "...KHNK.K...", "....KK......"],
+  glide: ["........KKK.", ".......KCCCK", "KK..KKKNWWkBB", "KTKKNHNHNWkK", ".KTNwHwNbbK.", "..KKKKbbKK.."],
+};
+const SPARROW_AX = { stand: 6, alert: 6, peck: 6, puff: 7, chirp: 6, flick: 6, up: 7, down: 7, glide: 7 };
+const SPARROW_COL = { C: "#a8603a", W: "#fbf3e6", k: "#3a2a22", B: "#4e423a", N: "#b98c62", H: "#7a5536", w: "#f3e4cc", b: "#dcd0c0", T: "#8a6444", L: "#c79a7c" };
+let SPARROWS = [], SP_FX = [], spLeaveAt = 0, spGo = false;
+// where they can be: on top of the sign board, on the stump, or on the grass (x, depth z)
+const spotY = sp => sp.kind === "sign" ? FEET - 32 : sp.kind === "stump" ? FEET - 40 : FEET - Math.round(sp.z);
+function sparrowSpot(kind, nx, nz) {
+  if (kind === "sign") return { kind, x: R_(SIGN_X - 10, SIGN_X + 10), z: SIGN_Z, x0: SIGN_X - 11, x1: SIGN_X + 11 };
+  if (kind === "stump") return { kind, x: STUMP.x + R_(-2, 2), z: STUMP.z, x0: STUMP.x - 3, x1: STUMP.x + 3 };
+  const x = nx === undefined ? R_(16, W - 16) : nx, z = nz === undefined ? R_(1, Z_MAX + 3) : nz;
+  return { kind: "ground", x: Math.max(8, Math.min(W - 8, x)), z: Math.max(0, Math.min(Z_MAX + 4, z)), x0: 6, x1: W - 6 };
+}
+const petAt = () => typeof pet === "undefined" ? null : { x: pet.x, z: pet.z, calm: (typeof G !== "undefined" && G.sleeping) ? 2 : ["idle", "lie", "loaf", "gloom", "strum", "pet"].includes(pet.act) ? 1 : 0 };
+// how near she is (depth counts a little more: it is foreshortened)
+// after rain, a spot in a puddle to bathe in
+function puddleSpot() {
+  if (typeof WX === "undefined" || !(WX.pud > 0.3) || WX.rain > 0.05 || !PUDDLES.length) return null;
+  const P = PUDDLES[Math.random() * PUDDLES.length | 0], q = pudK();
+  return sparrowSpot("ground", Math.round(P[0] + R_(-2, 2) * q), FEET - (horizon + P[1]));
+}
+const petDist = (x, z) => { const p = petAt(); return p ? Math.hypot(x - p.x, (z - p.z) * 1.6) : 999; };
+function sparrowsCome(now) {
+  const n = Math.random() < 0.5 ? 1 : Math.random() < 0.75 ? 2 : 3, from = Math.random() < 0.5 ? -1 : 1, p = petAt();
+  const r = Math.random(), first = r < 0.34 ? "sign" : r < 0.55 ? "stump" : "ground";
+  // while she sleeps they come over to look, onto the grass not far from her
+  const pud = Math.random() < 0.4 && puddleSpot();
+  const lead = pud || (p && p.calm === 2 && Math.random() < 0.6 ? sparrowSpot("ground", p.x + (Math.random() < 0.5 ? -1 : 1) * R_(20, 30), p.z + R_(-3, 3)) : sparrowSpot(first));
+  spLeaveAt = now + R_(14000, 32000); spGo = false;
+  for (let i = 0; i < n; i++) {
+    let sp = lead;
+    if (i) sp = lead.kind === "sign" && Math.random() < 0.6 ? sparrowSpot("sign") : sparrowSpot("ground", lead.x + R_(-16, 16), (lead.kind === "ground" ? lead.z : R_(2, 12)) + R_(-4, 4));
+    const b = { x: from < 0 ? -8 - i * 5 : W + 8 + i * 5, y: horizon - R_(10, 40), z: sp.z, dir: -from, st: "wait", at: now + i * R_(200, 700), spot: sp, act: "", t: 0, fr: "glide", oy: 0, jx: 0 };
+    SPARROWS.push(b);
+  }
+}
+function sparrowFly(b, sp, now, away) {
+  const ty = away ? R_(horizon - 70, horizon - 30) : spotY(sp), tx = away ? (b.x < W / 2 ? -14 : W + 14) : sp.x;
+  b.st = "fly"; b.spot = sp; b.t = 0; b.oy = 0; b.jx = 0;
+  b.f = { x0: b.x, y0: b.y, z0: b.z, tx, ty, len: Math.max(1, Math.hypot(tx - b.x, ty - b.y)), p: 0, ph: Math.random(), away, t0: now };
+  b.dir = tx >= b.x ? 1 : -1;
+}
+// all of them take off at once (she came too near): to a perch well away from her, or off
+function sparrowsFlush(now) {
+  const pp = petAt(), side = pp ? Math.sign(SPARROWS[0].x - pp.x) || 1 : 1;     // never back past her
+  const far = ["sign", "stump"].map(k => sparrowSpot(k)).filter(sp => petDist(sp.x, sp.z) > 45 && (!pp || Math.sign(sp.x - pp.x) === side));
+  const to = far.length && Math.random() < 0.6 ? far[Math.random() * far.length | 0] : null;
+  SP_FX.push({ k: "note", x: SPARROWS[0].x, y: SPARROWS[0].y - 9, t: now });
+  SPARROWS.forEach((b, i) => {
+    if (b.st === "wait") { b.st = "gone"; return; }
+    const sp = to && (i === 0 || to.kind === "sign") ? (i ? sparrowSpot(to.kind) : to) : to ? sparrowSpot("ground", to.x + R_(-14, 14), to.z - R_(2, 8)) : { kind: "air", x: 0, z: b.z };
+    sparrowFly(b, sp, now, !to);
+  });
+  if (to) spLeaveAt = Math.max(spLeaveAt, now + R_(8000, 15000));
+}
+// the next thing to do on a perch
+function sparrowNext(b, now) {
+  const sp = b.spot, ground = sp.kind === "ground", cold = mainSeason() === "winter";
+  const wet = ground && typeof inPuddle === "function" && inPuddle(Math.round(b.x), spotY(sp) + 1) && typeof WX !== "undefined" && WX.rain < 0.05;
+  const after = b.act;
+  b.t = 0; b.n = 0; b.jx = 0; b.oy = 0; b.k = -1;
+  if (Math.random() < 0.07 && after !== "land") {                 // move to another place for a change
+    const k = Math.random(), sp2 = (k < 0.2 && puddleSpot()) || (k < 0.5 ? sparrowSpot("ground", b.x + R_(-40, 40), b.z + R_(-8, 8)) : sparrowSpot(k < 0.8 ? "sign" : "stump"));
+    if (petDist(sp2.x, sp2.z) > 30 && !(sp2.kind === "stump" && SPARROWS.some(o => o !== b && o.spot.kind === "stump"))) { sparrowFly(b, sp2, now); return; }
+  }
+  const W8 = ground ? { peck: after === "hop" ? 0.6 : 0.3, hop: 0.24, look: 0.16, chirp: 0.05, puff: 0.06, flick: 0.07, wing: 0.04, bath: wet ? 0.5 : 0 }
+    : { look: 0.32, hop: 0.16, chirp: 0.16, puff: 0.1, flick: 0.12, wing: 0.06, peck: 0.08 };
+  if (cold) W8.puff += 0.12;
+  let r = Math.random() * Object.values(W8).reduce((a, c) => a + c, 0), act = "look";
+  for (const [k, v] of Object.entries(W8)) { if ((r -= v) < 0) { act = k; break; } }
+  b.act = act;
+  if (act === "look") { b.dur = R_(700, 2400); b.jerk = R_(200, 600); }
+  else if (act === "peck") { b.n = 2 + (Math.random() * 5 | 0); if (Math.random() < 0.3) b.dir = -b.dir; }
+  else if (act === "hop") {
+    b.n = 1 + (Math.random() * (ground ? 4 : 2) | 0);
+    if (ground ? Math.random() < 0.25 : b.x <= sp.x0 + 2 || b.x >= sp.x1 - 2 || Math.random() < 0.4) b.dir = -b.dir;
+    if (petDist(b.x + b.dir * 8, b.z) < petDist(b.x, b.z)) b.dir = -b.dir;   // not towards her
+  } else if (act === "chirp") { b.n = 3 + (Math.random() * 4 | 0); SP_FX.push({ k: "note", x: b.x + b.dir * 3, y: b.y - 9, t: now }); }
+  else if (act === "puff") b.dur = cold && Math.random() < 0.5 ? R_(2500, 5000) : 800;
+  else if (act === "bath") b.dur = R_(1600, 2600);
+}
+function updateSparrows(now, s, dark, foul) {
+  const p = petAt();
+  if (!SPARROWS.length) { if (now > nextSparrow && dark < 0.4 && !foul) sparrowsCome(now); }
+  else if (dark > 0.45 || foul) spGo = true;                          // dusk or rain: home they go
+  // she comes too near, on the move (or picked up, or tumbling): they flush; asleep or sitting still she may be closer
+  if (p && SPARROWS.some(b => b.st === "perch" && petDist(b.x, b.z) < (p.calm === 2 ? 16 : p.calm ? 18 : b.spot.kind === "ground" ? 34 : 22))) sparrowsFlush(now);
+  if (SPARROWS.length && now > spLeaveAt) spGo = true;               // time to go: one goes, the rest follow at once
+  for (let i = SPARROWS.length - 1; i >= 0; i--) {
+    const b = SPARROWS[i]; b.t += s * 1000;
+    if (b.st === "gone") { SPARROWS.splice(i, 1); continue; }
+    if (b.st === "wait") { if (spGo) SPARROWS.splice(i, 1); else if (now > b.at) sparrowFly(b, b.spot, now); continue; }
+    if (spGo && b.st === "perch" && !b.leave) b.leave = now + R_(100, 900);
+    if (b.st === "perch" && b.leave && now > b.leave) { b.leave = 0; sparrowFly(b, { kind: "air", x: 0, z: b.z }, now, true); }
+    if (b.st === "fly") {
+      const f = b.f, rest = (1 - f.p) * f.len, brake = !f.away && rest < 16, v = f.away ? 62 : brake ? 16 + rest * 1.6 : 50;
+      f.p = Math.min(1, f.p + v * s / f.len);
+      const e = f.p, arc = f.away ? 0 : -Math.sin(Math.PI * e) * Math.min(12, f.len * 0.12);   // they come in from above and glide down
+      const q = ((now - f.t0) / 480 + f.ph) % 1, flap = q < 0.55 || brake || now - f.t0 < 200;
+      const bounce = (brake ? 0 : q < 0.55 ? -q / 0.55 * 2.5 : -2.5 + (q - 0.55) / 0.45 * 2.5) * Math.min(1, e * 5);
+      b.x = f.x0 + (f.tx - f.x0) * e; b.z = f.z0 + (b.spot.z - f.z0) * e;
+      b.y = f.y0 + (f.ty - f.y0) * e + arc + bounce - (now - f.t0 < 200 ? Math.sin((now - f.t0) / 200 * Math.PI) * 2 : 0);
+      b.fr = flap ? (Math.floor(now / (brake ? 45 : 60)) % 2 ? "up" : "down") : "glide";
+      if (f.p >= 1) {
+        if (f.away) { SPARROWS.splice(i, 1); if (!SPARROWS.length) { nextSparrow = now + R_(40000, 100000); spGo = false; } continue; }
+        b.st = "perch"; b.y = spotY(b.spot); b.x = b.spot.x; b.z = b.spot.z; b.act = "land"; b.t = 0; b.fr = "alert";
+      }
+      continue;
+    }
+    // on a perch
+    const sp = b.spot, base = mainSeason() === "winter" ? "puff" : "stand";
+    b.y = spotY(sp);
+    if (b.act === "land") { b.fr = b.t < 120 ? "puff" : "alert"; if (b.t > 300) sparrowNext(b, now); }   // touches down squat, then up
+    else if (b.act === "look") {                                   // jerks of the head, now and then a turn right round
+      if (b.t > b.jerk) { b.jerk = b.t + R_(250, 700); b.fr = Math.random() < (base === "puff" ? 0.35 : 0.55) ? "alert" : base; if (Math.random() < 0.3) b.dir = -b.dir; }
+      if (!b.fr || b.fr === "glide" || b.fr === "up" || b.fr === "down") b.fr = base;
+      if (b.t > b.dur) sparrowNext(b, now);
+    } else if (b.act === "peck") {                                 // quick pecks, down and up
+      const c = b.t % 230; b.fr = c < 100 ? "peck" : base;
+      if (b.t > b.n * 230 + 150) sparrowNext(b, now);
+    } else if (b.act === "hop") {                                  // both feet together, a little arc each time
+      const q = Math.min(1, b.t % 270 / 170), k = Math.floor(b.t / 270);
+      if (k >= b.n) { b.oy = 0; sparrowNext(b, now); }
+      else {
+        if (b.k !== k) {                                           // where this hop lands
+          const g0 = sp.kind === "ground", dx = g0 ? R_(3, 6) : R_(2, 4), dz = g0 ? R_(-1.5, 1.5) : 0;
+          b.k = k; b.hx = b.x; b.hz = b.z; b.tx = Math.max(sp.x0, Math.min(sp.x1, b.x + b.dir * dx)); b.tz = Math.max(0, Math.min(Z_MAX + 4, b.z + dz));
+        }
+        b.x = b.hx + (b.tx - b.hx) * q; b.z = b.hz + (b.tz - b.hz) * q; b.oy = -Math.sin(q * Math.PI) * 2.5;
+        b.fr = q < 1 ? "stand" : base;
+        if (sp.kind === "ground") { sp.x = b.x; sp.z = b.z; }
+        b.y = spotY(sp);
+      }
+    } else if (b.act === "chirp") {                                // bill open and shut, a little song
+      b.fr = b.t % 260 < 130 ? "chirp" : "alert";
+      if (b.t > b.n * 260) sparrowNext(b, now);
+    } else if (b.act === "puff") {                                 // fluffs up, a shake, smooths down
+      b.fr = "puff"; b.jx = b.t > b.dur - 300 && b.t < b.dur ? (Math.floor(b.t / 50) % 2 ? 1 : -1) * 0.6 : 0;
+      if (b.t > b.dur) sparrowNext(b, now);
+    } else if (b.act === "flick") { b.fr = b.t < 140 || (b.t > 260 && b.t < 380) ? "flick" : base; if (b.t > 500) sparrowNext(b, now); }
+    else if (b.act === "wing") { b.fr = b.t < 90 ? "up" : b.t < 180 ? "down" : base; if (b.t > 400) sparrowNext(b, now); }
+    else if (b.act === "bath") {                                   // a splash about in the puddle, wings whirring
+      b.fr = Math.floor(b.t / 70) % 2 ? "up" : "down"; b.oy = 1; b.jx = Math.floor(b.t / 90) % 2 ? 0.6 : -0.6;
+      if (Math.random() < s * 25) SP_FX.push({ k: "drop", x: b.x + R_(-4, 4), y: b.y - 2, vx: R_(-14, 14), vy: R_(-26, -12), t: now });
+      if (b.t > b.dur) { b.act = "puff"; b.t = 0; b.dur = 700; b.oy = 0; }
+    } else sparrowNext(b, now);
+  }
+  for (let i = SP_FX.length - 1; i >= 0; i--) {
+    const e = SP_FX[i];
+    if (e.k === "drop") { e.vy += 90 * s; e.x += e.vx * s; e.y += e.vy * s; if (now - e.t > 450) SP_FX.splice(i, 1); }
+    else if (now - e.t > 900) SP_FX.splice(i, 1);
+  }
+}
+// drawn in three passes: behind her ("back"), in front of her (on the grass nearer than she is), and over the sign
+// again when she is behind it ("sign")
+function drawSparrows(g, now, layer) {
+  if (!SPARROWS.length && !SP_FX.length) return;
+  const h = worldHour(), pal = { K: bugc(OUT, h) }, pz = typeof pet !== "undefined" ? pet.z : 0;
+  for (const k in SPARROW_COL) pal[k] = bugc(SPARROW_COL[k], h);
+  for (const b of SPARROWS) {
+    if (b.st === "wait" || b.st === "gone") continue;
+    const front = b.spot.kind === "ground" && b.z < pz - 0.5, onSign = b.st === "perch" && b.spot.kind === "sign";
+    if (layer === "front" ? !front : layer === "sign" ? !onSign : front) continue;
+    const gy = FEET - Math.round(b.z);
+    if (b.spot.kind === "ground" && gy - b.y < 18) {                // a little shadow on the grass under her
+      g.fillStyle = css(hex("#242c34"), 0.2 * (1 - (gy - b.y) / 18)); g.fillRect(Math.round(b.x) - 2, gy + 1, 5, 1);
+    }
+    const rows = SPARROW_F[b.fr] || SPARROW_F.stand;
+    paintMap(g, rows, Math.round(b.x + b.jx), Math.round(b.y + b.oy) - rows.length + 1, b.dir, pal, SPARROW_AX[b.fr] || 6);
+  }
+  if (layer !== "back") return;
+  for (const e of SP_FX) {
+    const a = 1 - (now - e.t) / (e.k === "drop" ? 450 : 900);
+    if (e.k === "drop") { g.fillStyle = css(bugc("#d8f0ff", h), a); g.fillRect(Math.round(e.x), Math.round(e.y), 1, 1); continue; }
+    const x = Math.round(e.x + Math.sin((now - e.t) / 140) * 1.2), y = Math.round(e.y - (now - e.t) / 900 * 7);   // a little note floats up
+    g.fillStyle = css(bugc("#fff6e0", h), Math.min(1, a * 1.6));
+    g.fillRect(x + 1, y, 1, 3); g.fillRect(x + 2, y, 1, 1); g.fillRect(x, y + 2, 1, 1);
+  }
 }
 // the sign (and a sparrow on it) once more, over a pet who has walked behind it
 function drawSignOver(g, now) {
   if (!lastSign) return;
   drawSign(g, now, lastSign.h, lastSign.info, true);
   if (typeof weatherCap === "function") weatherCap(g, lastSign.h);
-  drawSparrow(g, now);
+  drawSparrows(g, now, "sign");
 }
 
 // lightning lights the clouds from within: each cloud's shape in the flash's light over it, the ones near the strike
@@ -2123,7 +2292,7 @@ function sceneRender(now, signInfo) {
   drawSign(g, now, h, signInfo);
   if (typeof weatherCap === "function") weatherCap(g, h);
   lastSign = { h, info: signInfo };
-  drawSparrow(g, now);
+  drawSparrows(g, now, "back");
   drawCritters(g, now, h, false);
   drawFluff(g, h);
   if (dark > 0.5 && se !== "winter") for (const f of flies) {                 // no fireflies in winter
