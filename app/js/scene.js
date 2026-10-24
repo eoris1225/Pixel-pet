@@ -1527,44 +1527,110 @@ function updateCritters(now, s, dark, foul) {
     const tx = e.f.x + Math.sin(now / 230 + e.p) * 4, ty = e.f.yy - 8 + Math.sin(now / 170 + e.p * 2) * 2;
     e.x += (tx - e.x) * Math.min(1, 2.5 * s); e.y += (ty - e.y) * Math.min(1, 2.5 * s);
   }
-  // a frog by the puddles after rain (not in winter), once per rain: it hops in, sits puffing its throat, hops to another
-  // puddle or two, and leaves
+  // a frog by the puddles after rain (not in winter), once per rain. It comes in hops (a crouch, the leap, a squat
+  // landing), sits by a puddle with its throat fluttering as it breathes, blinks, croaks with its sac blown up, snaps
+  // a passing gnat with its tongue and blinks it down, turns about, jumps into the puddle for a soak (a splash, rings,
+  // half under water) and out again, hops on to another puddle or two and leaves. If she comes close on the move it
+  // leaps away
   if (typeof WX !== "undefined" && WX.pud < 0.05) frogDone = false;
   const wetOk = typeof WX !== "undefined" && WX.pud > 0.3 && WX.rain < 0.3 && se !== "winter" && dark < 0.7 && PUDDLES.length;
-  // she goes in hops of a few pixels towards where she is going (gx, gy), a little rest between hops
-  const hopTo = (f, gx, gy) => { f.gx = gx; f.gy = gy; f.st = "hop"; f.t = 0; nextHop(f); };
-  const nextHop = f => { const dx = f.gx - f.x, dy = f.gy - f.y, d = Math.hypot(dx, dy) || 1, st = Math.min(d, R_(9, 14));
-    f.tx = f.x + dx / d * st; f.ty = f.y + dy / d * st; f.dir = Math.sign(dx) || f.dir || 1; };
   if (!frog && wetOk && !frogDone) {
-    frogDone = true; const i = Math.random() * PUDDLES.length | 0, sp = frogSpot(i), left = sp.tx < W / 2;
-    frog = { x: left ? -6 : W + 6, y: sp.ty, n: 0, dir: left ? 1 : -1 }; hopTo(frog, sp.tx, sp.ty);
+    frogDone = true; const sp = frogSpot();
+    if (sp) { const left = sp.tx < W / 2; frog = { x: left ? -8 : W + 8, y: sp.ty, n: 0, dir: left ? 1 : -1, croak: now + R_(2000, 5000), blink: now + R_(1500, 4000) }; frogHopTo(frog, sp.tx, sp.ty); }
   }
-  if (frog) {
-    const f = frog; f.t += s * 1000;
-    if (f.st === "hop") {
-      const q = Math.min(1, Math.max(0, f.t - 120) / 380);           // a breath, then the leap
-      f.cx = f.x + (f.tx - f.x) * q; f.cy = f.y + (f.ty - f.y) * q - Math.sin(q * Math.PI) * 4;
-      if (q >= 1) {
-        f.x = f.tx; f.y = f.ty; f.t = 0;
-        if (f.x < -5 || f.x > W + 5) frog = null;
-        else if (Math.hypot(f.gx - f.x, f.gy - f.y) > 0.5) nextHop(f);
-        else { f.st = "sit"; f.hold = R_(4000, 8000); }
+  if (frog) updateFrog(frog, now, s, wetOk);
+}
+// she goes in hops of some pixels towards (gx, gy): a crouch, the leap, a squat landing, a short rest
+function frogHopTo(f, gx, gy, big) { f.gx = gx; f.gy = gy; f.st = "hop"; f.big = big; frogNextHop(f); }
+function frogNextHop(f) {
+  const dx = f.gx - f.x, dy = f.gy - f.y, d = Math.hypot(dx, dy) || 1, st = Math.min(d, f.big ? R_(15, 20) : R_(8, 13));
+  f.hx = f.x; f.hy = f.y; f.tx = f.x + dx / d * st; f.ty = f.y + dy / d * st; f.t = 0; f.arc = 2.5 + st * 0.22; f.rest = f.big ? 60 : R_(150, 450);
+  if (Math.abs(dx) > 0.5) f.dir = Math.sign(dx);
+}
+function updateFrog(f, now, s, wetOk) {
+  f.t += s * 1000;
+  const p = typeof petAt === "function" ? petAt() : null;
+  if (p && f.st !== "hop" && !f.fled && petDist(f.x, FEET - f.y) < (p.calm ? 16 : 30)) {     // too close: away it leaps
+    f.fled = true; f.gnat = null; const away = f.x < p.x ? -1 : 1, sp = frogSpot(away);
+    if (sp && wetOk) frogHopTo(f, sp.tx, sp.ty, true); else frogHopTo(f, away < 0 ? -12 : W + 12, f.y, true);
+    if (f.wet) frogSplash(f, now);
+    f.wet = false;
+  }
+  if (f.st === "hop") {
+    const T = f.t, q = Math.min(1, Math.max(0, T - 140) / 360);
+    f.fr = T < 140 ? "crouch" : q < 1 ? "leap" : "crouch";
+    f.cx = f.hx + (f.tx - f.hx) * q; f.cy = f.hy + (f.ty - f.hy) * q - Math.sin(q * Math.PI) * f.arc;
+    if (T >= 620) {
+      f.x = f.tx; f.y = f.ty;
+      if (f.x < -6 || f.x > W + 6) { frog = null; return; }
+      if (Math.hypot(f.gx - f.x, f.gy - f.y) > 0.5) { if (T >= 620 + f.rest) frogNextHop(f); else f.fr = "sit"; }
+      else {
+        f.st = "sit"; f.t = 0; f.fled = false; f.hold = R_(6000, 11000);
+        f.wet = !!f.into;
+        if (f.into) { f.into = false; frogSplash(f, now); f.hold = R_(3000, 5000); }
       }
-    } else if (f.t > f.hold) {
-      if (!wetOk || f.n >= 2) hopTo(f, f.x < W / 2 ? -10 : W + 10, f.y);
-      else { f.n++; const sp = frogSpot(Math.random() * PUDDLES.length | 0); hopTo(f, sp.tx, sp.ty); }
     }
-    if (frog && f.st === "sit") { f.cx = f.x; f.cy = f.y; }
+    return;
+  }
+  // sitting (on the bank, or in the water)
+  f.cx = f.x; f.cy = f.y;
+  if (f.gnat) {                                                     // a gnat dances in front of it, until... snap
+    const gn = f.gnat, a = (now - gn.t0) / 1000;
+    gn.x = f.x + f.dir * (9 + Math.sin(a * 5.3) * 3) + Math.sin(a * 13) * 1.2; gn.y = f.y - 9 + Math.sin(a * 7.1) * 3;
+    if (!gn.snap && now > gn.at) gn.snap = now;
+    if (gn.snap && now - gn.snap > 90) { f.gnat = null; f.gulp = now; }
+  } else if (Math.random() < s / 9 && !f.wet) f.gnat = { t0: now, at: now + R_(1200, 2600) };
+  if (now > f.blink) f.blink = now + R_(2500, 6000);
+  if (now > f.croak && !f.gnat) { f.croaking = now; f.croak = now + R_(5000, 10000); }
+  if (f.t > f.hold) {                                               // what next
+    const r = Math.random();
+    if (!wetOk || f.n >= 3) frogHopTo(f, f.x < W / 2 ? -12 : W + 12, f.y);
+    else if (f.wet) { const sp = frogSpot(); f.wet = false; frogSplash(f, now); if (sp) frogHopTo(f, sp.tx, sp.ty); }
+    else if (r < 0.35) { const pi = frogNear(f); if (pi >= 0) { const P = PUDDLES[pi]; f.into = true; frogHopTo(f, P[0] + R_(-2, 2), horizon + P[1] + 1); } else { f.t = 0; f.hold = R_(2000, 4000); } }
+    else if (r < 0.55) { f.dir = -f.dir; f.st = "hop"; f.gx = f.x; f.gy = f.y; f.hx = f.x; f.hy = f.y; f.tx = f.x; f.ty = f.y; f.t = 0; f.arc = 2; }   // turns about with a little hop
+    else { f.n++; const sp = frogSpot(); if (sp) frogHopTo(f, sp.tx, sp.ty); else { f.t = 0; f.hold = R_(2000, 4000); } }
   }
 }
-// beside a puddle's front edge
-function frogSpot(i) {
-  const [cx, dy, , , [l0, l1]] = PUDDLES[i], q = typeof pudK === "function" ? pudK() : 1, right = Math.random() < 0.5;
-  return { tx: Math.round(cx + (right ? l1 * q + 6 : l0 * q - 6)), ty: horizon + dy + 1, hops: 0 };
+// rings and a few drops where it goes in or comes out of the water
+function frogSplash(f, now) {
+  const pi = frogNear(f, 4); if (pi < 0) return;
+  const [cx, dy, w, lobes] = PUDDLES[pi], q = pudK(), cy = horizon + dy;
+  for (let k = 0; k < 2; k++) RIPPLES.push({ p: pi, u: (f.x - cx) / Math.max(1, w * q * 0.3), v: (f.y - 1 - cy) / Math.max(1, lobes[0][3] * q * 0.5), t: now + k * 160 });
+  for (let k = 0; k < 6; k++) SP_FX.push({ k: "drop", x: f.x + R_(-4, 4), y: f.y - 2, vx: R_(-16, 16), vy: R_(-30, -14), t: now });
 }
-// a little frog facing right, outlined like the friends (g green, G shade, l belly, w eye white, k ink)
-const FROG = ["...kk.kk..", "..kwkkwkk.", ".kgggggggk", "kgggggllgk", "kGGgggllk.", ".kkGkkkk.."];
-const FROG_HOP = ["...kk.kk..", "..kwkkwkk.", ".kgggggggk", "kGgggglllk", "kGGkkkkk..", "kk........"];
+// the puddle it is beside (or in)
+function frogNear(f, pad = 14) {
+  if (typeof inThis !== "function") return -1;
+  const q = pudK();
+  return PUDDLES.findIndex(p => { const [cx, dy, , , [l0, l1]] = p; return f.x > cx + l0 * q - pad && f.x < cx + l1 * q + pad && Math.abs(horizon + dy - f.y) < 6; });
+}
+// beside a puddle's front edge, never where it would sit behind the sign or the stump (side: keep to that side of her)
+function frogSpot(side) {
+  const q = typeof pudK === "function" ? pudK() : 1, p = typeof petAt === "function" ? petAt() : null, out = [];
+  PUDDLES.forEach(([cx, dy, , , [l0, l1]]) => {
+    for (const tx of [Math.round(cx + l1 * q + 7), Math.round(cx + l0 * q - 7)]) {
+      const ty = horizon + dy + 1;
+      if (tx < 8 || tx > W - 8) continue;
+      if (Math.abs(tx - SIGN_X) < 23 && ty < FEET - 3) continue;                                   // behind the sign
+      if (typeof STUMP !== "undefined" && Math.abs(tx - STUMP.x) < 14 && ty < FEET - STUMP.z + 2 && ty > FEET - STUMP.z - 12) continue;   // behind the stump
+      if (p && side && Math.sign(tx - p.x) !== side) continue;
+      if (p && petDist(tx, FEET - ty) < 30) continue;
+      out.push({ tx, ty });
+    }
+  });
+  return out.length ? out[Math.random() * out.length | 0] : null;
+}
+// a little frog facing right, outlined like the friends (g green, h its light, G D shade, l belly, w eye white, p pupil, r cheek
+// and tongue, y the croaking sac, k ink); the last row is where its feet are
+const FROG_F = {
+  sit: ["......kkk.kkk..", ".....khwpkhwpk.", "....kgwppkwppk.", "...kghggggggggk", "..kgGhgggggggggk", "..kGgGgggrgkkkkk", ".kGDGggggglllk..", ".kDGDkgglllllk..", "..kkkkGkkkGkk..."],
+  throat: ["......kkk.kkk..", ".....khwpkhwpk.", "....kgwppkwppk.", "...kghggggggggk", "..kgGhgggggggggk", "..kGgGgggrgkkkkk", ".kGDGgggggllllk.", ".kDGDkgglllllk..", "..kkkkGkkkGkk..."],
+  blink: ["......kkk.kkk..", ".....khggkhggk.", "....kgkkkkkkkk.", "...kghggggggggk", "..kgGhgggggggggk", "..kGgGgggrgkkkkk", ".kGDGggggglllk..", ".kDGDkgglllllk..", "..kkkkGkkkGkk..."],
+  croak: ["......kkk.kkk..", ".....khwpkhwpk.", "....kgwppkwppk.", "...kghggggggggk", "..kgGhgggggggggk", "..kGgGgggrgkkkkkk", ".kGDGgggggkyyyyyk", ".kDGDkgglkyyyyyk.", "..kkkkGkkkkkkkk.."],
+  gape: ["......kkk.kkk..", ".....khwpkhwpk.", "....kgwppkwppk.", "...kghgggggggggk", "..kgGhggggggkkkk", "..kGgGgggrgkrrr.", ".kGDGggggggkkkkk", ".kDGDkgglllllk..", "..kkkkGkkkGkk..."],
+  crouch: ["...............", "......kkk.kkk..", ".....khwpkhwpk.", "...kkgwppkwppkk", "..kgGhgggggggggk", ".kGgGggggrgkkkkk", "kGDGDgggglllllk.", "kkkkkkGkkkkGkk.."],
+  leap: ["...........kkk.kkk", "..........khwpkhwpk", "........kkgwppkwppk", "......kkgGhggggggggk", "kk..kkgGgggggrgkkkkk", "kDkkGDGgggggglllk...", ".kDDGDkkgglllllk....", "..kkkk..kkkkkGk.....", "..........kGk.......", "...........k........"],
+};
 // critters take the light of the meadow: the warm pastel, the sky's colour, the evening, a grey day
 function bugc(c, h) {
   let x = softc(hex(c), 1.4);
@@ -1590,19 +1656,42 @@ function drawButterfly(g, b, h, now) {
 }
 function drawCritters(g, now, h, front) {
   for (const b of BFLY) if (!!b.front === front) drawButterfly(g, b, h, now);
+  if (frog && frog.cx !== undefined && !frogBehindSign() && !frogBehindStump() && frogFront() === front) drawFrog(g, now, h);
   if (front) return;
   for (const e of BEES) {
     const x = Math.round(e.x), y = Math.round(e.y), up = Math.floor(now / 60) % 2;
     g.fillStyle = css(bugc("#ffd86a", h)); g.fillRect(x, y, 3, 2); g.fillStyle = css(bugc("#7a6450", h)); g.fillRect(x + 1, y, 1, 2);
     g.fillStyle = "rgba(255,255,255,.7)"; g.fillRect(x + 1, y - 1 - up, 1, 1);
   }
-  if (frog && frog.cx !== undefined) {
-    const f = frog, x = Math.round(f.cx), y = Math.round(f.cy), r = f.dir || 1, air = f.st === "hop" && f.t > 180 && f.t < 440;
-    const puff = f.st === "sit" ? Math.max(0, Math.sin(now / 260)) : 0;          // her throat swells and goes down
-    const P = { g: bugc("#a6d98a", h), G: bugc("#7fbf72", h), l: bugc("#eaf6cf", h), w: bugc("#ffffff", h), k: bugc(OUT, h) };
-    const rows = air ? FROG_HOP : FROG;
-    paintMap(g, rows, x, y - rows.length, r, P, 5);
-    if (puff > 0.3) { g.fillStyle = css(P.l); g.fillRect(x + 4 * r, y - 3, 1, puff > 0.75 ? 2 : 1); }
+}
+// the frog goes behind the sign or the stump (drawn before them) when it passes back there, and over her when it is nearer than she is
+const frogBehindSign = () => !!frog && frog.cx !== undefined && Math.abs(frog.cx - SIGN_X) < 23 && frog.cy < FEET - 3;
+const frogBehindStump = () => !!frog && frog.cx !== undefined && typeof STUMP !== "undefined" && Math.abs(frog.cx - STUMP.x) < 16 && frog.cy < FEET - STUMP.z;
+const frogFront = () => !!frog && typeof pet !== "undefined" && FEET - frog.cy < pet.z - 0.5;
+function drawFrog(g, now, h) {
+  const f = frog, x = Math.round(f.cx), y = Math.round(f.cy), r = f.dir || 1;
+  const P = { g: bugc("#a6d98a", h), h: bugc("#c8eaa8", h), G: bugc("#7fbf72", h), D: bugc("#5f9e62", h), l: bugc("#eaf6cf", h), w: bugc("#ffffff", h),
+    p: bugc("#3a2a22", h), r: bugc("#f5a8b0", h), y: bugc("#f7f1c8", h), k: bugc(OUT, h) };
+  let fr = f.fr || "sit";
+  const gn = f.gnat, snap = gn && gn.snap && now - gn.snap < 90;
+  if (f.st === "sit") {
+    const ck = f.croaking && now - f.croaking < 1500 ? (now - f.croaking) % 500 : -1;
+    fr = snap ? "gape" : (f.blink - now < 140 || (f.gulp && now - f.gulp < 380)) ? "blink" : ck >= 0 && ck < 300 ? "croak" : Math.floor(now / 170) % 2 ? "throat" : "sit";
+    if (ck >= 0 && ck < 300) {                                        // the croak: little sound marks by its mouth
+      g.fillStyle = css(P.y, 0.8); const mx = x + r * 10, my = y - 5;
+      g.fillRect(mx, my - 1, 1, 2); g.fillRect(mx + r * 2, my - 2, 1, 3);
+    }
+  }
+  const rows = FROG_F[fr], cx = fr === "leap" ? 9 : 7, top = y - rows.length + 1;
+  // its shadow stays on the ground under the leap
+  const gy = f.st === "hop" ? Math.round(f.hy + (f.ty - f.hy) * Math.min(1, Math.max(0, f.t - 140) / 360)) : y;
+  if (!f.wet) { g.fillStyle = css(hex("#242c34"), 0.18); g.fillRect(x - 5, gy + 1, 10, 1); }
+  // in the water only its top shows, a pale line where the water meets it
+  paintMap(g, f.wet ? rows.slice(0, rows.length - 3) : rows, x, top + (f.wet ? 2 : 0), r, P, cx);
+  if (f.wet) { g.fillStyle = css(bugc("#e6f2ff", h), 0.7); g.fillRect(x - 6, y, 13, 1); }
+  if (gn) {
+    if (snap) { g.fillStyle = css(P.r); const mx = x + r * 7, my = top + 5; for (let k = 0, n = Math.max(1, Math.abs(gn.x - mx), Math.abs(gn.y - my)); k <= n; k++) g.fillRect(Math.round(mx + (gn.x - mx) * k / n), Math.round(my + (gn.y - my) * k / n), 1, 1); }
+    else { g.fillStyle = css(bugc("#4a3a30", h)); g.fillRect(Math.round(gn.x), Math.round(gn.y), 1, 1); if (Math.floor(now / 50) % 2) { g.fillStyle = "rgba(255,255,255,.6)"; g.fillRect(Math.round(gn.x), Math.round(gn.y) - 1, 1, 1); } }
   }
 }
 // what flies in front of her, over her layer (called after she is drawn)
@@ -2265,6 +2354,7 @@ function sceneRender(now, signInfo) {
   if (typeof weatherLand === "function") weatherLand(g, now, h);   // wet grass, snow
   g.drawImage(treeCv, 0, 0);                           // their shadows and the leaves fallen round them
   drawTrees(g, now);
+  if (frogBehindStump()) drawFrog(g, now, h);
   drawStump(g, h);
   drawLeaves(g, h);
   drawPrints(g, h);
@@ -2289,6 +2379,7 @@ function sceneRender(now, signInfo) {
     g.fillStyle = css(lit("#ffcf5a", h)); g.fillRect(cx, cy, 1, 1);
   }
   if (typeof weatherFog === "function") weatherFog(g, now, h);
+  if (frogBehindSign()) drawFrog(g, now, h);
   drawSign(g, now, h, signInfo);
   if (typeof weatherCap === "function") weatherCap(g, h);
   lastSign = { h, info: signInfo };

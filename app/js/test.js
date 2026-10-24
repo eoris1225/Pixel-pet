@@ -64,7 +64,7 @@
       <h3>시간 속도</h3><div class="row">${[[1, "보통"], [60, "60배 (1분/초)"], [300, "300배"], [1200, "1200배 (하루 72초)"]].map(([k, n]) => `<button data-speed="${k}" class="${T_SPEED === k ? "on" : ""}">${n}</button>`).join("")}</div>
       <div class="row" style="margin-top:6px"><button data-bow="1">비 그친 뒤 (무지개·웅덩이)</button></div>
       <div class="row" style="margin-top:6px"><button data-sky="1">구름 새로 띄우기</button><button data-visit="1">모양 구름 띄우기</button><button data-bolt="1">번개 치기</button><button data-eyes="1">동굴 눈 (밤)</button></div>
-      <div class="row" style="margin-top:6px"><button data-ev="meteor" class="${SKYEV.meteor ? "on" : ""}">유성우 (밤)</button><button data-ev="aurora" class="${SKYEV.aurora ? "on" : ""}">오로라 (밤)</button><button data-ev="plane">비행기 (낮)</button><button data-ev="fluff">민들레 씨앗 (봄)</button><button data-ev="sparrow">참새 (낮)</button></div>
+      <div class="row" style="margin-top:6px"><button data-ev="meteor" class="${SKYEV.meteor ? "on" : ""}">유성우 (밤)</button><button data-ev="aurora" class="${SKYEV.aurora ? "on" : ""}">오로라 (밤)</button><button data-ev="plane">비행기 (낮)</button><button data-ev="fluff">민들레 씨앗 (봄)</button><button data-ev="sparrow">참새 (낮)</button><button data-ev="frog">개구리 (비 갠 뒤)</button></div>
       <h3>UI 색감</h3><div class="row">${[["", "캐릭터별"], ["a", "크림"], ["b", "하늘"], ["c", "라벤더"], ["old", "예전"]].map(([k, n]) => `<button data-ui="${k}" class="${(uiPick || "") === k ? "on" : ""}">${n}</button>`).join("")}</div>
       <h3>배경 스타일 후보</h3><div class="row">${LOOK_NAMES.map(([k, n]) => `<button data-look="${k}" class="${LOOK.key === k ? "on" : ""}">${n}</button>`).join("")}</div>
       <h3>칭호</h3><div class="row"><button data-ttl="all">모두 얻기</button><button data-ttl="first">첫걸음만</button><button data-ttl="reset">초기화</button><button data-ttl="taps">클릭 99번으로</button><button data-ttl="away">일주일 비우기</button></div>
@@ -94,6 +94,7 @@
       if (k === "meteor") { SKYEV.meteor = !SKYEV.meteor; if (SKYEV.meteor) night(); }
       if (k === "aurora") { SKYEV.aurora = !SKYEV.aurora; if (SKYEV.aurora) night(); }
       if (k === "plane") { if (darkAt(worldHour()) > 0.3) setWorldHour(11); nextPlane = 0; plane = null; }
+      if (k === "frog") { if (darkAt(worldHour()) > 0.3) setWorldHour(11); if (mainSeason() === "winter") setSkySeason("summer"); WX.force = "clear"; WX.rain = 0; WX.cover = 0.1; WX.wet = 0.8; WX.pud = 0.9; newPuddles(); frog = null; frogDone = false; }
       if (k === "sparrow") { if (darkAt(worldHour()) > 0.3) setWorldHour(11); SPARROWS = []; spGo = false; nextSparrow = 0; }
       if (k === "fluff") { setSkySeason("spring"); if (darkAt(worldHour()) > 0.3) setWorldHour(11); nextFluff = 0; }
       render();
