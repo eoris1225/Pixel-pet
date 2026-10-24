@@ -1528,8 +1528,8 @@ function updateCritters(now, s, dark, foul) {
     e.x += (tx - e.x) * Math.min(1, 2.5 * s); e.y += (ty - e.y) * Math.min(1, 2.5 * s);
   }
   // a frog by the puddles after rain (not in winter), once per rain. It comes in hops (a crouch, the leap, a squat
-  // landing), sits by a puddle with its throat fluttering as it breathes, blinks, croaks with its sac blown up, snaps
-  // a passing gnat with its tongue and blinks it down, turns about, jumps into the puddle for a soak (a splash, rings,
+  // landing), sits by a puddle, blinks, croaks with its sac blown up, turns to a gnat dancing round it and snaps it with
+  // its tongue when it comes in front of its mouth (and blinks it down), turns about, jumps into the puddle for a soak (a splash, rings,
   // half under water) and out again, hops on to another puddle or two and leaves. If she comes close on the move it
   // leaps away
   if (typeof WX !== "undefined" && WX.pud < 0.05) frogDone = false;
@@ -1539,6 +1539,7 @@ function updateCritters(now, s, dark, foul) {
     if (sp) { const left = sp.tx < W / 2; frog = { x: left ? -8 : W + 8, y: sp.ty, n: 0, dir: left ? 1 : -1, croak: now + R_(2000, 5000), blink: now + R_(1500, 4000) }; frogHopTo(frog, sp.tx, sp.ty); }
   }
   if (frog) updateFrog(frog, now, s, wetOk);
+  updateGnat(frog, now, s);
 }
 // she goes in hops of some pixels towards (gx, gy): a crouch, the leap, a squat landing, a short rest
 function frogHopTo(f, gx, gy, big) { f.gx = gx; f.gy = gy; f.st = "hop"; f.big = big; frogNextHop(f); }
@@ -1551,7 +1552,7 @@ function updateFrog(f, now, s, wetOk) {
   f.t += s * 1000;
   const p = typeof petAt === "function" ? petAt() : null;
   if (p && f.st !== "hop" && !f.fled && petDist(f.x, FEET - f.y) < (p.calm ? 16 : 30)) {     // too close: away it leaps
-    f.fled = true; f.gnat = null; const away = f.x < p.x ? -1 : 1, sp = frogSpot(away);
+    f.fled = true; const away = f.x < p.x ? -1 : 1, sp = frogSpot(away);
     if (sp && wetOk) frogHopTo(f, sp.tx, sp.ty, true); else frogHopTo(f, away < 0 ? -12 : W + 12, f.y, true);
     if (f.wet) frogSplash(f, now);
     f.wet = false;
@@ -1574,22 +1575,50 @@ function updateFrog(f, now, s, wetOk) {
   }
   // sitting (on the bank, or in the water)
   f.cx = f.x; f.cy = f.y;
-  if (f.gnat) {                                                     // a gnat dances in front of it, until... snap
-    const gn = f.gnat, a = (now - gn.t0) / 1000;
-    gn.x = f.x + f.dir * (8 + Math.sin(a * 5.3) * 3) + Math.sin(a * 13) * 1.2; gn.y = f.y - 9 + Math.sin(a * 7.1) * 3;
-    if (!gn.snap && now > gn.at) gn.snap = now;
-    if (gn.snap && now - gn.snap > 90) { f.gnat = null; f.gulp = now; }
-  } else if (Math.random() < s / 9 && !f.wet) f.gnat = { t0: now, at: now + R_(1200, 2600) };
+  const gn = GNAT;                                                  // the gnat: it turns to it, and snaps when it is in front
+  if (gn && !gn.snap && !f.wet) {
+    const rx = (gn.x - f.x) * f.dir, ry = gn.y - (f.y - 3);
+    if (rx < -3 && rx > -16 && Math.abs(ry) < 10 && now > (f.turnAt || 0)) { f.turnAt = now + 1500; frogTurn(f); return; }
+    if (rx > 3 && rx < 13 && Math.abs(ry) < 6 && Math.random() < s * 2.5) gn.snap = now;
+  }
+  if (gn && gn.snap && now - gn.snap > 90) { GNAT = null; f.gulp = now; }
   if (now > f.blink) f.blink = now + R_(2500, 6000);
-  if (now > f.croak && !f.gnat) { f.croaking = now; f.croak = now + R_(5000, 10000); }
+  if (now > f.croak && !GNAT) { f.croaking = now; f.croak = now + R_(5000, 10000); }
   if (f.t > f.hold) {                                               // what next
     const r = Math.random();
     if (!wetOk || f.n >= 3) frogHopTo(f, f.x < W / 2 ? -12 : W + 12, f.y);
     else if (f.wet) { const sp = frogSpot(); f.wet = false; frogSplash(f, now); if (sp) frogHopTo(f, sp.tx, sp.ty); }
     else if (r < 0.35) { const pi = frogNear(f); if (pi >= 0) { const P = PUDDLES[pi]; f.into = true; frogHopTo(f, P[0] + R_(-2, 2), horizon + P[1] + 1); } else { f.t = 0; f.hold = R_(2000, 4000); } }
-    else if (r < 0.55) { f.dir = -f.dir; f.st = "hop"; f.gx = f.x; f.gy = f.y; f.hx = f.x; f.hy = f.y; f.tx = f.x; f.ty = f.y; f.t = 0; f.arc = 2; }   // turns about with a little hop
+    else if (r < 0.55) frogTurn(f);
     else { f.n++; const sp = frogSpot(); if (sp) frogHopTo(f, sp.tx, sp.ty); else { f.t = 0; f.hold = R_(2000, 4000); } }
   }
+}
+// it turns about with a little hop on the spot
+function frogTurn(f) { f.dir = -f.dir; f.st = "hop"; f.gx = f.x; f.gy = f.y; f.hx = f.x; f.hy = f.y; f.tx = f.x; f.ty = f.y; f.t = 0; f.arc = 2; }
+// a gnat (only while the frog is about): it comes in from away over the meadow (or up out of the grass) in quick
+// zigzags, dances round the frog's head a while (it never just appears there), and is snapped up, or drifts off again
+let GNAT = null;
+function updateGnat(f, now, s) {
+  if (!GNAT) {
+    if (f && f.st === "sit" && !f.wet && Math.random() < s / 10) {
+      const side = Math.random() < 0.5 ? -1 : 1;
+      GNAT = Math.random() < 0.6 ? { x: side < 0 ? -3 : W + 3, y: f.y - R_(8, 26) } : { x: f.x + side * R_(30, 50), y: f.y + R_(0, 6) };
+      Object.assign(GNAT, { vx: 0, vy: 0, tx: GNAT.x, ty: GNAT.y, next: 0, until: now + R_(7000, 14000) });
+    }
+    return;
+  }
+  const g = GNAT, leaving = now > g.until || !f;
+  if (g.snap) return;                                               // caught on the tongue
+  if (now > g.next) {                                               // a new point to make for: round its head, or away
+    g.next = now + R_(250, 700);
+    if (leaving) { g.tx = g.x < W / 2 ? -12 : W + 12; g.ty = g.y - R_(4, 14); }
+    else { g.tx = f.x + R_(-14, 14); g.ty = f.y - R_(4, 16); }
+  }
+  const dx = g.tx - g.x, dy = g.ty - g.y, d = Math.hypot(dx, dy) || 1;
+  g.vx += (dx / d * 24 - g.vx) * Math.min(1, 4 * s) + R_(-70, 70) * s;
+  g.vy += (dy / d * 24 - g.vy) * Math.min(1, 4 * s) + R_(-70, 70) * s;
+  g.x += g.vx * s; g.y += g.vy * s;
+  if (leaving && (g.x < -8 || g.x > W + 8)) GNAT = null;
 }
 // rings and a few drops where it goes in or comes out of the water
 function frogSplash(f, now) {
@@ -1660,6 +1689,7 @@ function drawCritters(g, now, h, front) {
   for (const b of BFLY) if (!!b.front === front) drawButterfly(g, b, h, now);
   if (frog && frog.cx !== undefined && !frogBehindSign() && !frogBehindStump() && frogFront() === front) drawFrog(g, now, h);
   if (front) return;
+  drawGnat(g, now, h);
   for (const e of BEES) {
     const x = Math.round(e.x), y = Math.round(e.y), up = Math.floor(now / 60) % 2;
     g.fillStyle = css(bugc("#ffd86a", h)); g.fillRect(x, y, 3, 2); g.fillStyle = css(bugc("#7a6450", h)); g.fillRect(x + 1, y, 1, 2);
@@ -1674,7 +1704,7 @@ function drawFrog(g, now, h) {
   const f = frog, x = Math.round(f.cx), y = Math.round(f.cy), r = f.dir || 1;
   const P = { g: bugc("#a6d98a", h), G: bugc("#7fbf72", h), l: bugc("#eaf6cf", h), w: bugc("#ffffff", h), r: bugc("#f5a8b0", h), y: bugc("#f7f1c8", h), k: bugc(OUT, h) };
   let fr = f.fr || "sit";
-  const gn = f.gnat, snap = gn && gn.snap && now - gn.snap < 90;
+  const gn = GNAT, snap = gn && gn.snap && now - gn.snap < 90;
   if (f.st === "sit") {
     const ck = f.croaking && now - f.croaking < 1500 ? (now - f.croaking) % 500 : -1;
     // the croak: the sac swells under its chin, holds, goes down (three times)
@@ -1691,10 +1721,17 @@ function drawFrog(g, now, h) {
   // in the water only its top shows, a pale line where the water meets it
   paintMap(g, f.wet ? rows.slice(0, rows.length - 3) : rows, x, top + (f.wet ? 2 : 0), r, P, cx);
   if (f.wet) { g.fillStyle = css(bugc("#e6f2ff", h), 0.7); g.fillRect(x - 5, y, 11, 1); }
-  if (gn) {
-    if (snap) { g.fillStyle = css(P.r); const mx = x + r * 4, my = top + 3; for (let k = 0, n = Math.max(1, Math.abs(gn.x - mx), Math.abs(gn.y - my)); k <= n; k++) g.fillRect(Math.round(mx + (gn.x - mx) * k / n), Math.round(my + (gn.y - my) * k / n), 1, 1); }
-    else { g.fillStyle = css(bugc("#4a3a30", h)); g.fillRect(Math.round(gn.x), Math.round(gn.y), 1, 1); if (Math.floor(now / 50) % 2) { g.fillStyle = "rgba(255,255,255,.6)"; g.fillRect(Math.round(gn.x), Math.round(gn.y) - 1, 1, 1); } }
+  if (snap) {                                                       // the tongue out to the gnat
+    g.fillStyle = css(P.r); const mx = x + r * 4, my = top + 3;
+    for (let k = 0, n = Math.max(1, Math.abs(gn.x - mx), Math.abs(gn.y - my)); k <= n; k++) g.fillRect(Math.round(mx + (gn.x - mx) * k / n), Math.round(my + (gn.y - my) * k / n), 1, 1);
   }
+}
+// the gnat: a dark dot with a flicker of wings
+function drawGnat(g, now, h) {
+  const gn = GNAT; if (!gn || gn.snap) return;
+  const x = Math.round(gn.x), y = Math.round(gn.y);
+  g.fillStyle = css(bugc("#4a3a30", h)); g.fillRect(x, y, 1, 1);
+  if (Math.floor(now / 50) % 2) { g.fillStyle = "rgba(255,255,255,.6)"; g.fillRect(x, y - 1, 1, 1); }
 }
 // what flies in front of her, over her layer (called after she is drawn)
 function sceneFront(g, now) { drawSparrows(g, now, "front"); drawCritters(g, now, worldHour(), true); }
