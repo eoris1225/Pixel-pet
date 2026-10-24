@@ -1675,39 +1675,50 @@ function skyEventsUpdate(now, s, dark, foul) {
     if (f.x > W + 6 || f.y < horizon - 60) FLUFF.splice(i, 1);
   }
 }
-// the northern lights as in nature 6: curtains of teal light hanging from a wavy lower edge that is brightest, fading
-// up into violet, in stepped bands, with brighter rays in them that come and go and a slow ripple running along
-const AUR = document.createElement("canvas"); let aurAt = 0;
+// the northern lights as in nature 6: wide ribbons sweeping across the sky, brightest along their wavy lower edge and
+// fading up in a few stepped bands that follow that edge; thin brighter rays stand in small clusters that drift and
+// pulse slowly, and a soft brightening runs along each ribbon
+const AUR = document.createElement("canvas"); let aurAt = 0, auroraLook = 0;
+const AURORA_LOOKS = [
+  // bottom edge -> top, each band a step dimmer; the last ones melt into the night sky
+  [[150, 250, 228], [86, 232, 210], [56, 208, 198], [44, 180, 186], [38, 152, 172], [34, 126, 160], [30, 104, 148]],
+  [[196, 255, 226], [138, 238, 202], [108, 218, 198], [100, 192, 204], [114, 164, 214], [136, 140, 220], [150, 124, 214]],
+  [[206, 248, 236], [156, 228, 222], [126, 208, 216], [108, 184, 214], [98, 160, 208], [92, 140, 198], [86, 122, 188]],
+];
+const AUR_ALPHA = [0.95, 0.72, 0.58, 0.46, 0.35, 0.25, 0.15];
+const hash01 = n => ((Math.imul(n, 2654435761) >>> 0) / 4294967296);
 function drawAurora(g, now) {
   if (auroraVis < 0.02) return;
   if (now - aurAt > 80) {
     aurAt = now;
     AUR.width = W; AUR.height = Math.max(1, horizon);
     const ag = AUR.getContext("2d"), img = ag.createImageData(W, AUR.height), d = img.data, t = now / 1000;
-    const BOT = [170, 255, 215], MID = [70, 230, 175], TOP = [120, 100, 230];
-    // two great curtains: a gently waving lower edge, brightest there, rising in rays (each column its own height and
-    // strength, a few bright rays that flicker), fading through teal into violet near the top
-    for (const [base, amp, ph, hgt, k] of [[horizon * 0.5, 7, 0, 70, 1], [horizon * 0.3, 5, 2.4, 50, 0.7]]) {
+    const pal = AURORA_LOOKS[auroraLook] || AURORA_LOOKS[0], nb = pal.length;
+    // a main ribbon sweeping down to the right with a gentle fold, and a fainter one higher up
+    for (const [base, tilt, ph, hgt, k] of [[horizon * 0.4, 0.22, 0, 34, 1], [horizon * 0.17, -0.12, 2.4, 24, 0.6]]) {
       for (let x = 0; x < W; x++) {
-        const by = Math.round(base + amp * Math.sin(x * 0.028 + t * 0.22 + ph) + 2.5 * Math.sin(x * 0.09 - t * 0.35 + ph * 2));
-        const n = ((x * 2654435761) >>> 0) / 4294967296, n2 = (((x + 7) * 2246822519) >>> 0) / 4294967296;
-        const ripple = 0.6 + 0.4 * Math.sin(x * 0.07 - t * 0.9 + ph);
-        const ray = n < 0.12 ? 0.5 * (0.5 + 0.5 * Math.sin(t * 3 + n2 * 20)) : 0;          // bright rays that flicker
-        const L = Math.round(hgt * (0.55 + 0.45 * n2) * (0.85 + 0.15 * Math.sin(x * 0.04 + t * 0.3 + ph)) * (ray ? 1.2 : 1));
-        const col = k * (ripple * (0.7 + 0.3 * n) + ray);
-        for (let y = 0; y < L; y++) {
+        const by = Math.round(base + (x - W / 2) * tilt + 7 * Math.sin(x * 0.03 + t * 0.12 + ph) + 2 * Math.sin(x * 0.09 - t * 0.25 + ph * 2));
+        const glow = 0.62 + 0.38 * Math.sin(x * 0.045 - t * 0.4 + ph);                 // a brightening runs along
+        // rays: small clusters drifting slowly sideways, thin columns in them that pulse
+        let ray = 0;
+        for (let j = 0; j < 5; j++) {
+          const cx = ((hash01(j * 7 + 3 + ph * 10) * W + t * (2 + j)) % (W + 20)) - 10, dx = Math.abs(x - cx);
+          if (dx < 5 && hash01(x * 13 + j) < 0.55) ray = Math.max(ray, (1 - dx / 5) * (0.5 + 0.5 * Math.sin(t * 1.4 + j * 2 + x * 0.7)));
+        }
+        const L = Math.round(hgt * (0.8 + 0.2 * Math.sin(x * 0.05 + t * 0.2 + ph)) * (1 + 0.35 * ray));
+        for (let y = -1; y < L; y++) {
           const Y = by - y; if (Y < 0 || Y >= AUR.height) continue;
-          const u = y / L, step = Math.floor(u * 6) / 6;                       // stepped bands up the curtain
-          const c = step < 0.17 ? BOT : step < 0.6 ? mixc(BOT, MID, step / 0.6) : mixc(MID, TOP, (step - 0.6) / 0.4);
-          const a = col * (u < 0.08 ? 0.8 : 0.6 * (1 - u) ** 1.1);
-          const i = (Y * W + x) * 4, A = Math.min(1, a) * 255;
-          if (A > d[i + 3]) { d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = Math.round(A / 24) * 24; }
+          const b = y < 0 ? 0 : Math.min(nb - 1, Math.floor(y / L * nb));            // stepped bands up the ribbon
+          let c = pal[b], a = AUR_ALPHA[b] * k * glow * (y < 0 ? 0.45 : 1);
+          if (ray > 0.15) { c = mixc(c, pal[0], ray * 0.6); a = Math.min(1, a + ray * 0.3 * k); }
+          const i = (Y * W + x) * 4, A = Math.round(Math.min(1, a) * 10) / 10 * 255;
+          if (A > d[i + 3]) { d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = A; }
         }
       }
     }
     ag.putImageData(img, 0, 0);
   }
-  g.save(); g.globalAlpha = auroraVis * 0.9; g.drawImage(AUR, 0, 0); g.restore();
+  g.save(); g.globalAlpha = auroraVis * 0.85; g.drawImage(AUR, 0, 0); g.restore();
 }
 function drawMeteors(g) {
   if (skyFlash > 0.02) { g.fillStyle = css([200, 230, 255], skyFlash * 0.06); g.fillRect(0, 0, W, horizon); }

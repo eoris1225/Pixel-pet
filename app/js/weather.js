@@ -160,6 +160,7 @@ function startStrike(now) {
 function boltPath(x) {
   let top = 20;
   if (typeof clouds !== "undefined") for (const c of clouds) if (c.kind !== "cirrus" && x > c.x && x < c.x + c.shape.w) top = Math.max(top, c.y + c.shape.h - 3);
+  top = Math.min(top, horizon - 24);                // a big cloud standing on the hills still leaves room for a bolt
   const pts = [[x, top]]; let px = x, py = top;
   while (py < horizon - 6) { py += 4 + Math.random() * 8; px += (Math.random() - 0.5) * 12; pts.push([px, Math.min(py, horizon - 6)]); }
   const i = 1 + (Math.random() * (pts.length - 2) | 0), br = [pts[i]]; let bx = pts[i][0], by = pts[i][1];
