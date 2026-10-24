@@ -2145,7 +2145,8 @@ const spotY = sp => sp.kind === "sign" ? FEET - 32 : sp.kind === "stump" ? FEET 
 function sparrowSpot(kind, nx, nz) {
   if (kind === "sign") return { kind, x: R_(SIGN_X - 10, SIGN_X + 10), z: SIGN_Z, x0: SIGN_X - 11, x1: SIGN_X + 11 };
   if (kind === "stump") return { kind, x: STUMP.x + R_(-2, 2), z: STUMP.z, x0: STUMP.x - 3, x1: STUMP.x + 3 };
-  const x = nx === undefined ? R_(16, W - 16) : nx, z = nz === undefined ? R_(1, Z_MAX + 3) : nz;
+  let x = nx === undefined ? R_(16, W - 16) : nx, z = nz === undefined ? R_(1, Z_MAX + 3) : nz;
+  if (z > SIGN_Z && Math.abs(x - SIGN_X) < 20) x = SIGN_X + R_(20, 28);   // not right behind the sign (to its right: left of it is the edge)
   return { kind: "ground", x: Math.max(8, Math.min(W - 8, x)), z: Math.max(0, Math.min(Z_MAX + 4, z)), x0: 6, x1: W - 6 };
 }
 const petAt = () => typeof pet === "undefined" ? null : { x: pet.x, z: pet.z, calm: (typeof G !== "undefined" && G.sleeping) ? 2 : ["idle", "lie", "loaf", "gloom", "strum", "pet"].includes(pet.act) ? 1 : 0 };
@@ -2288,7 +2289,10 @@ function updateSparrows(now, s, dark, foul) {
     else if (now - e.t > 900) SP_FX.splice(i, 1);
   }
 }
-// drawn in three passes: behind her ("back"), in front of her (on the grass nearer than she is), and over the sign
+// a bird on the grass (or flying low) back behind the sign: drawn before the sign, so the board hides it
+const spBehindSign = b => b.spot.kind !== "sign" && b.z > SIGN_Z + 0.5 && Math.abs(b.x - SIGN_X) < 20;
+// drawn in passes: behind the sign ("behind", before it), behind her ("back"), in front of her (on the grass nearer
+// than she is; those also behind the sign go in "frontBehind", under the sign drawn again over her), and on the sign
 // again when she is behind it ("sign")
 function drawSparrows(g, now, layer) {
   if (!SPARROWS.length && !SP_FX.length) return;
@@ -2296,8 +2300,9 @@ function drawSparrows(g, now, layer) {
   for (const k in SPARROW_COL) pal[k] = bugc(SPARROW_COL[k], h);
   for (const b of SPARROWS) {
     if (b.st === "wait" || b.st === "gone") continue;
-    const front = b.spot.kind === "ground" && b.z < pz - 0.5, onSign = b.st === "perch" && b.spot.kind === "sign";
-    if (layer === "front" ? !front : layer === "sign" ? !onSign : front) continue;
+    const front = b.spot.kind === "ground" && b.z < pz - 0.5, onSign = b.st === "perch" && b.spot.kind === "sign", hid = spBehindSign(b);
+    const want = layer === "sign" ? onSign : layer === "front" ? front && !hid : layer === "frontBehind" ? front && hid : layer === "behind" ? !front && hid : !front && !hid;
+    if (!want) continue;
     const gy = FEET - Math.round(b.z);
     if (b.spot.kind === "ground" && gy - b.y < 18) {                // a little shadow on the grass under her
       g.fillStyle = css(hex("#242c34"), 0.2 * (1 - (gy - b.y) / 18)); g.fillRect(Math.round(b.x) - 2, gy + 1, 5, 1);
@@ -2317,6 +2322,8 @@ function drawSparrows(g, now, layer) {
 // the sign (and a sparrow on it) once more, over a pet who has walked behind it
 function drawSignOver(g, now) {
   if (!lastSign) return;
+  drawSparrows(g, now, "frontBehind");                              // nearer than she is but behind the sign
+  if (frogBehindSign() && frogFront()) drawFrog(g, now, lastSign.h);
   drawSign(g, now, lastSign.h, lastSign.info, true);
   if (typeof weatherCap === "function") weatherCap(g, lastSign.h);
   drawSparrows(g, now, "sign");
@@ -2418,7 +2425,8 @@ function sceneRender(now, signInfo) {
     g.fillStyle = css(lit("#ffcf5a", h)); g.fillRect(cx, cy, 1, 1);
   }
   if (typeof weatherFog === "function") weatherFog(g, now, h);
-  if (frogBehindSign()) drawFrog(g, now, h);
+  if (frogBehindSign() && !frogFront()) drawFrog(g, now, h);
+  drawSparrows(g, now, "behind");
   drawSign(g, now, h, signInfo);
   if (typeof weatherCap === "function") weatherCap(g, h);
   lastSign = { h, info: signInfo };
