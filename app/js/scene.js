@@ -1675,42 +1675,60 @@ function skyEventsUpdate(now, s, dark, foul) {
     if (f.x > W + 6 || f.y < horizon - 60) FLUFF.splice(i, 1);
   }
 }
-// the northern lights as in nature 6: wide ribbons sweeping across the sky, brightest along their wavy lower edge and
-// fading up in a few stepped bands that follow that edge; thin brighter rays stand in small clusters that drift and
-// pulse slowly, and a soft brightening runs along each ribbon
-const AUR = document.createElement("canvas"); let aurAt = 0, auroraLook = 0;
-const AURORA_LOOKS = [
-  // bottom edge -> top, each band a step dimmer; the last ones melt into the night sky
-  [[150, 250, 228], [86, 232, 210], [56, 208, 198], [44, 180, 186], [38, 152, 172], [34, 126, 160], [30, 104, 148]],
-  [[196, 255, 226], [138, 238, 202], [108, 218, 198], [100, 192, 204], [114, 164, 214], [136, 140, 220], [150, 124, 214]],
-  [[206, 248, 236], [156, 228, 222], [126, 208, 216], [108, 184, 214], [98, 160, 208], [92, 140, 198], [86, 122, 188]],
-];
-const AUR_ALPHA = [0.95, 0.72, 0.58, 0.46, 0.35, 0.25, 0.15];
-const hash01 = n => ((Math.imul(n, 2654435761) >>> 0) / 4294967296);
+// the northern lights as in nature 6, moving like the real thing: wide ribbons sweeping across the sky, brightest
+// along a lower edge that waves and folds (where a fold turns edge-on it glows brighter), fading up in stepped bands.
+// The colours mix as in a real aurora: a green-to-teal body (which way it leans drifts along the ribbon), blue then
+// violet and a faint rose at the top, and a thin pink fringe under the edge when it flares. Fine rays shimmer and
+// stream sideways, a brightening runs along the ribbon, and every minute or so the whole display flares up
+const AUR = document.createElement("canvas"); let aurAt = 0;
+const AUR_GREEN = [[196, 255, 186], [128, 240, 152], [88, 214, 146], [70, 186, 150]];
+const AUR_TEAL = [[175, 248, 238], [96, 228, 212], [60, 200, 200], [48, 170, 190]];
+const AUR_TOP = [[66, 146, 204], [120, 116, 222], [176, 110, 214], [222, 120, 196]];
+const AUR_FRINGE = [255, 186, 222];
+const AUR_ALPHA = [0.95, 0.78, 0.64, 0.54, 0.46, 0.4, 0.33, 0.25, 0.15];
+const AUR_COLS = [];              // the band colours for each of 4 green/teal leans x 3 amounts of violet at the top
+for (let h = 0; h < 4; h++) for (let v = 0; v < 3; v++) {
+  const body = AUR_GREEN.map((c, i) => mixc(c, AUR_TEAL[i], h / 3)), k = 0.4 + v * 0.3;
+  AUR_COLS.push([...body, mixc(body[3], AUR_TOP[0], 0.7), AUR_TOP[0], mixc(AUR_TOP[0], AUR_TOP[1], k), mixc(AUR_TOP[1], AUR_TOP[2], k), mixc(AUR_TOP[2], AUR_TOP[3], k)].map(c => c.map(Math.round)));
+}
+// how stirred up the display is: calm most of the time, flaring for a while every minute or so
+const auroraActive = t => 0.45 + 0.55 * Math.max(0, Math.sin(t * 0.085)) ** 4 + 0.25 * Math.max(0, Math.sin(t * 0.13 + 2)) ** 6;
 function drawAurora(g, now) {
   if (auroraVis < 0.02) return;
-  if (now - aurAt > 80) {
+  if (now - aurAt > 50) {
     aurAt = now;
     AUR.width = W; AUR.height = Math.max(1, horizon);
     const ag = AUR.getContext("2d"), img = ag.createImageData(W, AUR.height), d = img.data, t = now / 1000;
-    const pal = AURORA_LOOKS[auroraLook] || AURORA_LOOKS[0], nb = pal.length;
-    // a main ribbon sweeping down to the right with a gentle fold, and a fainter one higher up
-    for (const [base, tilt, ph, hgt, k] of [[horizon * 0.4, 0.22, 0, 34, 1], [horizon * 0.17, -0.12, 2.4, 24, 0.6]]) {
+    const act = Math.min(1, auroraActive(t)), nb = AUR_ALPHA.length;
+    // a main ribbon sweeping down to the right, and a fainter one higher up leaning the other way
+    for (const [base, tilt, ph, hgt, k] of [[horizon * 0.4, 0.22, 0, 36, 1], [horizon * 0.17, -0.12, 2.4, 26, 0.55]]) {
+      // the lower edge: slow big folds that grow and shrink, a middle wave, and a quick ripple running along it
+      const A1 = 7 + 4 * Math.sin(t * 0.05 + ph), A2 = 2.5 + 1.5 * Math.sin(t * 0.07 + ph * 2), A3 = 0.6 + 1.4 * act;
+      const edge = x => base + (x - W / 2) * tilt + A1 * Math.sin(x * 0.024 + t * 0.09 + ph) + A2 * Math.sin(x * 0.061 - t * 0.21 + ph * 1.7) + A3 * Math.sin(x * 0.16 - t * 1.3 + ph);
       for (let x = 0; x < W; x++) {
-        const by = Math.round(base + (x - W / 2) * tilt + 7 * Math.sin(x * 0.03 + t * 0.12 + ph) + 2 * Math.sin(x * 0.09 - t * 0.25 + ph * 2));
-        const glow = 0.62 + 0.38 * Math.sin(x * 0.045 - t * 0.4 + ph);                 // a brightening runs along
-        // rays: small clusters drifting slowly sideways, thin columns in them that pulse
-        let ray = 0;
-        for (let j = 0; j < 5; j++) {
-          const cx = ((hash01(j * 7 + 3 + ph * 10) * W + t * (2 + j)) % (W + 20)) - 10, dx = Math.abs(x - cx);
-          if (dx < 5 && hash01(x * 13 + j) < 0.55) ray = Math.max(ray, (1 - dx / 5) * (0.5 + 0.5 * Math.sin(t * 1.4 + j * 2 + x * 0.7)));
-        }
-        const L = Math.round(hgt * (0.8 + 0.2 * Math.sin(x * 0.05 + t * 0.2 + ph)) * (1 + 0.35 * ray));
+        const by = Math.round(edge(x)), fold = Math.min(1, Math.abs(edge(x + 1) - edge(x - 1)) * 0.45);
+        // brightness: a slow swell, a pulse running quickly along the ribbon, more where it folds
+        const pulse = Math.max(0, Math.sin(x * 0.07 - t * 1.6 + ph)) ** 3;
+        const glow = (0.5 + 0.22 * Math.sin(x * 0.03 - t * 0.3 + ph) + 0.28 * pulse * act + 0.35 * fold) * (0.75 + 0.35 * act);
+        // fine rays that shimmer and stream sideways
+        const rn = Math.sin(x * 0.45 + 2.5 * Math.sin(x * 0.08 - t * 0.4 + ph) - t * 1.1) * Math.sin(x * 0.19 + t * 0.6 + ph * 3);
+        const ray = Math.max(0, rn - (0.72 - 0.2 * act)) / 0.5;
+        // colour: the green/teal lean drifts along the ribbon, the violet top comes and goes
+        const lean = Math.round(1.5 + 1.5 * Math.sin(x * 0.02 + t * 0.07 + ph * 2));
+        const vio = Math.max(0, Math.min(2, Math.round(1 + 1.2 * Math.sin(x * 0.035 - t * 0.12 + ph) + (act - 0.6))));
+        const pal = AUR_COLS[lean * 3 + vio];
+        const L = Math.round(hgt * (0.75 + 0.25 * Math.sin(x * 0.04 + t * 0.15 + ph)) * (0.85 + 0.25 * act) * (1 + 0.12 * ray));
+        const rose = Math.max(0, act - 0.6) * 2.5 * Math.max(pulse, fold);           // pink only where it flares
         for (let y = -1; y < L; y++) {
           const Y = by - y; if (Y < 0 || Y >= AUR.height) continue;
-          const b = y < 0 ? 0 : Math.min(nb - 1, Math.floor(y / L * nb));            // stepped bands up the ribbon
-          let c = pal[b], a = AUR_ALPHA[b] * k * glow * (y < 0 ? 0.45 : 1);
-          if (ray > 0.15) { c = mixc(c, pal[0], ray * 0.6); a = Math.min(1, a + ray * 0.3 * k); }
+          let c, a;
+          if (y < 0) { c = AUR_FRINGE; a = 0.75 * rose; }                       // the pink fringe
+          else {
+            const b = Math.min(nb - 1, Math.floor(y / L * nb));            // stepped bands up the ribbon
+            c = b ? pal[b] : mixc(pal[0], AUR_FRINGE, rose * 0.5); a = AUR_ALPHA[b] * glow;
+            if (ray > 0.1) { c = mixc(c, pal[Math.max(0, b - 2)], ray * 0.7); a += ray * 0.25 * (1 - b / nb); }
+          }
+          a *= k;
           const i = (Y * W + x) * 4, A = Math.round(Math.min(1, a) * 10) / 10 * 255;
           if (A > d[i + 3]) { d[i] = c[0]; d[i + 1] = c[1]; d[i + 2] = c[2]; d[i + 3] = A; }
         }
