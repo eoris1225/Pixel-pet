@@ -1576,7 +1576,7 @@ function updateFrog(f, now, s, wetOk) {
   f.cx = f.x; f.cy = f.y;
   if (f.gnat) {                                                     // a gnat dances in front of it, until... snap
     const gn = f.gnat, a = (now - gn.t0) / 1000;
-    gn.x = f.x + f.dir * (9 + Math.sin(a * 5.3) * 3) + Math.sin(a * 13) * 1.2; gn.y = f.y - 9 + Math.sin(a * 7.1) * 3;
+    gn.x = f.x + f.dir * (8 + Math.sin(a * 5.3) * 3) + Math.sin(a * 13) * 1.2; gn.y = f.y - 9 + Math.sin(a * 7.1) * 3;
     if (!gn.snap && now > gn.at) gn.snap = now;
     if (gn.snap && now - gn.snap > 90) { f.gnat = null; f.gulp = now; }
   } else if (Math.random() < s / 9 && !f.wet) f.gnat = { t0: now, at: now + R_(1200, 2600) };
@@ -1620,16 +1620,17 @@ function frogSpot(side) {
   });
   return out.length ? out[Math.random() * out.length | 0] : null;
 }
-// a little frog facing right, outlined like the friends (g green, h its light, G D shade, l belly, w eye white, p pupil, r cheek
-// and tongue, y the croaking sac, k ink); the last row is where its feet are
+// a little frog, round and small like the friends (dot eyes on two bumps, pink cheeks, a pale belly; it was drawn big and
+// detailed once and looked creepy): g green, G its feet, l belly, p eyes, r cheeks and tongue, y the croaking sac, k ink.
+// The last row is where its feet are; it faces the viewer, so it hardly changes when it turns
 const FROG_F = {
-  sit: ["......kkk.kkk..", ".....khwpkhwpk.", "....kgwppkwppk.", "...kghggggggggk", "..kgGhgggggggggk", "..kGgGgggrgkkkkk", ".kGDGggggglllk..", ".kDGDkgglllllk..", "..kkkkGkkkGkk..."],
-  throat: ["......kkk.kkk..", ".....khwpkhwpk.", "....kgwppkwppk.", "...kghggggggggk", "..kgGhgggggggggk", "..kGgGgggrgkkkkk", ".kGDGgggggllllk.", ".kDGDkgglllllk..", "..kkkkGkkkGkk..."],
-  blink: ["......kkk.kkk..", ".....khggkhggk.", "....kgkkkkkkkk.", "...kghggggggggk", "..kgGhgggggggggk", "..kGgGgggrgkkkkk", ".kGDGggggglllk..", ".kDGDkgglllllk..", "..kkkkGkkkGkk..."],
-  croak: ["......kkk.kkk..", ".....khwpkhwpk.", "....kgwppkwppk.", "...kghggggggggk", "..kgGhgggggggggk", "..kGgGgggrgkkkkkk", ".kGDGgggggkyyyyyk", ".kDGDkgglkyyyyyk.", "..kkkkGkkkkkkkk.."],
-  gape: ["......kkk.kkk..", ".....khwpkhwpk.", "....kgwppkwppk.", "...kghgggggggggk", "..kgGhggggggkkkk", "..kGgGgggrgkrrr.", ".kGDGggggggkkkkk", ".kDGDkgglllllk..", "..kkkkGkkkGkk..."],
-  crouch: ["...............", "......kkk.kkk..", ".....khwpkhwpk.", "...kkgwppkwppkk", "..kgGhgggggggggk", ".kGgGggggrgkkkkk", "kGDGDgggglllllk.", "kkkkkkGkkkkGkk.."],
-  leap: ["...........kkk.kkk", "..........khwpkhwpk", "........kkgwppkwppk", "......kkgGhggggggggk", "kk..kkgGgggggrgkkkkk", "kDkkGDGgggggglllk...", ".kDDGDkkgglllllk....", "..kkkk..kkkkkGk.....", "..........kGk.......", "...........k........"],
+  sit: ["..kk...kk..", ".kggk.kggk.", ".kgpgkgpgk.", "kgggggggggk", "kgrggkggrgk", "kgggllllggk", ".kkGkkkGkk."],
+  throat: ["..kk...kk..", ".kggk.kggk.", ".kgpgkgpgk.", "kgggggggggk", "kgrggkggrgk", "kggllllllgk", ".kkGkkkGkk."],
+  blink: ["..kk...kk..", ".kggk.kggk.", ".kkkgkgkkk.", "kgggggggggk", "kgrggkggrgk", "kgggllllggk", ".kkGkkkGkk."],
+  croak: ["..kk...kk..", ".kggk.kggk.", ".kgpgkgpgk.", "kgggggggggk", "kgrggkggrgk", "kggkyyykggk", ".kkyyyyykk.", "...kkkkk..."],
+  gape: ["..kk...kk..", ".kggk.kggk.", ".kgpgkgpgk.", "kgggggggggk", "kgrgkrkgrgk", "kgggllllggk", ".kkGkkkGkk."],
+  crouch: ["..kk...kk..", ".kgpk.kgpk.", "kgggggggggk", "kgrggkggrgk", "kgggllllggk", "kkGkkkkkGkk"],
+  leap: ["..kk...kk..", ".kggk.kggk.", ".kgpgkgpgk.", "kgggggggggk", "kgrggkggrgk", ".kggllllgk.", "..kGk.kGk..", "..kk...kk.."],
 };
 // critters take the light of the meadow: the warm pastel, the sky's colour, the evening, a grey day
 function bugc(c, h) {
@@ -1670,7 +1671,7 @@ const frogBehindStump = () => !!frog && frog.cx !== undefined && typeof STUMP !=
 const frogFront = () => !!frog && typeof pet !== "undefined" && FEET - frog.cy < pet.z - 0.5;
 function drawFrog(g, now, h) {
   const f = frog, x = Math.round(f.cx), y = Math.round(f.cy), r = f.dir || 1;
-  const P = { g: bugc("#a6d98a", h), h: bugc("#c8eaa8", h), G: bugc("#7fbf72", h), D: bugc("#5f9e62", h), l: bugc("#eaf6cf", h), w: bugc("#ffffff", h),
+  const P = { g: bugc("#a6d98a", h), G: bugc("#86c47a", h), l: bugc("#eaf6cf", h),
     p: bugc("#3a2a22", h), r: bugc("#f5a8b0", h), y: bugc("#f7f1c8", h), k: bugc(OUT, h) };
   let fr = f.fr || "sit";
   const gn = f.gnat, snap = gn && gn.snap && now - gn.snap < 90;
@@ -1678,19 +1679,19 @@ function drawFrog(g, now, h) {
     const ck = f.croaking && now - f.croaking < 1500 ? (now - f.croaking) % 500 : -1;
     fr = snap ? "gape" : (f.blink - now < 140 || (f.gulp && now - f.gulp < 380)) ? "blink" : ck >= 0 && ck < 300 ? "croak" : Math.floor(now / 170) % 2 ? "throat" : "sit";
     if (ck >= 0 && ck < 300) {                                        // the croak: little sound marks by its mouth
-      g.fillStyle = css(P.y, 0.8); const mx = x + r * 10, my = y - 5;
+      g.fillStyle = css(P.y, 0.8); const mx = x + r * 7, my = y - 5;
       g.fillRect(mx, my - 1, 1, 2); g.fillRect(mx + r * 2, my - 2, 1, 3);
     }
   }
-  const rows = FROG_F[fr], cx = fr === "leap" ? 9 : 7, top = y - rows.length + 1;
+  const rows = FROG_F[fr], cx = 5, top = y - rows.length + 1;
   // its shadow stays on the ground under the leap
   const gy = f.st === "hop" ? Math.round(f.hy + (f.ty - f.hy) * Math.min(1, Math.max(0, f.t - 140) / 360)) : y;
-  if (!f.wet) { g.fillStyle = css(hex("#242c34"), 0.18); g.fillRect(x - 5, gy + 1, 10, 1); }
+  if (!f.wet) { g.fillStyle = css(hex("#242c34"), 0.18); g.fillRect(x - 4, gy + 1, 9, 1); }
   // in the water only its top shows, a pale line where the water meets it
   paintMap(g, f.wet ? rows.slice(0, rows.length - 3) : rows, x, top + (f.wet ? 2 : 0), r, P, cx);
-  if (f.wet) { g.fillStyle = css(bugc("#e6f2ff", h), 0.7); g.fillRect(x - 6, y, 13, 1); }
+  if (f.wet) { g.fillStyle = css(bugc("#e6f2ff", h), 0.7); g.fillRect(x - 5, y, 11, 1); }
   if (gn) {
-    if (snap) { g.fillStyle = css(P.r); const mx = x + r * 7, my = top + 5; for (let k = 0, n = Math.max(1, Math.abs(gn.x - mx), Math.abs(gn.y - my)); k <= n; k++) g.fillRect(Math.round(mx + (gn.x - mx) * k / n), Math.round(my + (gn.y - my) * k / n), 1, 1); }
+    if (snap) { g.fillStyle = css(P.r); const mx = x, my = top + 4; for (let k = 0, n = Math.max(1, Math.abs(gn.x - mx), Math.abs(gn.y - my)); k <= n; k++) g.fillRect(Math.round(mx + (gn.x - mx) * k / n), Math.round(my + (gn.y - my) * k / n), 1, 1); }
     else { g.fillStyle = css(bugc("#4a3a30", h)); g.fillRect(Math.round(gn.x), Math.round(gn.y), 1, 1); if (Math.floor(now / 50) % 2) { g.fillStyle = "rgba(255,255,255,.6)"; g.fillRect(Math.round(gn.x), Math.round(gn.y) - 1, 1, 1); } }
   }
 }
