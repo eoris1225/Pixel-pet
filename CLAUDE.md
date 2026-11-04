@@ -78,7 +78,6 @@
 | `app/js/item-auto.js` | 얼굴, 눈, 볼 찾기(`faceOf`, `findEyes`, `armOff`), 자동 아이템(눈물, 곰인형, 파자마, 앞머리). 스튜디오와 같이 써요 |
 | `app/js/items.js` | 아이템 그림과 배치, 무기 그리기(`drawWeapon`), `drawItems` |
 | `app/js/scene.js` / `app.js` / `data.js` | 배경, 앱 로직과 UI, 대사·레벨·아이템 데이터 |
-| `assets/refs/` | 배경·구름 레퍼런스 픽셀아트 팩(zip). 하늘 띠 색, 구름 명암, 원근 색 참고용이에요. 게임에 그대로 넣지 않아요 |
 | `app/js/weather.js` | 날씨(맑음·흐림·비·천둥번개·눈·안개). 기본은 계절·시간으로 게임이 정하고, 설정에서 실제 날씨(위치 + Open-Meteo)로 바꿀 수 있어요. `?weather=rain`으로 미리보기 |
 | `app/test.html`, `app/js/test.js` | 테스트 페이지. Lv10, 아이템 착용 패널, 모든 동작 버튼이 있어요 |
 | `app/studio/` | 프레임 픽셀 에디터와 아이템 위치 보정(`item-fix.js`) |
