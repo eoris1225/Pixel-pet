@@ -125,7 +125,9 @@ const TEDDY = [
   ".KKK...KKK.",
 ];
 const TEDDY_PAW = [".KK.", "KWWK", ".KK."];
-const TEDDY_PAL = { K: "#3a2a1a", N: "#be8856", n: "#ac784a", W: "#fffaf0", D: "#4a3020" };
+// the outline colour (pet.js OUT in the game; the studio has no pet.js)
+const LINE = typeof OUT !== "undefined" ? OUT : "#5b4433";
+const TEDDY_PAL = { K: LINE, N: "#be8856", n: "#ac784a", W: "#fffaf0", D: "#4a3020" };
 function autoTeddy(grid) {
   const eyes = findEyes(grid);
   if (!eyes.length) return [];                                        // facing away: the bear is hidden behind her
@@ -301,7 +303,7 @@ function autoBangs(grid, pet) {
     const mid = x === cx || x === cx + 1;
     const line = y === hy + 1 - (mid ? 1 : 0);                                       // the edge, notched up to a point in the middle
     const hair = y <= hy - (mid ? 1 : 0);
-    if (hair) out.push([x, y, col]); else if (line) out.push([x, y, "#3a2a1a"]);
+    if (hair) out.push([x, y, col]); else if (line) out.push([x, y, LINE]);
   }
   return out;
 }

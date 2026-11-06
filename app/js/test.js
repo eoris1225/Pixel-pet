@@ -44,6 +44,9 @@
     nori: [["눕기", go(t => startAct("lie", t))], ["회전", go(t => startAct("spin", t))], ["빙글", go(t => startAct("twirl", t))],
            ["빼꼼", go(t => startPeek(t))]],
   };
+  const LOOK_NAMES = [["a", "A 처음"], ["b", "B 윤곽선"], ["c", "C 나무 잉크선"], ["d", "D 파스텔"], ["e", "E 잉크선+파스텔"], ["f", "F 나무선+파스텔(지금)"]];
+  const SEASONS = [["spring", "봄"], ["summer", "여름"], ["autumn", "가을"], ["winter", "겨울"]];
+  const HOURS = [[5.3, "새벽"], [6.1, "해돋이"], [9, "아침"], [13, "낮"], [17.3, "늦은 오후"], [18.4, "노을"], [19.2, "저녁"], [23, "밤"]];
   let still = true;                                        // she only does what you press, unless you let her roam
   setInterval(() => { if (still && pet.act === "idle") pet.nextThink = now() + 1e9; }, 200);
 
@@ -56,6 +59,15 @@
       <div class="row" style="margin-top:6px"><button data-all="1">전부 착용</button><button data-all="0">전부 해제</button></div>
       <h3>동작</h3><div class="row">${[...MOTIONS.all, ...MOTIONS[id]].map(([n], i) => `<button data-m="${i}">${n}</button>`).join("")}</div>
       <h3>날씨</h3><div class="row"><button data-wx="" class="${WX.force ? "" : "on"}">자동</button>${WX_KINDS.map(k => `<button data-wx="${k}" class="${WX.force === k ? "on" : ""}">${WX_NAME[k]}</button>`).join("")}</div>
+      <h3>계절 (하늘 색)</h3><div class="row"><button data-se="" class="${skySeason ? "" : "on"}">자동</button>${SEASONS.map(([k, n]) => `<button data-se="${k}" class="${skySeason === k ? "on" : ""}">${n}</button>`).join("")}</div>
+      <h3>시간</h3><div class="row"><button data-hr="" class="${T_FIX === null ? "on" : ""}">지금</button>${HOURS.map(([h, n]) => `<button data-hr="${h}" class="${T_FIX === h ? "on" : ""}">${n}</button>`).join("")}</div>
+      <h3>시간 속도</h3><div class="row">${[[1, "보통"], [60, "60배 (1분/초)"], [300, "300배"], [1200, "1200배 (하루 72초)"]].map(([k, n]) => `<button data-speed="${k}" class="${T_SPEED === k ? "on" : ""}">${n}</button>`).join("")}</div>
+      <div class="row" style="margin-top:6px"><button data-bow="1">비 그친 뒤 (무지개·웅덩이)</button></div>
+      <div class="row" style="margin-top:6px"><button data-sky="1">구름 새로 띄우기</button><button data-visit="1">모양 구름 띄우기</button><button data-bolt="1">번개 치기</button><button data-eyes="1">동굴 눈 (밤)</button></div>
+      <div class="row" style="margin-top:6px"><button data-ev="meteor" class="${SKYEV.meteor ? "on" : ""}">유성우 (밤)</button><button data-ev="aurora" class="${SKYEV.aurora ? "on" : ""}">오로라 (밤)</button><button data-ev="plane">비행기 (낮)</button><button data-ev="fluff">민들레 씨앗 (봄)</button><button data-ev="sparrow">참새 (낮)</button><button data-ev="frog">개구리 (비 갠 뒤)</button></div>
+      <h3>UI 색감</h3><div class="row">${[["", "캐릭터별"], ["a", "크림"], ["b", "하늘"], ["c", "라벤더"], ["old", "예전"]].map(([k, n]) => `<button data-ui="${k}" class="${(uiPick || "") === k ? "on" : ""}">${n}</button>`).join("")}</div>
+      <h3>배경 스타일 후보</h3><div class="row">${LOOK_NAMES.map(([k, n]) => `<button data-look="${k}" class="${LOOK.key === k ? "on" : ""}">${n}</button>`).join("")}</div>
+      <h3>칭호</h3><div class="row"><button data-ttl="all">모두 얻기</button><button data-ttl="first">첫걸음만</button><button data-ttl="reset">초기화</button><button data-ttl="taps">클릭 99번으로</button><button data-ttl="away">일주일 비우기</button></div>
       <h3>잠</h3><div class="row"><button data-sleep="1" class="${G.wantSleep ? "on" : ""}">재우기</button><button data-sleep="0">깨우기</button></div>
       <label><input type="checkbox" id="tp-still" ${still ? "checked" : ""}> 누른 동작만 하기 (꺼두면 평소처럼 알아서 움직여요)</label>
       <p class="note">이 페이지는 따로 저장돼서 실제 공부 기록에는 영향이 없어요.</p>`;
@@ -70,6 +82,35 @@
     const list = [...MOTIONS.all, ...MOTIONS[id]];
     panel.querySelectorAll("[data-m]").forEach(b => b.onclick = () => list[+b.dataset.m][1]());
     panel.querySelectorAll("[data-wx]").forEach(b => b.onclick = () => { WX.force = b.dataset.wx || null; render(); });
+    panel.querySelectorAll("[data-se]").forEach(b => b.onclick = () => { setSkySeason(b.dataset.se || null); render(); });
+    panel.querySelectorAll("[data-speed]").forEach(b => b.onclick = () => { setTimeSpeed(+b.dataset.speed); render(); });
+    panel.querySelectorAll("[data-hr]").forEach(b => b.onclick = () => { setWorldHour(b.dataset.hr === "" ? null : +b.dataset.hr); render(); });
+    panel.querySelector("[data-sky]").onclick = () => newSky();
+    panel.querySelector("[data-bow]").onclick = () => { WX.force = "clear"; WX.rain = 0; WX.cover = 0.1; WX.wet = 0.8; WX.pud = 0.9; newPuddles(); WX.bowT = performance.now(); render(); };
+    panel.querySelector("[data-visit]").onclick = () => sendVisitor();
+    panel.querySelector("[data-eyes]").onclick = () => { caveEyes = { t0: performance.now(), dur: 4000, two: Math.random() < 0.5, c: Math.random() < 0.7 ? [255, 214, 90] : [255, 110, 110] }; };
+    panel.querySelectorAll("[data-ev]").forEach(b => b.onclick = () => {
+      const k = b.dataset.ev, night = () => { if (darkAt(worldHour()) < 0.8) setWorldHour(23); };
+      if (k === "meteor") { SKYEV.meteor = !SKYEV.meteor; if (SKYEV.meteor) night(); }
+      if (k === "aurora") { SKYEV.aurora = !SKYEV.aurora; if (SKYEV.aurora) night(); }
+      if (k === "plane") { if (darkAt(worldHour()) > 0.3) setWorldHour(11); nextPlane = 0; plane = null; }
+      if (k === "frog") { if (darkAt(worldHour()) > 0.3) setWorldHour(11); if (mainSeason() === "winter") setSkySeason("summer"); WX.force = "clear"; WX.rain = 0; WX.cover = 0.1; WX.wet = 0.8; WX.pud = 0.9; newPuddles(); frog = null; frogDone = false; }
+      if (k === "sparrow") { if (darkAt(worldHour()) > 0.3) setWorldHour(11); SPARROWS = []; spGo = false; nextSparrow = 0; }
+      if (k === "fluff") { setSkySeason("spring"); if (darkAt(worldHour()) > 0.3) setWorldHour(11); nextFluff = 0; }
+      render();
+    });
+    panel.querySelector("[data-bolt]").onclick = () => { if (WX.storm < 0.5) { WX.force = "storm"; render(); } startStrike(performance.now()); };
+    panel.querySelectorAll("[data-ui]").forEach(b => b.onclick = () => { uiPick = b.dataset.ui || null; applyUi(); render(); });
+    panel.querySelectorAll("[data-look]").forEach(b => b.onclick = () => { setLook(b.dataset.look); render(); });
+    panel.querySelectorAll("[data-ttl]").forEach(b => b.onclick = () => {
+      const ts = titleState(), k = b.dataset.ttl;
+      if (k === "all") TITLES.forEach(([id]) => { if (!ts.got[id]) ts.got[id] = Date.now(); });
+      if (k === "first") giveTitle("first");
+      if (k === "reset") Object.assign(ts, { got: {}, worn: null, taps: 0, menuShown: false, back: false });
+      if (k === "taps") ts.taps = TITLE_RULE.taps - 1;
+      if (k === "away") ts.back = true;                                   // as if she had been away a week: the next start gives 깨달은자
+      save(); updateHud(); toast(k === "taps" ? "한 번 더 누르면 중독 주의!" : k === "away" ? "공부를 시작하면 깨달은자!" : "칭호 상태를 바꿨어요");
+    });
     panel.querySelectorAll("[data-sleep]").forEach(b => b.onclick = () => { G.wantSleep = b.dataset.sleep === "1"; render(); });
     panel.querySelector("#tp-still").onchange = e => { still = e.target.checked; if (!still) pet.nextThink = now() + 500; };
   }
